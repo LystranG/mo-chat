@@ -112,7 +112,7 @@ public class MessageIngestService {
             }
 
             long seq = conversationSeqGenerator.next(request.conversationId());
-            trackPrivateConversation(request, seq);
+            validatePrivateConversationParticipants(request);
             long msgId = idGenerator.nextId();
             long serverTimeMs = clock.millis();
             MessageIngestEnvelope envelope = new MessageIngestEnvelope(
@@ -134,6 +134,7 @@ public class MessageIngestService {
                 throw new IllegalStateException("Ordered publish failed for conversationId=" + request.conversationId());
             }
 
+            trackPrivateConversation(request, seq);
             idempotencyStore.storeIfAbsent(request.senderUid(), request.clientMsgId(), msgId, seq);
             emitSendAck(request.senderUid(), request.clientMsgId(), msgId, seq, serverTimeMs);
             emitPrivateDelivery(request, msgId, seq, serverTimeMs);
@@ -148,16 +149,30 @@ public class MessageIngestService {
             return;
         }
 
-        if (request.peerUidLow() == null || request.peerUidHigh() == null) {
-            throw new IllegalStateException("private message requires both peer uids");
-        }
-
         receiptConversationStateStore.upsertPrivateConversation(
             request.conversationId(),
             request.peerUidLow(),
             request.peerUidHigh(),
             seq
         );
+    }
+
+    private void validatePrivateConversationParticipants(MessageIngestRequest request) {
+        if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
+            return;
+        }
+
+        if (request.peerUidLow() == null || request.peerUidHigh() == null) {
+            throw new IllegalStateException("private message requires both peer uids");
+        }
+
+        if (request.peerUidLow() <= 0 || request.peerUidHigh() <= 0 || request.peerUidLow() >= request.peerUidHigh()) {
+            throw new IllegalArgumentException("private conversation participants must be ordered and positive");
+        }
+
+        if (request.senderUid() != request.peerUidLow() && request.senderUid() != request.peerUidHigh()) {
+            throw new IllegalArgumentException("sender must be one of private conversation peers");
+        }
     }
 
     private void emitSendAck(long senderUid, long clientMsgId, long msgId, long seq, long serverTimeMs) {
