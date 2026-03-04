@@ -23,10 +23,11 @@ class SessionServiceTest {
 
         String sessionId = sessionService.issueSession(42L);
         String redisKey = "mochat:session:" + sessionId;
+        when(redisCommands.get(redisKey)).thenReturn("42");
 
         verify(redisCommands).set(redisKey, "42");
         assertEquals(Optional.of(42L), sessionService.resolveUserId(sessionId));
-        verify(redisCommands, never()).get(redisKey);
+        verify(redisCommands).get(redisKey);
     }
 
     @Test
@@ -39,7 +40,20 @@ class SessionServiceTest {
 
         assertEquals(Optional.of(52L), sessionService.resolveUserId("s-1"));
         assertEquals(Optional.of(52L), sessionService.resolveUserId("s-1"));
-        verify(redisCommands, times(1)).get("mochat:session:s-1");
+        verify(redisCommands, times(2)).get("mochat:session:s-1");
+    }
+
+    @Test
+    void resolveReturnsEmptyAfterRedisRevocationEvenWhenCachedLocally() {
+        @SuppressWarnings("unchecked")
+        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
+        SessionService sessionService = new SessionService(redisCommands, Caffeine.newBuilder().maximumSize(1_000).build());
+
+        when(redisCommands.get("mochat:session:s-1")).thenReturn("52", (String) null);
+
+        assertEquals(Optional.of(52L), sessionService.resolveUserId("s-1"));
+        assertTrue(sessionService.resolveUserId("s-1").isEmpty());
+        verify(redisCommands, times(2)).get("mochat:session:s-1");
     }
 
     @Test

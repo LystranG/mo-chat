@@ -51,21 +51,21 @@ public final class SessionService {
             return Optional.empty();
         }
 
-        Long cachedUserId = l2Cache.getIfPresent(sessionId);
-        if (cachedUserId != null) {
-            return Optional.of(cachedUserId);
-        }
-
         String redisValue = redisCommands.get(redisKey(sessionId));
         if (redisValue == null) {
+            l2Cache.invalidate(sessionId);
             return Optional.empty();
         }
 
         try {
             long userId = Long.parseLong(redisValue);
-            l2Cache.put(sessionId, userId);
+            Long cachedUserId = l2Cache.getIfPresent(sessionId);
+            if (cachedUserId == null || cachedUserId != userId) {
+                l2Cache.put(sessionId, userId);
+            }
             return Optional.of(userId);
         } catch (NumberFormatException ignored) {
+            l2Cache.invalidate(sessionId);
             return Optional.empty();
         }
     }
