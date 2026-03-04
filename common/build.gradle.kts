@@ -1,1 +1,12 @@
-// Intentionally kept as a task artifact; shared conventions live in root build.gradle.kts.
+plugins {
+    `java-library`
+}
+
+dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
