@@ -25,7 +25,12 @@ public final class UserService {
                 throw new AuthValidationException("publicKey is required for first-time login");
             }
 
-            return userRepository.create(normalizedUsername, decodeAndValidateKey(encodedPublicKey));
+            byte[] candidateKey = decodeAndValidateKey(encodedPublicKey);
+            UserProfile createdProfile = userRepository.create(normalizedUsername, candidateKey);
+            if (!Arrays.equals(createdProfile.identityPublicKey(), candidateKey)) {
+                throw new AuthValidationException("publicKey does not match persisted identity key");
+            }
+            return createdProfile;
         }
 
         UserProfile userProfile = existingUser.get();

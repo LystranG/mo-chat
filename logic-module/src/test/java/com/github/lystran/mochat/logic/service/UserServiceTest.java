@@ -3,6 +3,7 @@ package com.github.lystran.mochat.logic.service;
 import org.junit.jupiter.api.Test;
 
 import java.util.Base64;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -50,11 +51,37 @@ class UserServiceTest {
         assertEquals(created.userId(), authenticated.userId());
     }
 
+    @Test
+    void rejectsFirstTimeLoginWhenCreateReturnsProfileWithDifferentKey() {
+        UserService userService = new UserService(new UserRepository() {
+            @Override
+            public Optional<UserProfile> findByUsername(String username) {
+                return Optional.empty();
+            }
+
+            @Override
+            public UserProfile create(String username, byte[] identityPublicKey) {
+                return new UserProfile(1L, username, decodeKey(encodeKey(32, (byte) 9)));
+            }
+        });
+
+        AuthValidationException exception = assertThrows(
+            AuthValidationException.class,
+            () -> userService.loginOrRegister("alice", encodeKey(32, (byte) 7))
+        );
+
+        assertEquals("publicKey does not match persisted identity key", exception.getMessage());
+    }
+
     private static String encodeKey(int size, byte value) {
         byte[] key = new byte[size];
         for (int i = 0; i < key.length; i++) {
             key[i] = value;
         }
         return Base64.getEncoder().encodeToString(key);
+    }
+
+    private static byte[] decodeKey(String key) {
+        return Base64.getDecoder().decode(key);
     }
 }
