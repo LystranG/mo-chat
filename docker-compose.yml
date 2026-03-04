@@ -1,0 +1,46 @@
+name: ddd-demo
+
+services:
+  postgres:
+    image: docker.1ms.run/postgres:17
+    shm_size: 128mb
+    environment:
+      - POSTGRES_USER=mochat
+      - POSTGRES_PASSWORD=mochat
+      - TZ=Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - "./docker/postgres:/var/lib/postgresql/data"
+
+  redis:
+    image: docker.1ms.run/redis:7.2
+    container_name: ddd-demo-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./docker/redis:/data
+
+  rocketmq-namesrv:
+    image: docker.1ms.run/apache/rocketmq:5.3.2
+    container_name: ddd-demo-rocketmq-namesrv
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+
+  rocketmq-broker:
+    image: docker.1ms.run/apache/rocketmq:5.3.2
+    container_name: ddd-demo-rocketmq-broker
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/rocketmq-5.3.2/conf/broker.conf
+    environment:
+      - NAMESRV_ADDR=rocketmq-namesrv:9876
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "10912:10912"
+    volumes:
+      - ./docker/rocketmq/store:/home/rocketmq/store
+      - ./docker/rocketmq/conf/broker.conf:/home/rocketmq/rocketmq-5.3.2/conf/broker.conf:ro
+    depends_on:
+      - rocketmq-namesrv
