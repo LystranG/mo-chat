@@ -1,5 +1,7 @@
 package com.github.lystran.mochat.persistence;
 
+import com.github.lystran.mochat.persistence.cache.GroupMessageCache;
+import io.lettuce.core.api.sync.RedisCommands;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import java.sql.SQLException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @Testcontainers(disabledWithoutDocker = true)
 class TransactionalPersistenceTest {
@@ -45,7 +48,8 @@ class TransactionalPersistenceTest {
         mqConsumer = new MqConsumer(
             dataSource(),
             new MessageRepository(),
-            new ConversationRepository()
+            new ConversationRepository(),
+            new GroupMessageCache(mock(RedisCommands.class))
         );
         conversationRepository = new ConversationRepository();
     }

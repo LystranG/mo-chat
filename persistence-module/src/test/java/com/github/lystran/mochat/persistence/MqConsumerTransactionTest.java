@@ -1,5 +1,6 @@
 package com.github.lystran.mochat.persistence;
 
+import com.github.lystran.mochat.persistence.cache.GroupMessageCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -22,6 +23,7 @@ class MqConsumerTransactionTest {
     private final DataSource dataSource = mock(DataSource.class);
     private final MessageRepository messageRepository = mock(MessageRepository.class);
     private final ConversationRepository conversationRepository = mock(ConversationRepository.class);
+    private final GroupMessageCache groupMessageCache = mock(GroupMessageCache.class);
     private final Connection connection = mock(Connection.class);
 
     private MqConsumer mqConsumer;
@@ -30,7 +32,7 @@ class MqConsumerTransactionTest {
     void setUp() throws SQLException {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
-        mqConsumer = new MqConsumer(dataSource, messageRepository, conversationRepository);
+        mqConsumer = new MqConsumer(dataSource, messageRepository, conversationRepository, groupMessageCache);
     }
 
     @Test
@@ -46,6 +48,22 @@ class MqConsumerTransactionTest {
         callOrder.verify(connection).commit();
         callOrder.verify(connection).setAutoCommit(true);
         verify(connection, never()).rollback();
+        verify(groupMessageCache, never()).cache(message);
+    }
+
+    @Test
+    void updatesGroupCacheOnlyAfterCommit() throws SQLException {
+        MessageRepository.PersistedMessage message = groupMessage(9L, 77L, 14L, 3_100L, 91L, 5001L);
+
+        mqConsumer.persistMessage(message);
+
+        InOrder callOrder = inOrder(connection, messageRepository, conversationRepository, groupMessageCache);
+        callOrder.verify(connection).setAutoCommit(false);
+        callOrder.verify(messageRepository).insert(connection, message);
+        callOrder.verify(conversationRepository).updateLatestState(connection, 77L, 14L, 3_100L);
+        callOrder.verify(connection).commit();
+        callOrder.verify(groupMessageCache).cache(message);
+        verify(connection, never()).rollback();
     }
 
     @Test
@@ -60,6 +78,20 @@ class MqConsumerTransactionTest {
         verify(connection).rollback();
         verify(connection, never()).commit();
         verify(connection).setAutoCommit(true);
+        verify(groupMessageCache, never()).cache(message);
+    }
+
+    @Test
+    void doesNotUpdateGroupCacheWhenTransactionFails() throws SQLException {
+        MessageRepository.PersistedMessage message = groupMessage(8L, 88L, 2L, 4_000L, 92L, 5002L);
+        SQLException failure = new SQLException("insert failed");
+        doThrow(failure).when(messageRepository).insert(connection, message);
+
+        assertThrows(SQLException.class, () -> mqConsumer.persistMessage(message));
+
+        verify(connection).rollback();
+        verify(connection, never()).commit();
+        verify(groupMessageCache, never()).cache(message);
     }
 
     @Test
@@ -70,6 +102,7 @@ class MqConsumerTransactionTest {
         assertDoesNotThrow(() -> mqConsumer.persistMessage(message));
         verify(connection).commit();
         verify(connection, never()).rollback();
+        verify(groupMessageCache, never()).cache(message);
     }
 
     private static MessageRepository.PersistedMessage privateMessage(
@@ -91,6 +124,29 @@ class MqConsumerTransactionTest {
             null,
             serverTsMs,
             "cGF5bG9hZA=="
+        );
+    }
+
+    private static MessageRepository.PersistedMessage groupMessage(
+        long msgId,
+        long conversationId,
+        long seq,
+        long serverTsMs,
+        long clientMsgId,
+        long groupId
+    ) {
+        return new MessageRepository.PersistedMessage(
+            msgId,
+            conversationId,
+            seq,
+            clientMsgId,
+            "group",
+            100L,
+            null,
+            null,
+            groupId,
+            serverTsMs,
+            "Z3JvdXAtcGF5bG9hZA=="
         );
     }
 }
