@@ -4,8 +4,11 @@ import com.github.lystran.mochat.persistence.MessageRepository;
 import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.TreeMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -18,24 +21,9 @@ import static org.mockito.Mockito.mock;
 class GroupMessageCacheTest {
     @Test
     void keepsLatest500MessagesPerGroupAcrossRedisAndL1Cache() {
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
         String redisKey = "mochat:group:messages:5001";
-        TreeMap<Long, String> redisZset = new TreeMap<>();
-
-        doAnswer(invocation -> {
-            double score = invocation.getArgument(1);
-            String value = invocation.getArgument(2);
-            redisZset.put((long) score, value);
-            return 1L;
-        }).when(redisCommands).zadd(eq(redisKey), anyDouble(), anyString());
-        doAnswer(invocation -> (long) redisZset.size())
-            .when(redisCommands).zcard(eq(redisKey));
-        doAnswer(invocation -> {
-            long start = invocation.getArgument(1);
-            long stop = invocation.getArgument(2);
-            return evictByRank(redisZset, start, stop);
-        }).when(redisCommands).zremrangebyrank(eq(redisKey), anyLong(), anyLong());
+        FakeRedisZset redisZset = new FakeRedisZset();
+        RedisCommands<String, String> redisCommands = mockRedisCommands(redisKey, redisZset);
 
         GroupMessageCache groupMessageCache = new GroupMessageCache(redisCommands);
         for (int seq = 1; seq <= 505; seq++) {
@@ -48,29 +36,50 @@ class GroupMessageCacheTest {
         assertEquals(505L, recentMessages.get(recentMessages.size() - 1).seq());
 
         assertEquals(500, redisZset.size());
-        assertEquals(6L, redisZset.firstKey());
-        assertEquals(505L, redisZset.lastKey());
+        assertEquals(6L, redisZset.lowestScore());
+        assertEquals(505L, redisZset.highestScore());
     }
 
-    private static long evictByRank(TreeMap<Long, String> sortedMessages, long startRank, long stopRank) {
-        if (sortedMessages.isEmpty() || startRank > stopRank) {
-            return 0L;
-        }
+    @Test
+    void storesDistinctRedisMembersWhenPayloadsAreEqual() {
+        String redisKey = "mochat:group:messages:5001";
+        FakeRedisZset redisZset = new FakeRedisZset();
+        RedisCommands<String, String> redisCommands = mockRedisCommands(redisKey, redisZset);
 
-        if (startRank != 0L) {
-            throw new IllegalArgumentException("test helper only supports start rank 0");
-        }
+        GroupMessageCache groupMessageCache = new GroupMessageCache(redisCommands);
+        groupMessageCache.cache(groupMessage(5001L, 101L, "same-payload"));
+        groupMessageCache.cache(groupMessage(5001L, 102L, "same-payload"));
 
-        long toRemove = stopRank - startRank + 1;
-        long removed = 0L;
-        while (!sortedMessages.isEmpty() && removed < toRemove) {
-            sortedMessages.pollFirstEntry();
-            removed++;
-        }
-        return removed;
+        assertEquals(2, redisZset.size());
+        assertEquals(101L, redisZset.lowestScore());
+        assertEquals(102L, redisZset.highestScore());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static RedisCommands<String, String> mockRedisCommands(String redisKey, FakeRedisZset redisZset) {
+        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
+
+        doAnswer(invocation -> {
+            double score = invocation.getArgument(1);
+            String value = invocation.getArgument(2);
+            return redisZset.zadd(score, value);
+        }).when(redisCommands).zadd(eq(redisKey), anyDouble(), anyString());
+        doAnswer(invocation -> redisZset.size())
+            .when(redisCommands).zcard(eq(redisKey));
+        doAnswer(invocation -> {
+            long start = invocation.getArgument(1);
+            long stop = invocation.getArgument(2);
+            return redisZset.zremrangebyrank(start, stop);
+        }).when(redisCommands).zremrangebyrank(eq(redisKey), anyLong(), anyLong());
+
+        return redisCommands;
     }
 
     private static MessageRepository.PersistedMessage groupMessage(long groupId, long seq) {
+        return groupMessage(groupId, seq, "payload-" + seq);
+    }
+
+    private static MessageRepository.PersistedMessage groupMessage(long groupId, long seq, String payloadBase64) {
         return new MessageRepository.PersistedMessage(
             10_000L + seq,
             groupId,
@@ -82,7 +91,57 @@ class GroupMessageCacheTest {
             null,
             groupId,
             200_000L + seq,
-            "payload-" + seq
+            payloadBase64
         );
+    }
+
+    private static final class FakeRedisZset {
+        private final Map<String, Double> memberToScore = new HashMap<>();
+
+        long zadd(double score, String member) {
+            Double previous = memberToScore.put(member, score);
+            return previous == null ? 1L : 0L;
+        }
+
+        long zremrangebyrank(long startRank, long stopRank) {
+            if (memberToScore.isEmpty() || startRank > stopRank || stopRank < 0) {
+                return 0L;
+            }
+
+            List<Map.Entry<String, Double>> ordered = orderedEntries();
+            int from = (int) Math.max(0, startRank);
+            if (from >= ordered.size()) {
+                return 0L;
+            }
+            int to = (int) Math.min(ordered.size() - 1, stopRank);
+            long removed = 0L;
+            for (int index = from; index <= to; index++) {
+                memberToScore.remove(ordered.get(index).getKey());
+                removed++;
+            }
+            return removed;
+        }
+
+        long size() {
+            return memberToScore.size();
+        }
+
+        long lowestScore() {
+            return orderedEntries().isEmpty() ? 0L : orderedEntries().get(0).getValue().longValue();
+        }
+
+        long highestScore() {
+            List<Map.Entry<String, Double>> ordered = orderedEntries();
+            return ordered.isEmpty() ? 0L : ordered.get(ordered.size() - 1).getValue().longValue();
+        }
+
+        private List<Map.Entry<String, Double>> orderedEntries() {
+            List<Map.Entry<String, Double>> ordered = new ArrayList<>(memberToScore.entrySet());
+            ordered.sort(
+                Comparator.comparing(Map.Entry<String, Double>::getValue)
+                    .thenComparing(Map.Entry::getKey)
+            );
+            return ordered;
+        }
     }
 }

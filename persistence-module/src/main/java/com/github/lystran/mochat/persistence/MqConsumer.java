@@ -53,7 +53,11 @@ public final class MqConsumer {
         }
 
         if (committed && isGroupMessage(message)) {
-            groupMessageCache.cache(message);
+            try {
+                groupMessageCache.cache(message);
+            } catch (RuntimeException ignored) {
+                // Database commit already succeeded; cache population is best-effort only.
+            }
         }
     }
 

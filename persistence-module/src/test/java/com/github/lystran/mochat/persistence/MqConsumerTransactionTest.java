@@ -67,6 +67,23 @@ class MqConsumerTransactionTest {
     }
 
     @Test
+    void doesNotFailAfterCommitWhenGroupCacheUpdateFails() throws SQLException {
+        MessageRepository.PersistedMessage message = groupMessage(10L, 78L, 15L, 3_200L, 92L, 5001L);
+        doThrow(new RuntimeException("cache unavailable")).when(groupMessageCache).cache(message);
+
+        assertDoesNotThrow(() -> mqConsumer.persistMessage(message));
+
+        InOrder callOrder = inOrder(connection, messageRepository, conversationRepository, groupMessageCache);
+        callOrder.verify(connection).setAutoCommit(false);
+        callOrder.verify(messageRepository).insert(connection, message);
+        callOrder.verify(conversationRepository).updateLatestState(connection, 78L, 15L, 3_200L);
+        callOrder.verify(connection).commit();
+        callOrder.verify(groupMessageCache).cache(message);
+        verify(connection, never()).rollback();
+        verify(connection).setAutoCommit(true);
+    }
+
+    @Test
     void rollsBackAndRethrowsWhenMessageInsertFails() throws SQLException {
         MessageRepository.PersistedMessage message = privateMessage(2L, 77L, 1L, 3_000L, 12L);
         SQLException failure = new SQLException("insert failed");

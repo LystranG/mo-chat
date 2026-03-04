@@ -14,6 +14,7 @@ public final class GroupMessageCache {
     private static final String DEFAULT_REDIS_KEY_PREFIX = "mochat:group:messages:";
     private static final int DEFAULT_MAX_MESSAGES_PER_GROUP = 500;
     private static final long DEFAULT_L1_MAX_GROUPS = 50_000L;
+    private static final char REDIS_MEMBER_DELIMITER = '|';
 
     private final RedisCommands<String, String> redisCommands;
     private final Cache<Long, NavigableMap<Long, CachedGroupMessage>> l1Cache;
@@ -63,7 +64,7 @@ public final class GroupMessageCache {
         Objects.requireNonNull(payloadBase64, "payloadBase64");
 
         String key = redisKey(groupId);
-        redisCommands.zadd(key, (double) seq, payloadBase64);
+        redisCommands.zadd(key, (double) seq, redisMember(seq, payloadBase64));
         trimRedisWindow(key);
 
         l1Cache.asMap().compute(groupId, (ignored, existing) -> {
@@ -101,6 +102,10 @@ public final class GroupMessageCache {
 
     private String redisKey(long groupId) {
         return redisKeyPrefix + groupId;
+    }
+
+    private static String redisMember(long seq, String payloadBase64) {
+        return seq + String.valueOf(REDIS_MEMBER_DELIMITER) + payloadBase64;
     }
 
     private static boolean isGroupMessage(MessageRepository.PersistedMessage message) {
