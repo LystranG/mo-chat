@@ -18,18 +18,27 @@ import java.util.List;
 import java.util.Objects;
 
 public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
+    private static final int PROTOCOL_MAGIC = 0x4D4F4348;
+    private static final int DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS = 60;
+
     private final EventBus eventBus;
     private final SslContext sslContext;
     private final int maxFrameLength;
+    private final int heartbeatIdleTimeoutSeconds;
 
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext) {
-        this(eventBus, sslContext, FrameConstants.DEFAULT_MAX_FRAME_LENGTH);
+        this(eventBus, sslContext, FrameConstants.DEFAULT_MAX_FRAME_LENGTH, DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS);
     }
 
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext, int maxFrameLength) {
+        this(eventBus, sslContext, maxFrameLength, DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS);
+    }
+
+    public ChatChannelInitializer(EventBus eventBus, SslContext sslContext, int maxFrameLength, int heartbeatIdleTimeoutSeconds) {
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
         this.sslContext = sslContext;
         this.maxFrameLength = maxFrameLength;
+        this.heartbeatIdleTimeoutSeconds = heartbeatIdleTimeoutSeconds;
     }
 
     @Override
@@ -48,7 +57,7 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         ));
         pipeline.addLast("protobufDecodePlaceholder", new ProtobufDecodePlaceholderHandler());
         pipeline.addLast("rateLimit", new RateLimitHandler());
-        pipeline.addLast("heartbeat", new HeartbeatHandler());
+        pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIdleTimeoutSeconds));
         pipeline.addLast("inboundRouter", new InboundRouterHandler(eventBus));
     }
 
@@ -58,6 +67,11 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
             if (msg.readableBytes() < FrameConstants.HEADER_LENGTH) {
                 throw new DecoderException("frame shorter than protocol header");
+            }
+
+            int magic = msg.getInt(FrameConstants.MAGIC_OFFSET);
+            if (magic != PROTOCOL_MAGIC) {
+                throw new DecoderException("invalid protocol magic: 0x" + Integer.toHexString(magic));
             }
 
             int protocolVersion = msg.getUnsignedByte(FrameConstants.VERSION_OFFSET);
