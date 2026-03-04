@@ -45,7 +45,11 @@ public final class RedisIdempotencyStore implements IdempotencyStore {
             return Optional.empty();
         }
 
-        return Optional.of(new StoredSendResult(Long.parseLong(parts[0]), Long.parseLong(parts[1])));
+        try {
+            return Optional.of(new StoredSendResult(Long.parseLong(parts[0]), Long.parseLong(parts[1])));
+        } catch (NumberFormatException ignored) {
+            return Optional.empty();
+        }
     }
 
     @Override

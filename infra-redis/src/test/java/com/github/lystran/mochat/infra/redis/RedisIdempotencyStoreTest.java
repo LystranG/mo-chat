@@ -3,6 +3,8 @@ package com.github.lystran.mochat.infra.redis;
 import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Field;
@@ -13,8 +15,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class RedisIdempotencyStoreTest {
+    @ParameterizedTest
+    @ValueSource(strings = {"not-a-number:10", "10:not-a-number", "9223372036854775808:1", "1:9223372036854775808"})
+    void findReturnsEmptyWhenStoredValueContainsInvalidLong(String malformedValue) {
+        @SuppressWarnings("unchecked")
+        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
+        when(redisCommands.get("mochat:idempotency:11:12")).thenReturn(malformedValue);
+        var store = new RedisIdempotencyStore(redisCommands);
+
+        assertTrue(store.find(11L, 12L).isEmpty());
+    }
+
     @Test
     void storeIfAbsentUsesDefaultTtlAndNx() throws Exception {
         @SuppressWarnings("unchecked")
