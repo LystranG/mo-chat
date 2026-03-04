@@ -122,4 +122,16 @@ class JdbcReceiptConversationStateStoreTest {
         assertEquals(35L, state.latestSeq());
     }
 
+    @Test
+    void serverKnownLatestSeqCacheIsBounded() {
+        DataSource dataSource = mock(DataSource.class);
+        JdbcReceiptConversationStateStore stateStore = new JdbcReceiptConversationStateStore(dataSource, 2);
+
+        stateStore.upsertPrivateConversation(501L, 11L, 88L, 31L);
+        stateStore.upsertPrivateConversation(502L, 11L, 88L, 32L);
+        stateStore.upsertPrivateConversation(503L, 11L, 88L, 33L);
+
+        assertTrue(stateStore.estimatedServerKnownPrivateConversationCount() <= 2L);
+    }
+
 }

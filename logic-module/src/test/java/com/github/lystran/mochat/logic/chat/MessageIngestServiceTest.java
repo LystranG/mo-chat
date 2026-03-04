@@ -272,6 +272,40 @@ class MessageIngestServiceTest {
         verify(eventBus, never()).publish(eq(MessageIngestService.DEFAULT_OUTBOUND_TOPIC), any(String.class));
     }
 
+    @Test
+    void invalidPrivateParticipantsFailBeforePublishAndOutboundSideEffects() {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        EventBus eventBus = mock(EventBus.class);
+
+        when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(200L)).thenReturn(77L);
+        when(idGenerator.nextId()).thenReturn(9_123L);
+
+        MessageIngestService service = new MessageIngestService(
+            new JucConversationLock(),
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
+            rocketMqProducer,
+            eventBus
+        );
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.ingest(
+                MessageIngestRequest.privateMessage(11L, 200L, 1001L, 88L, 11L, encodedPrivateRequest(1001L, 200L, 88L))
+            )
+        );
+
+        verify(rocketMqProducer, never()).publishOrdered(any(MessageIngestEnvelope.class), eq("200"));
+        verify(idempotencyStore, never()).storeIfAbsent(11L, 1001L, 9_123L, 77L);
+        verify(eventBus, never()).publish(eq(MessageIngestService.DEFAULT_OUTBOUND_TOPIC), any(String.class));
+    }
+
     private static String encodedPrivateRequest(long clientMsgId, long conversationId, long toUid) {
         var request = Mochat.PrivateMessageReq.newBuilder()
             .setSessionId("session-test")

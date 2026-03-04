@@ -1,5 +1,7 @@
 package com.github.lystran.mochat.logic.chat;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Singleton;
 
@@ -10,12 +12,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcReceiptConversationStateStore implements ReceiptConversationStateStore {
+    private static final long DEFAULT_SERVER_KNOWN_CACHE_MAX_SIZE = 100_000L;
     private static final String FIND_PRIVATE_CONVERSATION_SQL = """
         SELECT c.id, f.uid_1, f.uid_2, c.latest_seq, c.uid_1_seq, c.uid_2_seq
         FROM conversations c
@@ -36,10 +37,20 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         """;
 
     private final DataSource dataSource;
-    private final ConcurrentMap<Long, ServerKnownPrivateConversation> serverKnownPrivateConversations = new ConcurrentHashMap<>();
+    private final Cache<Long, ServerKnownPrivateConversation> serverKnownPrivateConversations;
 
     public JdbcReceiptConversationStateStore(DataSource dataSource) {
+        this(dataSource, DEFAULT_SERVER_KNOWN_CACHE_MAX_SIZE);
+    }
+
+    JdbcReceiptConversationStateStore(DataSource dataSource, long serverKnownCacheMaxSize) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
+        if (serverKnownCacheMaxSize <= 0) {
+            throw new IllegalArgumentException("serverKnownCacheMaxSize must be > 0");
+        }
+        this.serverKnownPrivateConversations = Caffeine.newBuilder()
+            .maximumSize(serverKnownCacheMaxSize)
+            .build();
     }
 
     @Override
@@ -51,7 +62,7 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
             }
 
             PrivateConversationState state = persistedState.get();
-            ServerKnownPrivateConversation serverKnown = serverKnownPrivateConversations.get(conversationId);
+            ServerKnownPrivateConversation serverKnown = serverKnownPrivateConversations.getIfPresent(conversationId);
             if (serverKnown == null) {
                 return persistedState;
             }
@@ -85,7 +96,7 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         if (latestSeq < 0) {
             throw new IllegalArgumentException("latestSeq must be >= 0");
         }
-        serverKnownPrivateConversations.compute(conversationId, (ignored, current) -> {
+        serverKnownPrivateConversations.asMap().compute(conversationId, (ignored, current) -> {
             if (current == null) {
                 return new ServerKnownPrivateConversation(uidLow, uidHigh, latestSeq);
             }
@@ -97,6 +108,11 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
             }
             return new ServerKnownPrivateConversation(uidLow, uidHigh, latestSeq);
         });
+    }
+
+    long estimatedServerKnownPrivateConversationCount() {
+        serverKnownPrivateConversations.cleanUp();
+        return serverKnownPrivateConversations.estimatedSize();
     }
 
     @Override

@@ -112,6 +112,7 @@ public class MessageIngestService {
             }
 
             long seq = conversationSeqGenerator.next(request.conversationId());
+            trackPrivateConversation(request, seq);
             long msgId = idGenerator.nextId();
             long serverTimeMs = clock.millis();
             MessageIngestEnvelope envelope = new MessageIngestEnvelope(
@@ -136,7 +137,6 @@ public class MessageIngestService {
             idempotencyStore.storeIfAbsent(request.senderUid(), request.clientMsgId(), msgId, seq);
             emitSendAck(request.senderUid(), request.clientMsgId(), msgId, seq, serverTimeMs);
             emitPrivateDelivery(request, msgId, seq, serverTimeMs);
-            trackPrivateConversation(request, seq);
             return new MessageIngestResult(request.clientMsgId(), msgId, seq, serverTimeMs);
         } finally {
             closeLock(lockHandle);
