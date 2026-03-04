@@ -30,7 +30,13 @@ public final class AuthController {
         try {
             var userProfile = userService.loginOrRegister(loginRequest.username(), loginRequest.publicKey());
             String sessionId = sessionService.issueSession(userProfile.userId());
-            offlineReplayService.replayOnLogin(userProfile.userId());
+
+            try {
+                offlineReplayService.replayOnLogin(userProfile.userId());
+            } catch (RuntimeException ignored) {
+                // Replay is best-effort after successful authentication/session issuance.
+            }
+
             return HttpResponse.ok(new LoginResponse(userProfile.userId(), userProfile.username(), sessionId));
         } catch (AuthValidationException authValidationException) {
             return HttpResponse.badRequest(Map.of("error", authValidationException.getMessage()));

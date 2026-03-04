@@ -4,6 +4,7 @@ import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.common.offline.OfflineQueue;
 import jakarta.inject.Singleton;
 
+import java.util.List;
 import java.util.Objects;
 
 @Singleton
@@ -26,8 +27,21 @@ public final class OfflineReplayService {
     }
 
     public void replayOnLogin(long userId) {
-        for (String payload : offlineQueue.drain(userId, MAX_REPLAY_ITEMS)) {
-            eventBus.publish(outboundTopic, userId + "|" + payload);
+        List<String> drainedPayloads = offlineQueue.drain(userId, MAX_REPLAY_ITEMS);
+        for (int index = 0; index < drainedPayloads.size(); index++) {
+            String payload = drainedPayloads.get(index);
+            try {
+                eventBus.publish(outboundTopic, userId + "|" + payload);
+            } catch (RuntimeException publishFailure) {
+                reEnqueueUndeliveredPayloads(userId, drainedPayloads, index);
+                return;
+            }
+        }
+    }
+
+    private void reEnqueueUndeliveredPayloads(long userId, List<String> drainedPayloads, int firstUndeliveredIndex) {
+        for (int index = firstUndeliveredIndex; index < drainedPayloads.size(); index++) {
+            offlineQueue.enqueue(userId, drainedPayloads.get(index), MAX_REPLAY_ITEMS);
         }
     }
 }
