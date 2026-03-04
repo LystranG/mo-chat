@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package mochat.v1;
+
+option java_package = "com.github.lystran.mochat.protocol.proto";
+option java_outer_classname = "Mochat";
+
+message SendAck {
+  int64 clientMsgId = 1;
+  int64 msgId = 2;
+  int64 seq = 3;
+  int64 serverTimeMs = 4;
+}
+
+message ErrorResponse {
+  int32 errorCode = 1;
+  string message = 2;
+}
+
+message Heartbeat {
+  int64 serverTimeMs = 1;
+}
+
+message PrivateMessageReq {
+  string sessionId = 1;
+  int64 clientMsgId = 2;
+  int64 conversationId = 3;
+  int64 toUid = 4;
+  bytes nonce = 5;
+  bytes ciphertext = 6;
+}
+
+message GroupMessageReq {
+  string sessionId = 1;
+  int64 clientMsgId = 2;
+  int64 conversationId = 3;
+  int64 groupId = 4;
+  string text = 5;
+}
+
+message ChatMessageDelivery {
+  int64 msgId = 1;
+  int64 seq = 2;
+  int64 serverTimeMs = 3;
+  int64 conversationId = 4;
+  int64 fromUid = 5;
+
+  oneof payload {
+    PrivatePayload privatePayload = 10;
+    GroupPayload groupPayload = 11;
+  }
+}
+
+message PrivatePayload {
+  int64 toUid = 1;
+  bytes nonce = 2;
+  bytes ciphertext = 3;
+}
+
+message GroupPayload {
+  int64 groupId = 1;
+  string text = 2;
+}
+
+message ClientReceiveAck {
+  string sessionId = 1;
+  int64 conversationId = 2;
+  int64 latestReceivedSeq = 3;
+}
+
+message DeliveredAck {
+  int64 conversationId = 1;
+  int64 toUid = 2;
+  int64 latestReceivedSeq = 3;
+  int64 serverTimeMs = 4;
+}
