@@ -40,12 +40,8 @@ public final class RedisOfflineQueue implements OfflineQueue {
         }
 
         String key = redisKey(userId);
-        List<String> items = redisCommands.lrange(key, 0, maxItems - 1L);
-        if (!items.isEmpty()) {
-            redisCommands.ltrim(key, items.size(), -1);
-        }
-
-        return items;
+        List<String> items = redisCommands.lpop(key, maxItems);
+        return items == null ? List.of() : items;
     }
 
     private String redisKey(long userId) {
