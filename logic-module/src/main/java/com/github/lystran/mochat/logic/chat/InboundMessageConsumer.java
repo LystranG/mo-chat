@@ -1,0 +1,126 @@
+package com.github.lystran.mochat.logic.chat;
+
+import com.github.lystran.mochat.common.event.EventBus;
+import com.github.lystran.mochat.logic.service.SessionService;
+import com.github.lystran.mochat.protocol.MsgType;
+import com.github.lystran.mochat.protocol.SerializerType;
+import com.github.lystran.mochat.protocol.proto.Mochat;
+import com.google.protobuf.InvalidProtocolBufferException;
+import jakarta.inject.Singleton;
+
+import java.util.Base64;
+import java.util.Objects;
+
+@Singleton
+public final class InboundMessageConsumer implements AutoCloseable {
+    public static final String DEFAULT_INBOUND_TOPIC = "connection.inbound";
+
+    private final EventBus eventBus;
+    private final SessionService sessionService;
+    private final MessageIngestService messageIngestService;
+    private final String inboundTopic;
+    private AutoCloseable subscription = () -> {
+    };
+
+    public InboundMessageConsumer(
+        EventBus eventBus,
+        SessionService sessionService,
+        MessageIngestService messageIngestService
+    ) {
+        this(eventBus, sessionService, messageIngestService, DEFAULT_INBOUND_TOPIC);
+    }
+
+    public InboundMessageConsumer(
+        EventBus eventBus,
+        SessionService sessionService,
+        MessageIngestService messageIngestService,
+        String inboundTopic
+    ) {
+        this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
+        this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
+        this.messageIngestService = Objects.requireNonNull(messageIngestService, "messageIngestService");
+        this.inboundTopic = Objects.requireNonNull(inboundTopic, "inboundTopic");
+    }
+
+    public void start() {
+        subscription = eventBus.subscribe(inboundTopic, this::consume);
+    }
+
+    @Override
+    public void close() throws Exception {
+        subscription.close();
+    }
+
+    private void consume(String inboundEvent) {
+        String[] segments = inboundEvent.split("\\|", 3);
+        if (segments.length != 3) {
+            return;
+        }
+
+        MsgType msgType;
+        SerializerType serializerType;
+        byte[] body;
+        try {
+            msgType = MsgType.valueOf(segments[0]);
+            serializerType = SerializerType.valueOf(segments[1]);
+            body = Base64.getDecoder().decode(segments[2]);
+        } catch (IllegalArgumentException ignored) {
+            return;
+        }
+
+        if (serializerType != SerializerType.PROTOBUF) {
+            return;
+        }
+
+        if (msgType == MsgType.PRIVATE_MESSAGE) {
+            consumePrivate(body);
+        } else if (msgType == MsgType.GROUP_MESSAGE) {
+            consumeGroup(body);
+        }
+    }
+
+    private void consumePrivate(byte[] body) {
+        try {
+            var request = Mochat.PrivateMessageReq.parseFrom(body);
+            var senderUid = sessionService.resolveUserId(request.getSessionId());
+            if (senderUid.isEmpty()) {
+                return;
+            }
+
+            long peerUidLow = Math.min(senderUid.get(), request.getToUid());
+            long peerUidHigh = Math.max(senderUid.get(), request.getToUid());
+            messageIngestService.ingest(
+                MessageIngestRequest.privateMessage(
+                    senderUid.get(),
+                    request.getConversationId(),
+                    request.getClientMsgId(),
+                    peerUidLow,
+                    peerUidHigh,
+                    Base64.getEncoder().encodeToString(body)
+                )
+            );
+        } catch (InvalidProtocolBufferException ignored) {
+        }
+    }
+
+    private void consumeGroup(byte[] body) {
+        try {
+            var request = Mochat.GroupMessageReq.parseFrom(body);
+            var senderUid = sessionService.resolveUserId(request.getSessionId());
+            if (senderUid.isEmpty()) {
+                return;
+            }
+
+            messageIngestService.ingest(
+                MessageIngestRequest.groupMessage(
+                    senderUid.get(),
+                    request.getConversationId(),
+                    request.getClientMsgId(),
+                    request.getGroupId(),
+                    Base64.getEncoder().encodeToString(body)
+                )
+            );
+        } catch (InvalidProtocolBufferException ignored) {
+        }
+    }
+}

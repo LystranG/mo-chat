@@ -3,10 +3,13 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":common"))
+    implementation(project(":protocol"))
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     implementation("io.micronaut:micronaut-http:4.9.0")
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     implementation("jakarta.inject:jakarta.inject-api:2.0.1")
+    implementation("org.apache.rocketmq:rocketmq-client:5.3.2")
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.1")
     implementation("commons-codec:commons-codec:1.17.2")
