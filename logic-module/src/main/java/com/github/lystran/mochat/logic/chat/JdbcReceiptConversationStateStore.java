@@ -10,6 +10,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Singleton
 @Requires(beans = DataSource.class)
@@ -34,6 +36,7 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         """;
 
     private final DataSource dataSource;
+    private final ConcurrentMap<Long, ServerKnownPrivateConversation> serverKnownPrivateConversations = new ConcurrentHashMap<>();
 
     public JdbcReceiptConversationStateStore(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
@@ -42,7 +45,33 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
     @Override
     public Optional<PrivateConversationState> findPrivateConversation(long conversationId) {
         try (Connection connection = dataSource.getConnection()) {
-            return findPrivateConversation(connection, conversationId);
+            Optional<PrivateConversationState> persistedState = findPrivateConversation(connection, conversationId);
+            if (persistedState.isEmpty()) {
+                return Optional.empty();
+            }
+
+            PrivateConversationState state = persistedState.get();
+            ServerKnownPrivateConversation serverKnown = serverKnownPrivateConversations.get(conversationId);
+            if (serverKnown == null) {
+                return persistedState;
+            }
+            if (serverKnown.uidLow() != state.uidLow() || serverKnown.uidHigh() != state.uidHigh()) {
+                throw new IllegalStateException("conversation participants mismatch");
+            }
+            if (serverKnown.latestSeq() <= state.latestSeq()) {
+                return persistedState;
+            }
+
+            return Optional.of(
+                new PrivateConversationState(
+                    state.conversationId(),
+                    state.uidLow(),
+                    state.uidHigh(),
+                    serverKnown.latestSeq(),
+                    state.uidLowSeq(),
+                    state.uidHighSeq()
+                )
+            );
         } catch (SQLException sqlException) {
             throw new IllegalStateException("failed to load private conversation state", sqlException);
         }
@@ -56,7 +85,18 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         if (latestSeq < 0) {
             throw new IllegalArgumentException("latestSeq must be >= 0");
         }
-        // DB-backed mode reads authoritative conversation state directly on demand.
+        serverKnownPrivateConversations.compute(conversationId, (ignored, current) -> {
+            if (current == null) {
+                return new ServerKnownPrivateConversation(uidLow, uidHigh, latestSeq);
+            }
+            if (current.uidLow() != uidLow || current.uidHigh() != uidHigh) {
+                throw new IllegalStateException("conversation participants mismatch");
+            }
+            if (latestSeq <= current.latestSeq()) {
+                return current;
+            }
+            return new ServerKnownPrivateConversation(uidLow, uidHigh, latestSeq);
+        });
     }
 
     @Override
@@ -113,5 +153,8 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
                 );
             }
         }
+    }
+
+    private record ServerKnownPrivateConversation(long uidLow, long uidHigh, long latestSeq) {
     }
 }
