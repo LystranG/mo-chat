@@ -13,12 +13,44 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisEventBusTest {
+    @Test
+    void subscribeFailureRollsBackLocalStateForRetry() throws Exception {
+        @SuppressWarnings("unchecked")
+        RedisCommands<String, String> publisher = mock(RedisCommands.class);
+        @SuppressWarnings("unchecked")
+        StatefulRedisPubSubConnection<String, String> subscriberConnection = mock(StatefulRedisPubSubConnection.class);
+        @SuppressWarnings("unchecked")
+        RedisPubSubCommands<String, String> pubSubCommands = mock(RedisPubSubCommands.class);
+        when(subscriberConnection.sync()).thenReturn(pubSubCommands);
+
+        doThrow(new RuntimeException("subscribe failed"))
+            .doNothing()
+            .when(pubSubCommands)
+            .subscribe("topic");
+
+        var eventBus = new RedisEventBus(publisher, subscriberConnection);
+
+        assertThrows(RuntimeException.class, () -> eventBus.subscribe("topic", ignored -> {
+        }));
+
+        AutoCloseable retrySubscriber = eventBus.subscribe("topic", ignored -> {
+        });
+        retrySubscriber.close();
+
+        verify(pubSubCommands, times(2)).subscribe("topic");
+        verify(pubSubCommands).unsubscribe("topic");
+    }
+
     @Test
     void closeAndSubscribeRaceEndsWithActiveSubscription() throws Exception {
         @SuppressWarnings("unchecked")

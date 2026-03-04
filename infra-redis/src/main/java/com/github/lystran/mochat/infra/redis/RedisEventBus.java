@@ -60,7 +60,15 @@ public final class RedisEventBus implements EventBus {
             subscribers.add(subscriber);
 
             if (firstSubscriber) {
-                subscriberConnection.sync().subscribe(topic);
+                try {
+                    subscriberConnection.sync().subscribe(topic);
+                } catch (RuntimeException subscribeFailure) {
+                    subscribers.remove(subscriber);
+                    if (subscribers.isEmpty()) {
+                        subscribersByTopic.remove(topic, subscribers);
+                    }
+                    throw subscribeFailure;
+                }
             }
         }
 
