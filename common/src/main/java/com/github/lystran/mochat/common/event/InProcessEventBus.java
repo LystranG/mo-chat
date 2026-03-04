@@ -19,7 +19,11 @@ public final class InProcessEventBus implements EventBus {
         }
 
         for (var subscriber : subscribers) {
-            subscriber.accept(event);
+            try {
+                subscriber.accept(event);
+            } catch (RuntimeException ignored) {
+                // Best-effort fan-out: one failing subscriber must not block others.
+            }
         }
     }
 
