@@ -1,7 +1,19 @@
 package com.github.lystran.mochat.logic.http;
 
+import com.github.lystran.mochat.common.event.EventBus;
+import com.github.lystran.mochat.common.event.InProcessEventBus;
+import com.github.lystran.mochat.common.id.IdGenerator;
+import com.github.lystran.mochat.common.idempotency.IdempotencyStore;
+import com.github.lystran.mochat.common.lock.ConversationLock;
+import com.github.lystran.mochat.common.lock.JucConversationLock;
+import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
+import com.github.lystran.mochat.logic.chat.OfflineReplayService;
+import com.github.lystran.mochat.logic.mq.RocketMqProducer;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.annotation.Property;
+import io.micronaut.context.annotation.Primary;
+import io.micronaut.context.annotation.Requires;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.HttpClient;
@@ -22,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @MicronautTest
+@Property(name = "spec.name", value = "auth-controller-http")
 class AuthControllerHttpTest {
     @Inject
     @Client("/")
@@ -78,11 +91,50 @@ class AuthControllerHttpTest {
     }
 
     @Factory
+    @Requires(property = "spec.name", value = "auth-controller-http")
     static class TestBeans {
         @jakarta.inject.Singleton
         @SuppressWarnings("unchecked")
         RedisCommands<String, String> redisCommands() {
             return Mockito.mock(RedisCommands.class);
+        }
+
+        @jakarta.inject.Singleton
+        @io.micronaut.context.annotation.Replaces(OfflineReplayService.class)
+        OfflineReplayService offlineReplayService() {
+            return Mockito.mock(OfflineReplayService.class);
+        }
+
+        @jakarta.inject.Singleton
+        @Primary
+        EventBus eventBus() {
+            return new InProcessEventBus();
+        }
+
+        @jakarta.inject.Singleton
+        ConversationLock conversationLock() {
+            return new JucConversationLock();
+        }
+
+        @jakarta.inject.Singleton
+        IdempotencyStore idempotencyStore() {
+            return Mockito.mock(IdempotencyStore.class);
+        }
+
+        @jakarta.inject.Singleton
+        ConversationSeqGenerator conversationSeqGenerator() {
+            return Mockito.mock(ConversationSeqGenerator.class);
+        }
+
+        @jakarta.inject.Singleton
+        IdGenerator idGenerator() {
+            return Mockito.mock(IdGenerator.class);
+        }
+
+        @jakarta.inject.Singleton
+        @io.micronaut.context.annotation.Replaces(RocketMqProducer.class)
+        RocketMqProducer rocketMqProducer() {
+            return Mockito.mock(RocketMqProducer.class);
         }
     }
 }

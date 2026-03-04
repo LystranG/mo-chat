@@ -1,7 +1,7 @@
 package com.github.lystran.mochat.logic.chat;
 
-import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.common.id.IdGenerator;
+import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.common.idempotency.IdempotencyStore;
 import com.github.lystran.mochat.common.lock.ConversationLock;
 import com.github.lystran.mochat.common.lock.JucConversationLock;
@@ -15,6 +15,7 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.context.annotation.Replaces;
+import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Singleton;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class InboundMessageConsumerLifecycleTest {
     void startupSubscribesInboundEventIngestsAndShutdownUnsubscribes() throws Exception {
         RecordingEventBus recordingEventBus;
 
-        try (ApplicationContext context = ApplicationContext.run()) {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
             recordingEventBus = context.getBean(RecordingEventBus.class);
             IdempotencyStore idempotencyStore = context.getBean(IdempotencyStore.class);
             ConversationSeqGenerator conversationSeqGenerator = context.getBean(ConversationSeqGenerator.class);
@@ -77,9 +78,14 @@ class InboundMessageConsumerLifecycleTest {
             assertEquals(MessageIngestRequest.KIND_PRIVATE, envelope.kind());
 
             List<String> outboundEvents = recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC);
-            assertEquals(1, outboundEvents.size());
+            assertEquals(2, outboundEvents.size());
 
-            String[] parts = outboundEvents.getFirst().split("\\|", 4);
+            String[] parts = outboundEvents
+                .stream()
+                .map(event -> event.split("\\|", 4))
+                .filter(segments -> MsgType.SEND_ACK.name().equals(segments[1]))
+                .findFirst()
+                .orElseThrow();
             assertEquals("11", parts[0]);
             assertEquals(MsgType.SEND_ACK.name(), parts[1]);
             assertEquals(SerializerType.PROTOBUF.name(), parts[2]);
@@ -96,15 +102,12 @@ class InboundMessageConsumerLifecycleTest {
     }
 
     @Factory
+    @Requires(property = "spec.name", value = "inbound-lifecycle")
     static class TestBeans {
         @Singleton
+        @Primary
         RecordingEventBus recordingEventBus() {
             return new RecordingEventBus();
-        }
-
-        @Singleton
-        EventBus eventBus(RecordingEventBus recordingEventBus) {
-            return recordingEventBus;
         }
 
         @Singleton

@@ -9,6 +9,7 @@ import com.github.lystran.mochat.logic.mq.RocketMqProducer;
 import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
+import com.google.protobuf.InvalidProtocolBufferException;
 import jakarta.inject.Singleton;
 
 import java.time.Clock;
@@ -126,6 +127,7 @@ public class MessageIngestService {
 
             idempotencyStore.storeIfAbsent(request.senderUid(), request.clientMsgId(), msgId, seq);
             emitSendAck(request.senderUid(), request.clientMsgId(), msgId, seq, serverTimeMs);
+            emitPrivateDelivery(request, msgId, seq, serverTimeMs);
             return new MessageIngestResult(request.clientMsgId(), msgId, seq, serverTimeMs);
         } finally {
             closeLock(lockHandle);
@@ -140,10 +142,61 @@ public class MessageIngestService {
             .setServerTimeMs(serverTimeMs)
             .build();
 
-        String encodedPayload = Base64.getEncoder().encodeToString(sendAck.toByteArray());
-        String outboundEvent = senderUid
+        emitOutboundEvent(senderUid, MsgType.SEND_ACK, sendAck.toByteArray());
+    }
+
+    private void emitPrivateDelivery(MessageIngestRequest request, long msgId, long seq, long serverTimeMs) {
+        if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
+            return;
+        }
+
+        long recipientUid = resolvePrivateRecipientUid(request.senderUid(), request.peerUidLow(), request.peerUidHigh());
+        var delivery = Mochat.ChatMessageDelivery.newBuilder()
+            .setMsgId(msgId)
+            .setSeq(seq)
+            .setServerTimeMs(serverTimeMs)
+            .setConversationId(request.conversationId())
+            .setFromUid(request.senderUid())
+            .setPrivatePayload(buildPrivatePayload(request.payloadBase64(), recipientUid))
+            .build();
+
+        emitOutboundEvent(recipientUid, MsgType.PRIVATE_MESSAGE, delivery.toByteArray());
+    }
+
+    private Mochat.PrivatePayload buildPrivatePayload(String requestPayloadBase64, long recipientUid) {
+        try {
+            byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
+            var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
+            return Mochat.PrivatePayload.newBuilder()
+                .setToUid(recipientUid)
+                .setNonce(privateRequest.getNonce())
+                .setCiphertext(privateRequest.getCiphertext())
+                .build();
+        } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
+            throw new IllegalStateException("Unable to build private delivery payload", parseFailure);
+        }
+    }
+
+    private long resolvePrivateRecipientUid(long senderUid, Long peerUidLow, Long peerUidHigh) {
+        if (peerUidLow == null || peerUidHigh == null) {
+            throw new IllegalStateException("private message requires both peer uids");
+        }
+
+        if (senderUid == peerUidLow) {
+            return peerUidHigh;
+        }
+        if (senderUid == peerUidHigh) {
+            return peerUidLow;
+        }
+
+        throw new IllegalStateException("sender must be one of private conversation peers");
+    }
+
+    private void emitOutboundEvent(long userId, MsgType msgType, byte[] payloadBytes) {
+        String encodedPayload = Base64.getEncoder().encodeToString(payloadBytes);
+        String outboundEvent = userId
             + "|"
-            + MsgType.SEND_ACK.name()
+            + msgType.name()
             + "|"
             + SerializerType.PROTOBUF.name()
             + "|"

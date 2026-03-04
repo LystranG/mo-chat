@@ -1,5 +1,6 @@
 package com.github.lystran.mochat.logic.http;
 
+import com.github.lystran.mochat.logic.chat.OfflineReplayService;
 import com.github.lystran.mochat.logic.service.AuthValidationException;
 import com.github.lystran.mochat.logic.service.SessionService;
 import com.github.lystran.mochat.logic.service.UserService;
@@ -16,10 +17,12 @@ import java.util.Objects;
 public final class AuthController {
     private final UserService userService;
     private final SessionService sessionService;
+    private final OfflineReplayService offlineReplayService;
 
-    public AuthController(UserService userService, SessionService sessionService) {
+    public AuthController(UserService userService, SessionService sessionService, OfflineReplayService offlineReplayService) {
         this.userService = Objects.requireNonNull(userService, "userService");
         this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
+        this.offlineReplayService = Objects.requireNonNull(offlineReplayService, "offlineReplayService");
     }
 
     @Post("/login")
@@ -27,6 +30,7 @@ public final class AuthController {
         try {
             var userProfile = userService.loginOrRegister(loginRequest.username(), loginRequest.publicKey());
             String sessionId = sessionService.issueSession(userProfile.userId());
+            offlineReplayService.replayOnLogin(userProfile.userId());
             return HttpResponse.ok(new LoginResponse(userProfile.userId(), userProfile.username(), sessionId));
         } catch (AuthValidationException authValidationException) {
             return HttpResponse.badRequest(Map.of("error", authValidationException.getMessage()));
