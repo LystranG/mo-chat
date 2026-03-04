@@ -1,3 +1,7 @@
+import org.gradle.api.tasks.StopExecutionException
+import org.graalvm.buildtools.gradle.tasks.BuildNativeImageTask
+import java.io.File
+
 plugins {
     application
     id("org.graalvm.buildtools.native") version "0.11.1"
@@ -24,6 +28,39 @@ graalvmNative {
         named("main") {
             imageName.set("mo-chat")
             buildArgs.add("-Ob")
+        }
+    }
+}
+
+tasks.named<BuildNativeImageTask>("nativeCompile") {
+    doFirst("skipWhenNativeImageIsMissing") {
+        val configuredJavaHome = options.get().javaLauncher.orNull
+            ?.metadata
+            ?.installationPath
+            ?.asFile
+
+        val candidateHomes = mutableListOf<File>()
+        configuredJavaHome?.let(candidateHomes::add)
+        System.getenv("GRAALVM_HOME")?.takeIf { it.isNotBlank() }?.let(::File)?.let(candidateHomes::add)
+        System.getenv("JAVA_HOME")?.takeIf { it.isNotBlank() }?.let(::File)?.let(candidateHomes::add)
+        candidateHomes.add(File(System.getProperty("java.home")))
+
+        val nativeImageExecutable = candidateHomes
+            .asSequence()
+            .flatMap { home ->
+                sequenceOf(
+                    home.resolve("bin/native-image"),
+                    home.resolve("bin/native-image.cmd"),
+                    home.resolve("bin/native-image.exe")
+                )
+            }
+            .firstOrNull { it.isFile }
+
+        if (nativeImageExecutable == null) {
+            logger.lifecycle(
+                "Skipping :app:nativeCompile: native-image is unavailable in javaLauncher/GRAALVM_HOME/JAVA_HOME/java.home."
+            )
+            throw StopExecutionException("native-image unavailable")
         }
     }
 }
