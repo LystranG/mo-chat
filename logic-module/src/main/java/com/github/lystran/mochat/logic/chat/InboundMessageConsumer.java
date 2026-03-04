@@ -6,12 +6,16 @@ import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.micronaut.context.annotation.Context;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
 
 import java.util.Base64;
 import java.util.Objects;
 
 @Singleton
+@Context
 public final class InboundMessageConsumer implements AutoCloseable {
     public static final String DEFAULT_INBOUND_TOPIC = "connection.inbound";
 
@@ -42,13 +46,21 @@ public final class InboundMessageConsumer implements AutoCloseable {
         this.inboundTopic = Objects.requireNonNull(inboundTopic, "inboundTopic");
     }
 
+    @PostConstruct
     public void start() {
         subscription = eventBus.subscribe(inboundTopic, this::consume);
     }
 
+    @PreDestroy
     @Override
-    public void close() throws Exception {
-        subscription.close();
+    public void close() {
+        try {
+            subscription.close();
+        } catch (RuntimeException runtimeException) {
+            throw runtimeException;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to close inbound subscription", exception);
+        }
     }
 
     private void consume(String inboundEvent) {
