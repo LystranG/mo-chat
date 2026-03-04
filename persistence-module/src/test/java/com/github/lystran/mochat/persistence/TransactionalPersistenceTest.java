@@ -25,6 +25,7 @@ class TransactionalPersistenceTest {
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     private MqConsumer mqConsumer;
+    private ConversationRepository conversationRepository;
 
     @BeforeEach
     void setUp() {
@@ -46,6 +47,7 @@ class TransactionalPersistenceTest {
             new MessageRepository(),
             new ConversationRepository()
         );
+        conversationRepository = new ConversationRepository();
     }
 
     @Test
@@ -69,6 +71,25 @@ class TransactionalPersistenceTest {
 
         assertTrue(exception.getMessage().contains("messages_conversation_fk"));
         assertEquals(0, messageCount(msgId));
+    }
+
+    @Test
+    void privateReceiptSeqIsUpdatedMonotonicallyWithGreatest() throws SQLException {
+        insertConversation(42L, 20L, 1_000L);
+
+        try (Connection connection = DriverManager.getConnection(
+            POSTGRES.getJdbcUrl(),
+            POSTGRES.getUsername(),
+            POSTGRES.getPassword()
+        )) {
+            long first = conversationRepository.updatePrivateReceiptSeq(connection, 42L, 200L, 100L, 200L, 7L);
+            long second = conversationRepository.updatePrivateReceiptSeq(connection, 42L, 200L, 100L, 200L, 5L);
+
+            assertEquals(7L, first);
+            assertEquals(7L, second);
+        }
+
+        assertEquals(new ReceiptState(0L, 7L), receiptState(42L));
     }
 
     private DataSource dataSource() {
@@ -117,6 +138,26 @@ class TransactionalPersistenceTest {
         }
     }
 
+    private ReceiptState receiptState(long conversationId) throws SQLException {
+        String sql = """
+            SELECT uid_1_seq, uid_2_seq
+            FROM conversations
+            WHERE id = ?
+            """;
+
+        try (Connection connection = DriverManager.getConnection(
+            POSTGRES.getJdbcUrl(),
+            POSTGRES.getUsername(),
+            POSTGRES.getPassword()
+        ); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, conversationId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                return new ReceiptState(resultSet.getLong(1), resultSet.getLong(2));
+            }
+        }
+    }
+
     private int messageCount(long msgId) throws SQLException {
         String sql = """
             SELECT COUNT(*)
@@ -160,5 +201,8 @@ class TransactionalPersistenceTest {
     }
 
     private record ConversationState(long latestSeq, long latestMessageTime) {
+    }
+
+    private record ReceiptState(long uid1Seq, long uid2Seq) {
     }
 }

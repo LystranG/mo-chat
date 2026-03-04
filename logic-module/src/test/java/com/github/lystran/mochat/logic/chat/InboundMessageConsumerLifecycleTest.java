@@ -101,6 +101,42 @@ class InboundMessageConsumerLifecycleTest {
         assertEquals(1, recordingEventBus.closedSubscriptionCount());
     }
 
+    @Test
+    void clientReceiveAckPublishesDeliveredAckToPeerSender() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
+            RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
+            ReceiptConversationStateStore stateStore = context.getBean(ReceiptConversationStateStore.class);
+            stateStore.upsertPrivateConversation(200L, 11L, 88L, 30L);
+
+            Mochat.ClientReceiveAck ack = Mochat.ClientReceiveAck.newBuilder()
+                .setSessionId("session-2")
+                .setConversationId(200L)
+                .setLatestReceivedSeq(28L)
+                .build();
+            String inboundEvent = MsgType.CLIENT_RECEIVE_ACK.name()
+                + "|"
+                + SerializerType.PROTOBUF.name()
+                + "|"
+                + Base64.getEncoder().encodeToString(ack.toByteArray());
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
+
+            String[] parts = recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC)
+                .stream()
+                .map(event -> event.split("\\|", 4))
+                .filter(segments -> MsgType.DELIVERED_ACK.name().equals(segments[1]))
+                .findFirst()
+                .orElseThrow();
+            assertEquals("11", parts[0]);
+            assertEquals(MsgType.DELIVERED_ACK.name(), parts[1]);
+            assertEquals(SerializerType.PROTOBUF.name(), parts[2]);
+
+            Mochat.DeliveredAck deliveredAck = Mochat.DeliveredAck.parseFrom(Base64.getDecoder().decode(parts[3]));
+            assertEquals(200L, deliveredAck.getConversationId());
+            assertEquals(88L, deliveredAck.getToUid());
+            assertEquals(28L, deliveredAck.getLatestReceivedSeq());
+        }
+    }
+
     @Factory
     @Requires(property = "spec.name", value = "inbound-lifecycle")
     static class TestBeans {
@@ -142,6 +178,7 @@ class InboundMessageConsumerLifecycleTest {
         RedisCommands<String, String> redisCommands() {
             RedisCommands<String, String> redisCommands = Mockito.mock(RedisCommands.class);
             when(redisCommands.get("mochat:session:session-1")).thenReturn("11");
+            when(redisCommands.get("mochat:session:session-2")).thenReturn("88");
             return redisCommands;
         }
 

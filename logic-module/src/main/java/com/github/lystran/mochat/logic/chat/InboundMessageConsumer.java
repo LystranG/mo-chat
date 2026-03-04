@@ -22,6 +22,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
     private final EventBus eventBus;
     private final SessionService sessionService;
     private final MessageIngestService messageIngestService;
+    private final ReceiptService receiptService;
     private final String inboundTopic;
     private AutoCloseable subscription = () -> {
     };
@@ -29,20 +30,23 @@ public final class InboundMessageConsumer implements AutoCloseable {
     public InboundMessageConsumer(
         EventBus eventBus,
         SessionService sessionService,
-        MessageIngestService messageIngestService
+        MessageIngestService messageIngestService,
+        ReceiptService receiptService
     ) {
-        this(eventBus, sessionService, messageIngestService, DEFAULT_INBOUND_TOPIC);
+        this(eventBus, sessionService, messageIngestService, receiptService, DEFAULT_INBOUND_TOPIC);
     }
 
     public InboundMessageConsumer(
         EventBus eventBus,
         SessionService sessionService,
         MessageIngestService messageIngestService,
+        ReceiptService receiptService,
         String inboundTopic
     ) {
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
         this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
         this.messageIngestService = Objects.requireNonNull(messageIngestService, "messageIngestService");
+        this.receiptService = Objects.requireNonNull(receiptService, "receiptService");
         this.inboundTopic = Objects.requireNonNull(inboundTopic, "inboundTopic");
     }
 
@@ -88,6 +92,8 @@ public final class InboundMessageConsumer implements AutoCloseable {
             consumePrivate(body);
         } else if (msgType == MsgType.GROUP_MESSAGE) {
             consumeGroup(body);
+        } else if (msgType == MsgType.CLIENT_RECEIVE_ACK) {
+            consumeReceipt(body);
         }
     }
 
@@ -131,6 +137,23 @@ public final class InboundMessageConsumer implements AutoCloseable {
                     request.getGroupId(),
                     Base64.getEncoder().encodeToString(body)
                 )
+            );
+        } catch (InvalidProtocolBufferException ignored) {
+        }
+    }
+
+    private void consumeReceipt(byte[] body) {
+        try {
+            var receiptAck = Mochat.ClientReceiveAck.parseFrom(body);
+            var receiverUid = sessionService.resolveUserId(receiptAck.getSessionId());
+            if (receiverUid.isEmpty()) {
+                return;
+            }
+
+            receiptService.handleClientReceiveAck(
+                receiverUid.get(),
+                receiptAck.getConversationId(),
+                receiptAck.getLatestReceivedSeq()
             );
         } catch (InvalidProtocolBufferException ignored) {
         }

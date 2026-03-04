@@ -10,6 +10,7 @@ import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
 import com.google.protobuf.InvalidProtocolBufferException;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import java.time.Clock;
@@ -27,15 +28,18 @@ public class MessageIngestService {
     private final Clock clock;
     private final RocketMqProducer rocketMqProducer;
     private final EventBus eventBus;
+    private final ReceiptConversationStateStore receiptConversationStateStore;
     private final String outboundTopic;
 
+    @Inject
     public MessageIngestService(
         ConversationLock conversationLock,
         IdempotencyStore idempotencyStore,
         ConversationSeqGenerator conversationSeqGenerator,
         IdGenerator idGenerator,
         RocketMqProducer rocketMqProducer,
-        EventBus eventBus
+        EventBus eventBus,
+        ReceiptConversationStateStore receiptConversationStateStore
     ) {
         this(
             conversationLock,
@@ -45,6 +49,7 @@ public class MessageIngestService {
             Clock.systemUTC(),
             rocketMqProducer,
             eventBus,
+            receiptConversationStateStore,
             DEFAULT_OUTBOUND_TOPIC
         );
     }
@@ -66,6 +71,7 @@ public class MessageIngestService {
             clock,
             rocketMqProducer,
             eventBus,
+            new InMemoryReceiptConversationStateStore(),
             DEFAULT_OUTBOUND_TOPIC
         );
     }
@@ -78,6 +84,7 @@ public class MessageIngestService {
         Clock clock,
         RocketMqProducer rocketMqProducer,
         EventBus eventBus,
+        ReceiptConversationStateStore receiptConversationStateStore,
         String outboundTopic
     ) {
         this.conversationLock = Objects.requireNonNull(conversationLock, "conversationLock");
@@ -87,6 +94,7 @@ public class MessageIngestService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.rocketMqProducer = Objects.requireNonNull(rocketMqProducer, "rocketMqProducer");
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
+        this.receiptConversationStateStore = Objects.requireNonNull(receiptConversationStateStore, "receiptConversationStateStore");
         this.outboundTopic = Objects.requireNonNull(outboundTopic, "outboundTopic");
     }
 
@@ -128,10 +136,28 @@ public class MessageIngestService {
             idempotencyStore.storeIfAbsent(request.senderUid(), request.clientMsgId(), msgId, seq);
             emitSendAck(request.senderUid(), request.clientMsgId(), msgId, seq, serverTimeMs);
             emitPrivateDelivery(request, msgId, seq, serverTimeMs);
+            trackPrivateConversation(request, seq);
             return new MessageIngestResult(request.clientMsgId(), msgId, seq, serverTimeMs);
         } finally {
             closeLock(lockHandle);
         }
+    }
+
+    private void trackPrivateConversation(MessageIngestRequest request, long seq) {
+        if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
+            return;
+        }
+
+        if (request.peerUidLow() == null || request.peerUidHigh() == null) {
+            throw new IllegalStateException("private message requires both peer uids");
+        }
+
+        receiptConversationStateStore.upsertPrivateConversation(
+            request.conversationId(),
+            request.peerUidLow(),
+            request.peerUidHigh(),
+            seq
+        );
     }
 
     private void emitSendAck(long senderUid, long clientMsgId, long msgId, long seq, long serverTimeMs) {
