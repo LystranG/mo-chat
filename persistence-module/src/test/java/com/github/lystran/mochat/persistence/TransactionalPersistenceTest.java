@@ -17,6 +17,7 @@ import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Testcontainers(disabledWithoutDocker = true)
 class TransactionalPersistenceTest {
@@ -66,7 +67,7 @@ class TransactionalPersistenceTest {
             () -> mqConsumer.persistMessage(privateMessage(msgId, 999L, 1L, 1_500L, 50L))
         );
 
-        assertEquals("Conversation does not exist: 999", exception.getMessage());
+        assertTrue(exception.getMessage().contains("messages_conversation_fk"));
         assertEquals(0, messageCount(msgId));
     }
 

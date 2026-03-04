@@ -25,6 +25,7 @@ public final class MqConsumer {
 
         try (Connection connection = dataSource.getConnection()) {
             boolean previousAutoCommit = connection.getAutoCommit();
+            Throwable failure = null;
             connection.setAutoCommit(false);
             try {
                 messageRepository.insert(connection, message);
@@ -36,11 +37,24 @@ public final class MqConsumer {
                 );
                 connection.commit();
             } catch (SQLException | RuntimeException exception) {
+                failure = exception;
                 rollbackQuietly(connection, exception);
                 throw exception;
             } finally {
-                connection.setAutoCommit(previousAutoCommit);
+                restoreAutoCommit(connection, previousAutoCommit, failure);
             }
+        }
+    }
+
+    private static void restoreAutoCommit(Connection connection, boolean autoCommit, Throwable failure) throws SQLException {
+        try {
+            connection.setAutoCommit(autoCommit);
+        } catch (SQLException resetException) {
+            if (failure != null) {
+                failure.addSuppressed(resetException);
+                return;
+            }
+            // Transaction was already committed; avoid surfacing cleanup-only failures.
         }
     }
 
