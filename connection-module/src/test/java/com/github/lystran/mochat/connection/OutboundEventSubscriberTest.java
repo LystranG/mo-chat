@@ -61,6 +61,40 @@ class OutboundEventSubscriberTest {
         assertEquals(50, enqueued.maxQueueSize());
     }
 
+    @Test
+    void offlineDeliveredAckIsNotQueued() {
+        var eventBus = new InProcessEventBus();
+        var directory = new InMemoryDirectory();
+        var queue = new RecordingOfflineQueue();
+        var subscriber = new OutboundEventSubscriber(eventBus, directory, queue);
+        subscriber.start();
+
+        eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|DELIVERED_ACK|PROTOBUF|payload-base64");
+
+        assertEquals(0, queue.entries.size());
+    }
+
+    @Test
+    void failedWriteDeliveredAckIsNotQueued() {
+        var eventBus = new InProcessEventBus();
+        var directory = new InMemoryDirectory();
+        var queue = new RecordingOfflineQueue();
+        var subscriber = new OutboundEventSubscriber(eventBus, directory, queue);
+        subscriber.start();
+
+        var failingChannel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+                promise.setFailure(new IllegalStateException("write failed"));
+            }
+        });
+        directory.bind(42L, failingChannel);
+
+        eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|DELIVERED_ACK|PROTOBUF|payload-base64");
+
+        assertEquals(0, queue.entries.size());
+    }
+
     private static final class InMemoryDirectory implements UserChannelDirectory<Channel> {
         private final ConcurrentMap<Long, Channel> channels = new ConcurrentHashMap<>();
 

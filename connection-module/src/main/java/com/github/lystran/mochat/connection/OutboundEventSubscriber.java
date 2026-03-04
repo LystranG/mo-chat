@@ -3,6 +3,7 @@ package com.github.lystran.mochat.connection;
 import com.github.lystran.mochat.common.directory.UserChannelDirectory;
 import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.common.offline.OfflineQueue;
+import com.github.lystran.mochat.protocol.MsgType;
 import io.netty.channel.Channel;
 
 import java.util.Objects;
@@ -10,6 +11,8 @@ import java.util.Objects;
 public final class OutboundEventSubscriber implements AutoCloseable {
     public static final String DEFAULT_OUTBOUND_TOPIC = "connection.outbound";
     public static final int OFFLINE_QUEUE_MAX_SIZE = 50;
+    private static final String DELIVERED_ACK = MsgType.DELIVERED_ACK.name();
+    private static final String DELIVERED_ACK_PREFIX = DELIVERED_ACK + "|";
 
     private final EventBus eventBus;
     private final UserChannelDirectory<Channel> userChannelDirectory;
@@ -78,6 +81,13 @@ public final class OutboundEventSubscriber implements AutoCloseable {
     }
 
     private void queueOffline(long userId, String payload) {
+        if (isDeliveredAckPayload(payload)) {
+            return;
+        }
         offlineQueue.enqueue(userId, payload, OFFLINE_QUEUE_MAX_SIZE);
+    }
+
+    private boolean isDeliveredAckPayload(String payload) {
+        return payload.equals(DELIVERED_ACK) || payload.startsWith(DELIVERED_ACK_PREFIX);
     }
 }
