@@ -1,6 +1,7 @@
 package com.github.lystran.mochat.logic.http;
 
 import com.github.lystran.mochat.logic.service.HistoryService;
+import com.github.lystran.mochat.logic.service.ConversationStateService;
 import com.github.lystran.mochat.logic.service.SessionService;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.Nullable;
@@ -17,17 +18,27 @@ import java.util.Objects;
 @Requires(beans = HistoryService.class)
 public final class HistoryController {
     private final HistoryService historyService;
+    private final ConversationStateService conversationStateService;
     private final SessionService sessionService;
 
-    public HistoryController(HistoryService historyService, SessionService sessionService) {
+    public HistoryController(
+        HistoryService historyService,
+        ConversationStateService conversationStateService,
+        SessionService sessionService
+    ) {
         this.historyService = Objects.requireNonNull(historyService, "historyService");
+        this.conversationStateService = Objects.requireNonNull(conversationStateService, "conversationStateService");
         this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
     }
 
     @Get
     public HttpResponse<?> history(@QueryValue String sessionId, long conversationId, @Nullable Long cursorSeq, @Nullable @QueryValue Integer limit) {
-        if (sessionService.resolveUserId(sessionId).isEmpty()) {
+        var requesterUid = sessionService.resolveUserId(sessionId);
+        if (requesterUid.isEmpty()) {
             return HttpResponse.unauthorized().body(Map.of("error", "invalid session"));
+        }
+        if (!conversationStateService.hasConversationAccess(conversationId, requesterUid.get())) {
+            return HttpResponse.notFound();
         }
 
         int resolvedLimit = limit == null ? HistoryService.DEFAULT_LIMIT : limit;

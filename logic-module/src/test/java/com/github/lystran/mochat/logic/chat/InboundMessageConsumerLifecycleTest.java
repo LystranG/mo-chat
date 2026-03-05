@@ -79,6 +79,14 @@ class InboundMessageConsumerLifecycleTest {
             assertEquals(11L, envelope.senderUid());
             assertEquals(MessageIngestRequest.KIND_PRIVATE, envelope.kind());
 
+            Mochat.PrivateMessageReq persistedPrivatePayload = Mochat.PrivateMessageReq.parseFrom(
+                Base64.getDecoder().decode(envelope.payloadBase64())
+            );
+            assertTrue(persistedPrivatePayload.getSessionId().isEmpty());
+            assertEquals(1001L, persistedPrivatePayload.getClientMsgId());
+            assertEquals(200L, persistedPrivatePayload.getConversationId());
+            assertEquals(88L, persistedPrivatePayload.getToUid());
+
             List<String> outboundEvents = recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC);
             assertEquals(2, outboundEvents.size());
 
@@ -136,6 +144,50 @@ class InboundMessageConsumerLifecycleTest {
             assertEquals(200L, deliveredAck.getConversationId());
             assertEquals(88L, deliveredAck.getToUid());
             assertEquals(28L, deliveredAck.getLatestReceivedSeq());
+        }
+    }
+
+    @Test
+    void groupMessageStripsSessionIdFromPersistedPayload() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
+            RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
+            IdempotencyStore idempotencyStore = context.getBean(IdempotencyStore.class);
+            ConversationSeqGenerator conversationSeqGenerator = context.getBean(ConversationSeqGenerator.class);
+            IdGenerator idGenerator = context.getBean(IdGenerator.class);
+            RecordingRocketMqProducer rocketMqProducer = context.getBean(RecordingRocketMqProducer.class);
+
+            when(idempotencyStore.find(11L, 2002L)).thenReturn(Optional.empty());
+            when(conversationSeqGenerator.next(300L)).thenReturn(5L);
+            when(idGenerator.nextId()).thenReturn(18_001L);
+
+            Mochat.GroupMessageReq request = Mochat.GroupMessageReq.newBuilder()
+                .setSessionId("session-1")
+                .setClientMsgId(2002L)
+                .setConversationId(300L)
+                .setGroupId(300L)
+                .setText("hello-group")
+                .build();
+
+            String inboundEvent = MsgType.GROUP_MESSAGE.name()
+                + "|"
+                + SerializerType.PROTOBUF.name()
+                + "|"
+                + Base64.getEncoder().encodeToString(request.toByteArray());
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
+
+            MessageIngestEnvelope envelope = rocketMqProducer.lastEnvelope();
+            assertEquals(300L, envelope.conversationId());
+            assertEquals(11L, envelope.senderUid());
+            assertEquals(MessageIngestRequest.KIND_GROUP, envelope.kind());
+
+            Mochat.GroupMessageReq persistedGroupPayload = Mochat.GroupMessageReq.parseFrom(
+                Base64.getDecoder().decode(envelope.payloadBase64())
+            );
+            assertTrue(persistedGroupPayload.getSessionId().isEmpty());
+            assertEquals(2002L, persistedGroupPayload.getClientMsgId());
+            assertEquals(300L, persistedGroupPayload.getConversationId());
+            assertEquals(300L, persistedGroupPayload.getGroupId());
+            assertEquals("hello-group", persistedGroupPayload.getText());
         }
     }
 

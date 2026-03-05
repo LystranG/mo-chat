@@ -25,11 +25,59 @@ public final class JdbcConversationStateRepository implements ConversationStateR
         FROM conversations
         WHERE id = ?
         """;
+    private static final String HAS_CONVERSATION_ACCESS_SQL = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM conversations c
+            WHERE c.id = ?
+              AND (
+                (
+                    c.type = 0
+                    AND EXISTS (
+                        SELECT 1
+                        FROM user_friendships f
+                        WHERE f.id = c.id
+                          AND (? = f.uid_1 OR ? = f.uid_2)
+                    )
+                )
+                OR
+                (
+                    c.type = 1
+                    AND EXISTS (
+                        SELECT 1
+                        FROM group_memberships gm
+                        WHERE gm.group_id = c.id
+                          AND gm.user_id = ?
+                          AND gm.status = 'active'
+                    )
+                )
+              )
+        )
+        """;
 
     private final DataSource dataSource;
 
     public JdbcConversationStateRepository(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
+    }
+
+    @Override
+    public boolean hasConversationAccess(long conversationId, long requesterUid) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(HAS_CONVERSATION_ACCESS_SQL)) {
+            statement.setLong(1, conversationId);
+            statement.setLong(2, requesterUid);
+            statement.setLong(3, requesterUid);
+            statement.setLong(4, requesterUid);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return false;
+                }
+                return resultSet.getBoolean(1);
+            }
+        } catch (SQLException sqlException) {
+            throw new IllegalStateException("failed to verify conversation access", sqlException);
+        }
     }
 
     @Override

@@ -114,7 +114,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
                     request.getClientMsgId(),
                     peerUidLow,
                     peerUidHigh,
-                    Base64.getEncoder().encodeToString(body)
+                    encodeWithoutSession(request)
                 )
             );
         } catch (InvalidProtocolBufferException ignored) {
@@ -135,7 +135,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
                     request.getConversationId(),
                     request.getClientMsgId(),
                     request.getGroupId(),
-                    Base64.getEncoder().encodeToString(body)
+                    encodeWithoutSession(request)
                 )
             );
         } catch (InvalidProtocolBufferException ignored) {
@@ -157,5 +157,13 @@ public final class InboundMessageConsumer implements AutoCloseable {
             );
         } catch (InvalidProtocolBufferException ignored) {
         }
+    }
+
+    private static String encodeWithoutSession(Mochat.PrivateMessageReq request) {
+        return Base64.getEncoder().encodeToString(request.toBuilder().clearSessionId().build().toByteArray());
+    }
+
+    private static String encodeWithoutSession(Mochat.GroupMessageReq request) {
+        return Base64.getEncoder().encodeToString(request.toBuilder().clearSessionId().build().toByteArray());
     }
 }

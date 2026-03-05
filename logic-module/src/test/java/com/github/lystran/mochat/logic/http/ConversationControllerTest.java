@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,7 @@ class ConversationControllerTest {
         ConversationStateService stateService = mock(ConversationStateService.class);
         SessionService sessionService = mock(SessionService.class);
         when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(11L));
+        when(stateService.hasConversationAccess(910L, 11L)).thenReturn(true);
         when(stateService.findConversationLatestState(910L)).thenReturn(
             Optional.of(new ConversationStateService.ConversationLatestState(910L, 123L, 456789L))
         );
@@ -57,7 +59,24 @@ class ConversationControllerTest {
         assertEquals(123L, body.latestSeq());
         assertEquals(456789L, body.latestMessageTime());
         verify(sessionService).resolveUserId("session-ok");
+        verify(stateService).hasConversationAccess(910L, 11L);
         verify(stateService).findConversationLatestState(910L);
+    }
+
+    @Test
+    void rejectsLatestStateRequestWhenRequesterCannotAccessConversation() {
+        ConversationStateService stateService = mock(ConversationStateService.class);
+        SessionService sessionService = mock(SessionService.class);
+        when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(11L));
+        when(stateService.hasConversationAccess(910L, 11L)).thenReturn(false);
+
+        ConversationController controller = new ConversationController(stateService, sessionService);
+        var response = controller.latestState(910L, "session-ok");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatus());
+        verify(sessionService).resolveUserId("session-ok");
+        verify(stateService).hasConversationAccess(910L, 11L);
+        verify(stateService, never()).findConversationLatestState(910L);
     }
 
     @Test

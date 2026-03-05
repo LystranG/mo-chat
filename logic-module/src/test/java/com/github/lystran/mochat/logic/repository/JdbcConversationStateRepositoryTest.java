@@ -69,4 +69,29 @@ class JdbcConversationStateRepositoryTest {
         assertTrue(sqlCaptor.getValue().contains("latest_seq"));
         assertTrue(sqlCaptor.getValue().contains("latest_message_time"));
     }
+
+    @Test
+    void confirmsConversationAccessForPrivateOrGroupParticipants() throws SQLException {
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        PreparedStatement statement = mock(PreparedStatement.class);
+        ResultSet resultSet = mock(ResultSet.class);
+
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getBoolean(1)).thenReturn(true);
+
+        JdbcConversationStateRepository repository = new JdbcConversationStateRepository(dataSource);
+        boolean hasAccess = repository.hasConversationAccess(301L, 11L);
+
+        assertTrue(hasAccess);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(connection).prepareStatement(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("user_friendships"));
+        assertTrue(sql.contains("group_memberships"));
+    }
 }

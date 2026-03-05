@@ -16,6 +16,10 @@ public final class ConversationStateService {
         this.conversationStateRepository = Objects.requireNonNull(conversationStateRepository, "conversationStateRepository");
     }
 
+    public boolean hasConversationAccess(long conversationId, long requesterUid) {
+        return conversationStateRepository.hasConversationAccess(conversationId, requesterUid);
+    }
+
     public Optional<Long> findPrivatePeerLatestReceivedSeq(long conversationId, long requesterUid) {
         return conversationStateRepository.findPrivatePeerLatestReceivedSeq(conversationId, requesterUid);
     }

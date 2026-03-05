@@ -36,8 +36,12 @@ public final class ConversationController {
 
     @Get("/{conversationId}/state")
     public HttpResponse<?> latestState(long conversationId, @QueryValue String sessionId) {
-        if (sessionService.resolveUserId(sessionId).isEmpty()) {
+        var requesterUid = sessionService.resolveUserId(sessionId);
+        if (requesterUid.isEmpty()) {
             return HttpResponse.unauthorized().body(Map.of("error", "invalid session"));
+        }
+        if (!conversationStateService.hasConversationAccess(conversationId, requesterUid.get())) {
+            return HttpResponse.notFound();
         }
 
         return conversationStateService.findConversationLatestState(conversationId)
