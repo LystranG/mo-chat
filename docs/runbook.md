@@ -15,6 +15,9 @@ From repository root:
 ```bash
 podman compose up -d
 podman compose ps
+for port in 5432 6379 9876 10909 10911 10912; do
+  ss -ltn | rg -q ":${port}\\b" && echo "ok:${port}" || echo "missing:${port}"
+done
 ```
 
 Expected services:
@@ -34,7 +37,7 @@ podman compose down
 
 - `podman compose up -d` started all required services: Postgres, Redis, RocketMQ NameServer, RocketMQ Broker.
 - `podman compose ps` showed all four services in `Up` state.
-- `ss -ltn | rg '5432|6379|9876|10909|10911|10912'` confirmed listeners for all expected dependency ports.
+- `for port in 5432 6379 9876 10909 10911 10912; ...; done` printed `ok:<port>` for all six dependency ports.
 - `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
 - `docker-compose.yml` runs broker with image defaults (no host-mounted `broker.conf` or `store` paths) because those bind mounts triggered startup instability in this environment.
 
