@@ -39,6 +39,8 @@ class MessageIngestServiceTest {
         IdGenerator idGenerator = mock(IdGenerator.class);
         RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
         EventBus eventBus = mock(EventBus.class);
+        InMemoryReceiptConversationStateStore receiptStateStore = new InMemoryReceiptConversationStateStore();
+        receiptStateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
 
         Mochat.PrivateMessageReq privateMessageReq = Mochat.PrivateMessageReq.newBuilder()
             .setSessionId("session-1")
@@ -61,7 +63,9 @@ class MessageIngestServiceTest {
             idGenerator,
             Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
             rocketMqProducer,
-            eventBus
+            eventBus,
+            receiptStateStore,
+            MessageIngestService.DEFAULT_OUTBOUND_TOPIC
         );
 
         service.ingest(MessageIngestRequest.privateMessage(
@@ -99,6 +103,8 @@ class MessageIngestServiceTest {
         IdGenerator idGenerator = mock(IdGenerator.class);
         RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
         EventBus eventBus = mock(EventBus.class);
+        InMemoryReceiptConversationStateStore receiptStateStore = new InMemoryReceiptConversationStateStore();
+        receiptStateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
 
         when(idempotencyStore.find(11L, 1001L))
             .thenReturn(Optional.empty())
@@ -114,7 +120,9 @@ class MessageIngestServiceTest {
             idGenerator,
             Clock.fixed(Instant.ofEpochMilli(123_456L), ZoneOffset.UTC),
             rocketMqProducer,
-            eventBus
+            eventBus,
+            receiptStateStore,
+            MessageIngestService.DEFAULT_OUTBOUND_TOPIC
         );
 
         MessageIngestRequest request = MessageIngestRequest.privateMessage(
@@ -142,6 +150,8 @@ class MessageIngestServiceTest {
         IdGenerator idGenerator = mock(IdGenerator.class);
         RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
         EventBus eventBus = mock(EventBus.class);
+        InMemoryReceiptConversationStateStore receiptStateStore = new InMemoryReceiptConversationStateStore();
+        receiptStateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
 
         when(idempotencyStore.find(eq(11L), any(Long.class))).thenReturn(Optional.empty());
         when(seqGenerator.next(200L)).thenReturn(10L, 11L);
@@ -155,7 +165,9 @@ class MessageIngestServiceTest {
             idGenerator,
             Clock.fixed(Instant.ofEpochMilli(456_789L), ZoneOffset.UTC),
             rocketMqProducer,
-            eventBus
+            eventBus,
+            receiptStateStore,
+            MessageIngestService.DEFAULT_OUTBOUND_TOPIC
         );
 
         MessageIngestResult first = service.ingest(MessageIngestRequest.privateMessage(
@@ -189,6 +201,8 @@ class MessageIngestServiceTest {
         IdGenerator idGenerator = mock(IdGenerator.class);
         RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
         EventBus eventBus = mock(EventBus.class);
+        InMemoryReceiptConversationStateStore receiptStateStore = new InMemoryReceiptConversationStateStore();
+        receiptStateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
 
         when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
         when(seqGenerator.next(200L)).thenReturn(77L);
@@ -203,7 +217,9 @@ class MessageIngestServiceTest {
             idGenerator,
             clock,
             rocketMqProducer,
-            eventBus
+            eventBus,
+            receiptStateStore,
+            MessageIngestService.DEFAULT_OUTBOUND_TOPIC
         );
 
         service.ingest(MessageIngestRequest.privateMessage(
@@ -303,6 +319,83 @@ class MessageIngestServiceTest {
             IllegalArgumentException.class,
             () -> service.ingest(
                 MessageIngestRequest.privateMessage(11L, 200L, 1001L, 88L, 11L, encodedPrivateRequest(1001L, 200L, 88L))
+            )
+        );
+
+        verify(rocketMqProducer, never()).publishOrdered(any(MessageIngestEnvelope.class), eq("200"));
+        verify(idempotencyStore, never()).storeIfAbsent(11L, 1001L, 9_123L, 77L);
+        verify(eventBus, never()).publish(eq(MessageIngestService.DEFAULT_OUTBOUND_TOPIC), any(String.class));
+    }
+
+    @Test
+    void privateConversationMustExistBeforePublish() {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        EventBus eventBus = mock(EventBus.class);
+        InMemoryReceiptConversationStateStore receiptStateStore = new InMemoryReceiptConversationStateStore();
+
+        when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(200L)).thenReturn(77L);
+        when(idGenerator.nextId()).thenReturn(9_123L);
+        when(rocketMqProducer.publishOrdered(any(MessageIngestEnvelope.class), eq("200"))).thenReturn(true);
+
+        MessageIngestService service = new MessageIngestService(
+            new JucConversationLock(),
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
+            rocketMqProducer,
+            eventBus,
+            receiptStateStore,
+            MessageIngestService.DEFAULT_OUTBOUND_TOPIC
+        );
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.ingest(
+                MessageIngestRequest.privateMessage(11L, 200L, 1001L, 11L, 88L, encodedPrivateRequest(1001L, 200L, 88L))
+            )
+        );
+
+        verify(rocketMqProducer, never()).publishOrdered(any(MessageIngestEnvelope.class), eq("200"));
+        verify(idempotencyStore, never()).storeIfAbsent(11L, 1001L, 9_123L, 77L);
+        verify(eventBus, never()).publish(eq(MessageIngestService.DEFAULT_OUTBOUND_TOPIC), any(String.class));
+    }
+
+    @Test
+    void privateConversationParticipantsMustMatchConversationState() {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        EventBus eventBus = mock(EventBus.class);
+        InMemoryReceiptConversationStateStore receiptStateStore = new InMemoryReceiptConversationStateStore();
+        receiptStateStore.upsertPrivateConversation(200L, 11L, 99L, 70L);
+
+        when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(200L)).thenReturn(77L);
+        when(idGenerator.nextId()).thenReturn(9_123L);
+        when(rocketMqProducer.publishOrdered(any(MessageIngestEnvelope.class), eq("200"))).thenReturn(true);
+
+        MessageIngestService service = new MessageIngestService(
+            new JucConversationLock(),
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
+            rocketMqProducer,
+            eventBus,
+            receiptStateStore,
+            MessageIngestService.DEFAULT_OUTBOUND_TOPIC
+        );
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.ingest(
+                MessageIngestRequest.privateMessage(11L, 200L, 1001L, 11L, 88L, encodedPrivateRequest(1001L, 200L, 88L))
             )
         );
 

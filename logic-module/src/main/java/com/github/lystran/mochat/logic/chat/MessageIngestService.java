@@ -111,8 +111,8 @@ public class MessageIngestService {
                 return new MessageIngestResult(request.clientMsgId(), existing.msgId(), existing.seq(), serverTimeMs);
             }
 
-            long seq = conversationSeqGenerator.next(request.conversationId());
             validatePrivateConversationParticipants(request);
+            long seq = conversationSeqGenerator.next(request.conversationId());
             long msgId = idGenerator.nextId();
             long serverTimeMs = clock.millis();
             MessageIngestEnvelope envelope = new MessageIngestEnvelope(
@@ -172,6 +172,12 @@ public class MessageIngestService {
 
         if (request.senderUid() != request.peerUidLow() && request.senderUid() != request.peerUidHigh()) {
             throw new IllegalArgumentException("sender must be one of private conversation peers");
+        }
+
+        var conversationState = receiptConversationStateStore.findPrivateConversation(request.conversationId())
+            .orElseThrow(() -> new IllegalArgumentException("private conversation not found: " + request.conversationId()));
+        if (conversationState.uidLow() != request.peerUidLow() || conversationState.uidHigh() != request.peerUidHigh()) {
+            throw new IllegalArgumentException("private conversation participants mismatch");
         }
     }
 

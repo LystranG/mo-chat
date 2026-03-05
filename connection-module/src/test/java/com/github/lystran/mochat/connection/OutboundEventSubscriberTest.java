@@ -3,6 +3,10 @@ package com.github.lystran.mochat.connection;
 import com.github.lystran.mochat.common.directory.UserChannelDirectory;
 import com.github.lystran.mochat.common.event.InProcessEventBus;
 import com.github.lystran.mochat.common.offline.OfflineQueue;
+import com.github.lystran.mochat.protocol.FrameConstants;
+import com.github.lystran.mochat.protocol.MsgType;
+import com.github.lystran.mochat.protocol.SerializerType;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
@@ -19,6 +23,37 @@ import java.util.concurrent.ConcurrentMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class OutboundEventSubscriberTest {
+    @Test
+    void onlineRecipientReceivesFramedPayload() {
+        var eventBus = new InProcessEventBus();
+        var directory = new InMemoryDirectory();
+        var queue = new RecordingOfflineQueue();
+        var subscriber = new OutboundEventSubscriber(eventBus, directory, queue);
+        subscriber.start();
+
+        var channel = new EmbeddedChannel();
+        directory.bind(42L, channel);
+
+        eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|PRIVATE_MESSAGE|PROTOBUF|AQID");
+
+        Object outbound = channel.readOutbound();
+        ByteBuf frame = (ByteBuf) outbound;
+        try {
+            assertEquals(FrameConstants.HEADER_LENGTH + 3, frame.readableBytes());
+            assertEquals(0x4D4F4348, frame.readInt());
+            assertEquals(FrameConstants.PROTOCOL_VERSION, frame.readUnsignedByte());
+            assertEquals(MsgType.PRIVATE_MESSAGE.code(), frame.readUnsignedByte());
+            assertEquals(SerializerType.PROTOBUF.code(), frame.readUnsignedByte());
+            assertEquals(3, frame.readInt());
+            assertEquals(1, frame.readUnsignedByte());
+            assertEquals(2, frame.readUnsignedByte());
+            assertEquals(3, frame.readUnsignedByte());
+        } finally {
+            frame.release();
+        }
+        assertEquals(0, queue.entries.size());
+    }
+
     @Test
     void offlineRecipientIsQueuedWithCap50() {
         var eventBus = new InProcessEventBus();

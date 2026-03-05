@@ -47,6 +47,8 @@ class InboundMessageConsumerLifecycleTest {
             ConversationSeqGenerator conversationSeqGenerator = context.getBean(ConversationSeqGenerator.class);
             IdGenerator idGenerator = context.getBean(IdGenerator.class);
             RecordingRocketMqProducer rocketMqProducer = context.getBean(RecordingRocketMqProducer.class);
+            ReceiptConversationStateStore stateStore = context.getBean(ReceiptConversationStateStore.class);
+            stateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
 
             assertEquals(1, recordingEventBus.subscriberCount(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC));
 
