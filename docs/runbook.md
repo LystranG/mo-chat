@@ -36,7 +36,7 @@ podman compose down
 - `podman compose ps` showed all four services in `Up` state.
 - `ss -ltn | rg '5432|6379|9876|10909|10911|10912'` confirmed listeners for all expected dependency ports.
 - `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
-- `docker-compose.yml` uses broker container local storage (no host bind mount) because host-mounted broker store triggered startup instability in this environment.
+- `docker-compose.yml` runs broker with image defaults (no host-mounted `broker.conf` or `store` paths) because those bind mounts triggered startup instability in this environment.
 
 ## Build, test, and run commands
 
@@ -53,7 +53,7 @@ From repository root:
 Runtime probes:
 
 ```bash
-ss -ltn | rg ':(8080|9000)\\b'
+ss -ltn | rg ':(8080|9000)\b'
 curl -fsS http://127.0.0.1:8080/health
 ```
 
@@ -64,7 +64,7 @@ curl -fsS http://127.0.0.1:8080/health
 - `./gradlew test`: `BUILD SUCCESSFUL` (all module tests up-to-date)
 - `./gradlew :app:run`: `BUILD SUCCESSFUL`, then exits quickly with `No embedded container found. Running as CLI application`
 - `./gradlew :app:nativeCompile`: `BUILD SUCCESSFUL` (`UP-TO-DATE` in this environment)
-- `ss -ltn | rg ':(8080|9000)\\b'`: no app listener ports found.
+- `ss -ltn | rg ':(8080|9000)\b'`: no app listener ports found.
 - `curl -fsS http://127.0.0.1:8080/health`: failed with `Could not connect to server`.
 
 Interpretation:
