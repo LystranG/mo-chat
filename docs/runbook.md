@@ -32,10 +32,11 @@ podman compose down
 
 ### Verified outcome (2026-03-04)
 
-- `podman compose up -d` partially started Postgres/Redis/NameServer.
-- `rocketmq-broker` failed to start with:
-  - `error mounting .../docker/rocketmq/conf/broker.conf ... not a directory`
-- Root cause in current repo state: `docker/rocketmq/conf/broker.conf` is a directory, but `docker-compose.yml` mounts it as a file.
+- `podman compose up -d` started all required services: Postgres, Redis, RocketMQ NameServer, RocketMQ Broker.
+- `podman compose ps` showed all four services in `Up` state.
+- `ss -ltn | rg '5432|6379|9876|10909|10911|10912'` confirmed listeners for all expected dependency ports.
+- `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
+- `docker-compose.yml` uses broker container local storage (no host bind mount) because host-mounted broker store triggered startup instability in this environment.
 
 ## Build, test, and run commands
 
@@ -49,6 +50,13 @@ From repository root:
 ./gradlew :app:nativeCompile
 ```
 
+Runtime probes:
+
+```bash
+ss -ltn | rg ':(8080|9000)\\b'
+curl -fsS http://127.0.0.1:8080/health
+```
+
 ### Verified outcome (2026-03-04)
 
 - `./gradlew :app:test`: `BUILD SUCCESSFUL`
@@ -56,6 +64,13 @@ From repository root:
 - `./gradlew test`: `BUILD SUCCESSFUL` (all module tests up-to-date)
 - `./gradlew :app:run`: `BUILD SUCCESSFUL`, then exits quickly with `No embedded container found. Running as CLI application`
 - `./gradlew :app:nativeCompile`: `BUILD SUCCESSFUL` (`UP-TO-DATE` in this environment)
+- `ss -ltn | rg ':(8080|9000)\\b'`: no app listener ports found.
+- `curl -fsS http://127.0.0.1:8080/health`: failed with `Could not connect to server`.
+
+Interpretation:
+
+- Current `app` module is still CLI-mode bootstrap (no embedded HTTP server bean).
+- HTTP endpoint and Netty TCP listener verification are therefore **blocked by current implementation scope**, not by environment.
 
 ## Config keys overview
 

@@ -32,15 +32,12 @@ services:
   rocketmq-broker:
     image: docker.1ms.run/apache/rocketmq:5.3.2
     container_name: ddd-demo-rocketmq-broker
-    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/rocketmq-5.3.2/conf/broker.conf
+    command: sh mqbroker -n rocketmq-namesrv:9876
     environment:
       - NAMESRV_ADDR=rocketmq-namesrv:9876
     ports:
       - "10909:10909"
       - "10911:10911"
       - "10912:10912"
-    volumes:
-      - ./docker/rocketmq/store:/home/rocketmq/store
-      - ./docker/rocketmq/conf/broker.conf:/home/rocketmq/rocketmq-5.3.2/conf/broker.conf:ro
     depends_on:
       - rocketmq-namesrv
