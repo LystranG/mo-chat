@@ -33,13 +33,13 @@ Stop dependencies:
 podman compose down
 ```
 
-### Verified outcome (2026-03-04)
+### Verified outcome (2026-03-07)
 
-- `podman compose up -d` started all required services: Postgres, Redis, RocketMQ NameServer, RocketMQ Broker.
-- `podman compose ps` showed all four services in `Up` state.
-- `for port in 5432 6379 9876 10909 10911 10912; ...; done` printed `ok:<port>` for all six dependency ports.
+- `podman compose up -d` started Postgres, Redis, RocketMQ NameServer, and RocketMQ Broker.
+- `podman compose ps` showed all four dependency services in `Up` state.
+- `for port in 5432 6379 9876 10909 10911 10912; ...; done` printed `ok:<port>` for all dependency ports.
 - `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
-- `docker-compose.yml` runs broker with image defaults (no host-mounted `broker.conf` or `store` paths) because those bind mounts triggered startup instability in this environment.
+- Local app defaults were aligned with `docker-compose.yml`: PostgreSQL now defaults to `jdbc:postgresql://localhost:5432/mochat` with `mochat` / `mochat` credentials.
 
 ## Build, test, and run commands
 
@@ -57,32 +57,42 @@ Runtime probes:
 
 ```bash
 ss -ltn | rg ':(8080|9000)\b'
-curl -fsS http://127.0.0.1:8080/health
+curl -fsS http://127.0.0.1:8080/friends
 ```
 
-### Verified outcome (2026-03-04)
+### Verified outcome (2026-03-07)
 
-- `./gradlew :app:test`: `BUILD SUCCESSFUL`
-- `./gradlew :app:build`: `BUILD SUCCESSFUL`
-- `./gradlew test`: `BUILD SUCCESSFUL` (all module tests up-to-date)
-- `./gradlew :app:run`: `BUILD SUCCESSFUL`, then exits quickly with `No embedded container found. Running as CLI application`
-- `./gradlew :app:nativeCompile`: `BUILD SUCCESSFUL` (`UP-TO-DATE` in this environment)
-- `ss -ltn | rg ':(8080|9000)\b'`: no app listener ports found.
-- `curl -fsS http://127.0.0.1:8080/health`: failed with `Could not connect to server`.
+- `./gradlew :app:test --tests com.github.lystran.mochat.AppRuntimeAssemblyTest --rerun-tasks`: `BUILD SUCCESSFUL`
+- `./gradlew :persistence-module:test --tests com.github.lystran.mochat.persistence.RocketMqPersistenceConsumerTest --rerun-tasks`: `BUILD SUCCESSFUL`
+- `./gradlew test --rerun-tasks`: `BUILD SUCCESSFUL`
+- `./gradlew :app:run` with local dependencies running opened both `8080` and `9000` listeners.
+- `curl -fsS http://127.0.0.1:8080/friends` returned the scaffold response payload from `FriendsController`.
+- `./gradlew :app:nativeCompile` was not re-verified in this round.
 
 Interpretation:
 
-- Current `app` module is still CLI-mode bootstrap (no embedded HTTP server bean).
-- HTTP endpoint and Netty TCP listener verification are therefore **blocked by current implementation scope**, not by environment.
+- `app` is no longer CLI-only bootstrap; it now starts the Micronaut HTTP server and the Netty TCP listener as a composed runtime.
+- Startup now eagerly creates PostgreSQL, Redis, and RocketMQ clients, runs Flyway migrations by default, then starts HTTP and TCP listeners.
+- The RocketMQ persistence consumer also starts on boot unless `mochat.rocketmq.consumer.enabled=false`.
 
 ## Config keys overview
 
-Current keys present in repository configuration:
+Current runtime keys in `app/src/main/resources/application.yml`:
 
-- `micronaut.application.name` (`app/src/main/resources/application.yml`): `mochat`
-- `POSTGRES_USER` (`docker-compose.yml`): `mochat`
-- `POSTGRES_PASSWORD` (`docker-compose.yml`): `mochat`
-- `NAMESRV_ADDR` (`docker-compose.yml`, broker container): `rocketmq-namesrv:9876`
+- HTTP server: `micronaut.server.host`, `micronaut.server.port`, `mochat.http.host`, `mochat.http.port`
+- Netty TCP: `mochat.netty.tcp.enabled`, `mochat.netty.tcp.host`, `mochat.netty.tcp.port`, `mochat.netty.tcp.io-uring.preferred`, `mochat.netty.tcp.frame.max-length`, `mochat.netty.tcp.heartbeat.interval`, `mochat.netty.tcp.heartbeat.timeout`
+- Flyway: `mochat.flyway.migrate-on-start`, `mochat.flyway.locations`
+- Redis: `mochat.redis.uri`, `mochat.redis.topic-prefix`
+- PostgreSQL: `mochat.postgres.url`, `mochat.postgres.username`, `mochat.postgres.password`
+- RocketMQ: `mochat.rocketmq.name-server`, `mochat.rocketmq.producer-group`, `mochat.rocketmq.consumer.enabled`, `mochat.rocketmq.consumer-group`, `mochat.rocketmq.topic`
+- TLS and IDs: `mochat.tls.enabled`, `mochat.tls.certificate-path`, `mochat.tls.private-key-path`, `mochat.id.worker-id`
+
+Default local values now line up with the compose stack:
+
+- PostgreSQL: `jdbc:postgresql://localhost:5432/mochat`, user `mochat`, password `mochat`
+- Redis: `redis://localhost:6379`
+- RocketMQ NameServer: `localhost:9876`
+- HTTP / TCP listeners: `8080` / `9000`
 
 Current exposed service ports:
 
@@ -91,7 +101,15 @@ Current exposed service ports:
 - RocketMQ NameServer: `9876`
 - RocketMQ Broker: `10909`, `10911`, `10912`
 
-Note: the Phase 1 design expects additional runtime keys for Netty/TLS/Redis/RocketMQ/Postgres/io_uring/heartbeat/workerId, but those keys are not fully wired into app runtime configuration yet.
+## Testcontainers activation
+
+- Gradle `Test` tasks now auto-export `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock` when `DOCKER_HOST` is unset and `/var/run/docker.sock` is absent.
+- Verified in this rootless Podman environment: the following suites now run with `skipped="0"` instead of being skipped:
+  - `infra-redis/src/test/java/com/github/lystran/mochat/infra/redis/RedisSeqGeneratorTest.java`
+  - `logic-module/src/test/java/com/github/lystran/mochat/logic/service/JdbcUserRepositoryIntegrationTest.java`
+  - `persistence-module/src/test/java/com/github/lystran/mochat/persistence/MigrationSmokeTest.java`
+  - `persistence-module/src/test/java/com/github/lystran/mochat/persistence/TransactionalPersistenceTest.java`
+- If neither a standard Docker socket nor a rootless Podman socket is available, those classes still use `@Testcontainers(disabledWithoutDocker = true)` and will be skipped as designed.
 
 ## TLS certificate generation
 
