@@ -1,3 +1,46 @@
 micronaut:
   application:
     name: mochat
+  server:
+    host: ${MOCHAT_HTTP_HOST:0.0.0.0}
+    port: ${MOCHAT_HTTP_PORT:8080}
+
+mochat:
+  http:
+    host: ${MOCHAT_HTTP_HOST:0.0.0.0}
+    port: ${MOCHAT_HTTP_PORT:8080}
+  netty:
+    tcp:
+      enabled: ${MOCHAT_TCP_ENABLED:true}
+      host: ${MOCHAT_TCP_HOST:0.0.0.0}
+      port: ${MOCHAT_TCP_PORT:9000}
+      io-uring:
+        preferred: ${MOCHAT_TCP_IO_URING_PREFERRED:true}
+      frame:
+        max-length: ${MOCHAT_TCP_MAX_FRAME_LENGTH:65536}
+      heartbeat:
+        interval: ${MOCHAT_TCP_HEARTBEAT_INTERVAL:10s}
+        timeout: ${MOCHAT_TCP_HEARTBEAT_TIMEOUT:5s}
+  flyway:
+    migrate-on-start: ${MOCHAT_FLYWAY_MIGRATE_ON_START:true}
+    locations: classpath:db/migration
+  redis:
+    uri: redis://localhost:6379
+    topic-prefix: ${MOCHAT_REDIS_TOPIC_PREFIX:mochat}
+  postgres:
+    url: jdbc:postgresql://localhost:5432/mochat
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+  rocketmq:
+    name-server: localhost:9876
+    producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-producer}
+    consumer:
+      enabled: ${MOCHAT_ROCKETMQ_CONSUMER_ENABLED:true}
+    consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+  tls:
+    enabled: ${MOCHAT_TLS_ENABLED:false}
+    certificate-path: ${MOCHAT_TLS_CERT_PATH:}
+    private-key-path: ${MOCHAT_TLS_KEY_PATH:}
+  id:
+    worker-id: ${MOCHAT_ID_WORKER_ID:1}

@@ -1,5 +1,6 @@
 package com.github.lystran.mochat.logic.service;
 
+import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Singleton;
 
 import java.util.Arrays;
@@ -9,6 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Singleton
+@Requires(missingBeans = UserRepository.class)
 public final class InMemoryUserRepository implements UserRepository {
     private final AtomicLong idGenerator = new AtomicLong(1);
     private final ConcurrentMap<String, UserProfile> usersByUsername = new ConcurrentHashMap<>();

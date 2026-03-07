@@ -20,7 +20,13 @@ dependencies {
     testImplementation("io.micronaut:micronaut-http-server-netty:4.9.0")
     testImplementation("io.micronaut:micronaut-jackson-databind:4.9.0")
     testImplementation("io.micronaut.test:micronaut-test-junit5:4.7.0")
+    testImplementation(project(":persistence-module"))
+    testImplementation("org.flywaydb:flyway-core:10.20.1")
+    testImplementation("org.flywaydb:flyway-database-postgresql:10.20.1")
     testImplementation("org.mockito:mockito-core:5.18.0")
+    testImplementation("org.postgresql:postgresql:42.7.5")
+    testImplementation("org.testcontainers:junit-jupiter:1.20.5")
+    testImplementation("org.testcontainers:postgresql:1.20.5")
     testRuntimeOnly("org.slf4j:slf4j-simple:2.0.17")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
 }

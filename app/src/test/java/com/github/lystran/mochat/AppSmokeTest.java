@@ -1,7 +1,6 @@
 package com.github.lystran.mochat;
 
 import io.micronaut.context.ApplicationContext;
-import io.micronaut.runtime.Micronaut;
 import jakarta.inject.Singleton;
 import org.junit.jupiter.api.Test;
 
@@ -11,8 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AppSmokeTest {
     @Test
-    void appBootstrapsConfigAndBeans() {
-        try (ApplicationContext context = Micronaut.run(Application.class)) {
+    void appContextBootstrapsBaseConfigAndTestBeans() {
+        try (ApplicationContext context = ApplicationContext.run(AppTestSupport.runtimeAssemblyContextProperties())) {
             assertTrue(context.isRunning());
             assertEquals("mochat", context.getProperty("micronaut.application.name", String.class).orElseThrow());
             assertNotNull(context.getBean(SmokeSingleton.class));

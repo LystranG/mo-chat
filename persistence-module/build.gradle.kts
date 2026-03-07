@@ -4,9 +4,11 @@ plugins {
 
 dependencies {
     implementation("org.flywaydb:flyway-core:10.20.1")
+    implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
     implementation("org.postgresql:postgresql:42.7.5")
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.1")
+    implementation("org.apache.rocketmq:rocketmq-client:5.3.2")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
     testImplementation("org.mockito:mockito-core:5.18.0")
