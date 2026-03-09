@@ -1,5 +1,8 @@
 package com.github.lystran.mochat.persistence;
 
+import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
+import com.github.lystran.mochat.message.contract.MessagePersistencePort;
+import com.github.lystran.mochat.message.contract.PersistenceAckEvent;
 import com.github.lystran.mochat.persistence.cache.GroupMessageCache;
 
 import javax.sql.DataSource;
@@ -7,7 +10,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Objects;
 
-public final class MqConsumer {
+public final class MqConsumer implements MessagePersistencePort {
     private final DataSource dataSource;
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
@@ -23,6 +26,13 @@ public final class MqConsumer {
         this.messageRepository = Objects.requireNonNull(messageRepository, "messageRepository");
         this.conversationRepository = Objects.requireNonNull(conversationRepository, "conversationRepository");
         this.groupMessageCache = Objects.requireNonNull(groupMessageCache, "groupMessageCache");
+    }
+
+    @Override
+    public PersistenceAckEvent persist(MessageAcceptedEvent event) throws SQLException {
+        Objects.requireNonNull(event, "event");
+        persistMessage(toPersistedMessage(event));
+        return new PersistenceAckEvent(event.msgId(), event.conversationId(), event.seq(), event.serverTimeMs());
     }
 
     public void persistMessage(MessageRepository.PersistedMessage message) throws SQLException {
@@ -59,6 +69,22 @@ public final class MqConsumer {
                 // Database commit already succeeded; cache population is best-effort only.
             }
         }
+    }
+
+    private static MessageRepository.PersistedMessage toPersistedMessage(MessageAcceptedEvent event) {
+        return new MessageRepository.PersistedMessage(
+            event.msgId(),
+            event.conversationId(),
+            event.seq(),
+            event.clientMsgId(),
+            event.kind(),
+            event.senderUid(),
+            event.peerUidLow(),
+            event.peerUidHigh(),
+            event.groupId(),
+            event.serverTimeMs(),
+            event.payloadBase64()
+        );
     }
 
     private static boolean isGroupMessage(MessageRepository.PersistedMessage message) {

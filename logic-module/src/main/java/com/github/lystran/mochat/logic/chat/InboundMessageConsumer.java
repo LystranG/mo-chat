@@ -2,6 +2,7 @@ package com.github.lystran.mochat.logic.chat;
 
 import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.logic.service.SessionService;
+import com.github.lystran.mochat.protocol.ErrorCode;
 import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
@@ -18,6 +19,7 @@ import java.util.Objects;
 @Context
 public final class InboundMessageConsumer implements AutoCloseable {
     public static final String DEFAULT_INBOUND_TOPIC = "connection.inbound";
+    private static final String SESSION_INVALID_MESSAGE = "session invalid";
 
     private final EventBus eventBus;
     private final SessionService sessionService;
@@ -68,85 +70,104 @@ public final class InboundMessageConsumer implements AutoCloseable {
     }
 
     private void consume(String inboundEvent) {
-        String[] segments = inboundEvent.split("\\|", 3);
-        if (segments.length != 3) {
+        ParsedInboundEvent parsedInboundEvent = parseInboundEvent(inboundEvent);
+        if (parsedInboundEvent == null || parsedInboundEvent.serializerType() != SerializerType.PROTOBUF) {
             return;
         }
 
-        MsgType msgType;
-        SerializerType serializerType;
-        byte[] body;
-        try {
-            msgType = MsgType.valueOf(segments[0]);
-            serializerType = SerializerType.valueOf(segments[1]);
-            body = Base64.getDecoder().decode(segments[2]);
-        } catch (IllegalArgumentException ignored) {
-            return;
-        }
-
-        if (serializerType != SerializerType.PROTOBUF) {
-            return;
-        }
-
-        if (msgType == MsgType.PRIVATE_MESSAGE) {
-            consumePrivate(body);
-        } else if (msgType == MsgType.GROUP_MESSAGE) {
-            consumeGroup(body);
-        } else if (msgType == MsgType.CLIENT_RECEIVE_ACK) {
-            consumeReceipt(body);
+        if (parsedInboundEvent.msgType() == MsgType.PRIVATE_MESSAGE) {
+            consumePrivate(parsedInboundEvent.routingUserId(), parsedInboundEvent.body());
+        } else if (parsedInboundEvent.msgType() == MsgType.GROUP_MESSAGE) {
+            consumeGroup(parsedInboundEvent.routingUserId(), parsedInboundEvent.body());
+        } else if (parsedInboundEvent.msgType() == MsgType.CLIENT_RECEIVE_ACK) {
+            consumeReceipt(parsedInboundEvent.routingUserId(), parsedInboundEvent.body());
         }
     }
 
-    private void consumePrivate(byte[] body) {
+    private ParsedInboundEvent parseInboundEvent(String inboundEvent) {
+        String[] segments = inboundEvent.split("\\|", 4);
+        try {
+            return switch (segments.length) {
+                case 3 -> new ParsedInboundEvent(
+                    null,
+                    MsgType.valueOf(segments[0]),
+                    SerializerType.valueOf(segments[1]),
+                    Base64.getDecoder().decode(segments[2])
+                );
+                case 4 -> new ParsedInboundEvent(
+                    Long.parseLong(segments[0]),
+                    MsgType.valueOf(segments[1]),
+                    SerializerType.valueOf(segments[2]),
+                    Base64.getDecoder().decode(segments[3])
+                );
+                default -> null;
+            };
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private void consumePrivate(Long routingUserId, byte[] body) {
         try {
             var request = Mochat.PrivateMessageReq.parseFrom(body);
             var senderUid = sessionService.resolveUserId(request.getSessionId());
             if (senderUid.isEmpty()) {
+                emitInvalidSessionIfRouted(routingUserId);
                 return;
             }
 
             long peerUidLow = Math.min(senderUid.get(), request.getToUid());
             long peerUidHigh = Math.max(senderUid.get(), request.getToUid());
-            messageIngestService.ingest(
-                MessageIngestRequest.privateMessage(
-                    senderUid.get(),
-                    request.getConversationId(),
-                    request.getClientMsgId(),
-                    peerUidLow,
-                    peerUidHigh,
-                    encodeWithoutSession(request)
-                )
-            );
+            try {
+                messageIngestService.ingest(
+                    MessageIngestRequest.privateMessage(
+                        senderUid.get(),
+                        request.getConversationId(),
+                        request.getClientMsgId(),
+                        peerUidLow,
+                        peerUidHigh,
+                        encodeWithoutSession(request)
+                    )
+                );
+            } catch (MessageRejectException rejection) {
+                emitErrorResponse(senderUid.get(), rejection.errorCode(), rejection.getMessage());
+            }
         } catch (InvalidProtocolBufferException ignored) {
         }
     }
 
-    private void consumeGroup(byte[] body) {
+    private void consumeGroup(Long routingUserId, byte[] body) {
         try {
             var request = Mochat.GroupMessageReq.parseFrom(body);
             var senderUid = sessionService.resolveUserId(request.getSessionId());
             if (senderUid.isEmpty()) {
+                emitInvalidSessionIfRouted(routingUserId);
                 return;
             }
 
-            messageIngestService.ingest(
-                MessageIngestRequest.groupMessage(
-                    senderUid.get(),
-                    request.getConversationId(),
-                    request.getClientMsgId(),
-                    request.getGroupId(),
-                    encodeWithoutSession(request)
-                )
-            );
+            try {
+                messageIngestService.ingest(
+                    MessageIngestRequest.groupMessage(
+                        senderUid.get(),
+                        request.getConversationId(),
+                        request.getClientMsgId(),
+                        request.getGroupId(),
+                        encodeWithoutSession(request)
+                    )
+                );
+            } catch (MessageRejectException rejection) {
+                emitErrorResponse(senderUid.get(), rejection.errorCode(), rejection.getMessage());
+            }
         } catch (InvalidProtocolBufferException ignored) {
         }
     }
 
-    private void consumeReceipt(byte[] body) {
+    private void consumeReceipt(Long routingUserId, byte[] body) {
         try {
             var receiptAck = Mochat.ClientReceiveAck.parseFrom(body);
             var receiverUid = sessionService.resolveUserId(receiptAck.getSessionId());
             if (receiverUid.isEmpty()) {
+                emitInvalidSessionIfRouted(routingUserId);
                 return;
             }
 
@@ -159,11 +180,41 @@ public final class InboundMessageConsumer implements AutoCloseable {
         }
     }
 
+    private void emitInvalidSessionIfRouted(Long routingUserId) {
+        if (routingUserId != null) {
+            emitErrorResponse(routingUserId, ErrorCode.SESSION_INVALID, SESSION_INVALID_MESSAGE);
+        }
+    }
+
+    private void emitErrorResponse(long userId, ErrorCode errorCode, String message) {
+        byte[] payload = Mochat.ErrorResponse.newBuilder()
+            .setErrorCode(errorCode.code())
+            .setMessage(message)
+            .build()
+            .toByteArray();
+        String outboundEvent = userId
+            + "|"
+            + MsgType.ERROR_RESPONSE.name()
+            + "|"
+            + SerializerType.PROTOBUF.name()
+            + "|"
+            + Base64.getEncoder().encodeToString(payload);
+        eventBus.publish(MessageIngestService.DEFAULT_OUTBOUND_TOPIC, outboundEvent);
+    }
+
     private static String encodeWithoutSession(Mochat.PrivateMessageReq request) {
         return Base64.getEncoder().encodeToString(request.toBuilder().clearSessionId().build().toByteArray());
     }
 
     private static String encodeWithoutSession(Mochat.GroupMessageReq request) {
         return Base64.getEncoder().encodeToString(request.toBuilder().clearSessionId().build().toByteArray());
+    }
+
+    private record ParsedInboundEvent(Long routingUserId, MsgType msgType, SerializerType serializerType, byte[] body) {
+        private ParsedInboundEvent {
+            Objects.requireNonNull(msgType, "msgType");
+            Objects.requireNonNull(serializerType, "serializerType");
+            Objects.requireNonNull(body, "body");
+        }
     }
 }

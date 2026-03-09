@@ -7,6 +7,42 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ProtoRoundTripTest {
     @Test
+    void privateMessageRoundTrips() throws Exception {
+        var request = Mochat.PrivateMessageReq.newBuilder()
+            .setSessionId("session-1")
+            .setClientMsgId(11L)
+            .setConversationId(22L)
+            .setToUid(33L)
+            .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+            .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+            .build();
+
+        assertEquals(request, Mochat.PrivateMessageReq.parseFrom(request.toByteArray()));
+    }
+
+    @Test
+    void groupMessageRoundTrips() throws Exception {
+        var request = Mochat.GroupMessageReq.newBuilder()
+            .setSessionId("session-1")
+            .setClientMsgId(11L)
+            .setConversationId(22L)
+            .setGroupId(44L)
+            .setText("hello")
+            .build();
+
+        assertEquals(request, Mochat.GroupMessageReq.parseFrom(request.toByteArray()));
+    }
+
+    @Test
+    void heartbeatAndErrorResponseRoundTrip() throws Exception {
+        var heartbeat = Mochat.Heartbeat.newBuilder().setServerTimeMs(1234L).build();
+        var error = Mochat.ErrorResponse.newBuilder().setErrorCode(1201).setMessage("invalid-body").build();
+
+        assertEquals(heartbeat, Mochat.Heartbeat.parseFrom(heartbeat.toByteArray()));
+        assertEquals(error, Mochat.ErrorResponse.parseFrom(error.toByteArray()));
+    }
+
+    @Test
     void sendAckRoundTrips() throws Exception {
         var ack = Mochat.SendAck.newBuilder()
                 .setClientMsgId(1L)

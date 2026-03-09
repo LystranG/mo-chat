@@ -2,6 +2,7 @@ package com.github.lystran.mochat.logic.service;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.lystran.mochat.common.session.SessionResolver;
 import io.lettuce.core.api.sync.RedisCommands;
 import jakarta.inject.Singleton;
 
@@ -10,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Singleton
-public final class SessionService {
+public final class SessionService implements SessionResolver {
     private static final String DEFAULT_SESSION_KEY_PREFIX = "mochat:session:";
 
     private final RedisCommands<String, String> redisCommands;
@@ -46,6 +47,7 @@ public final class SessionService {
         return sessionId;
     }
 
+    @Override
     public Optional<Long> resolveUserId(String sessionId) {
         if (!hasText(sessionId)) {
             return Optional.empty();

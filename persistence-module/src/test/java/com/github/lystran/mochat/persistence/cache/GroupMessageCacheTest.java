@@ -17,6 +17,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class GroupMessageCacheTest {
     @Test
@@ -53,6 +56,26 @@ class GroupMessageCacheTest {
         assertEquals(2, redisZset.size());
         assertEquals(101L, redisZset.lowestScore());
         assertEquals(102L, redisZset.highestScore());
+    }
+
+    @Test
+    void warmsL1CacheFromRedisOnCacheMiss() {
+        String redisKey = "mochat:group:messages:6001";
+        @SuppressWarnings("unchecked")
+        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
+        when(redisCommands.zrange(redisKey, 0, -1)).thenReturn(List.of("8|payload-8", "9|payload-9"));
+
+        GroupMessageCache groupMessageCache = new GroupMessageCache(redisCommands);
+
+        List<GroupMessageCache.CachedGroupMessage> firstRead = groupMessageCache.recentMessages(6001L);
+        List<GroupMessageCache.CachedGroupMessage> secondRead = groupMessageCache.recentMessages(6001L);
+
+        assertEquals(List.of(
+            new GroupMessageCache.CachedGroupMessage(8L, "payload-8"),
+            new GroupMessageCache.CachedGroupMessage(9L, "payload-9")
+        ), firstRead);
+        assertEquals(firstRead, secondRead);
+        verify(redisCommands, times(1)).zrange(redisKey, 0, -1);
     }
 
     @SuppressWarnings("unchecked")

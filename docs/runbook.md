@@ -6,7 +6,7 @@ This runbook captures local startup, verification commands, and known issues for
 
 - Podman with compose support (`podman compose`)
 - JDK 25 available for Gradle builds
-- OpenSSL (for local TLS certificate generation)
+- OpenSSL (optional, for overriding the default self-signed TLS certificate)
 
 ## Dependency startup (Postgres, Redis, RocketMQ)
 
@@ -57,7 +57,10 @@ Runtime probes:
 
 ```bash
 ss -ltn | rg ':(8080|9000)\b'
-curl -fsS http://127.0.0.1:8080/friends
+session_id=$(curl -fsS -X POST http://127.0.0.1:8080/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"runbook-probe","publicKey":"runbook-probe-key"}' | jq -r '.sessionId')
+curl -fsS "http://127.0.0.1:8080/friends?sessionId=${session_id}"
 ```
 
 ### Verified outcome (2026-03-07)
@@ -66,8 +69,12 @@ curl -fsS http://127.0.0.1:8080/friends
 - `./gradlew :persistence-module:test --tests com.github.lystran.mochat.persistence.RocketMqPersistenceConsumerTest --rerun-tasks`: `BUILD SUCCESSFUL`
 - `./gradlew test --rerun-tasks`: `BUILD SUCCESSFUL`
 - `./gradlew :app:run` with local dependencies running opened both `8080` and `9000` listeners.
-- `curl -fsS http://127.0.0.1:8080/friends` returned the scaffold response payload from `FriendsController`.
-- `./gradlew :app:nativeCompile` was not re-verified in this round.
+- 好友列表探针应以先调用 `POST /auth/login` 取得 `sessionId`，再请求 `GET /friends?sessionId=...` 为准；旧的无参 `GET /friends` 表述已不适用当前接口签名。
+
+### Fresh native verification (2026-03-09)
+
+- Fresh native verification on 2026-03-09: `command -v native-image` resolved `/home/lystran/.local/share/mise/installs/java/oracle-graalvm-25.0.1/bin/native-image`, and `native-image --version` reported Oracle GraalVM `25.0.1`.
+- Fresh native verification on 2026-03-09: `./gradlew :app:nativeCompile -g .gradle` completed with `BUILD SUCCESSFUL`, emitted native image completion logs including the output directory, and produced `app/build/native/nativeCompile/mo-chat`.
 
 Interpretation:
 
@@ -85,7 +92,7 @@ Current runtime keys in `app/src/main/resources/application.yml`:
 - Redis: `mochat.redis.uri`, `mochat.redis.topic-prefix`
 - PostgreSQL: `mochat.postgres.url`, `mochat.postgres.username`, `mochat.postgres.password`
 - RocketMQ: `mochat.rocketmq.name-server`, `mochat.rocketmq.producer-group`, `mochat.rocketmq.consumer.enabled`, `mochat.rocketmq.consumer-group`, `mochat.rocketmq.topic`
-- TLS and IDs: `mochat.tls.enabled`, `mochat.tls.certificate-path`, `mochat.tls.private-key-path`, `mochat.id.worker-id`
+- TLS and IDs: `mochat.tls.enabled`, `mochat.tls.self-signed`, `mochat.tls.certificate-path`, `mochat.tls.private-key-path`, `mochat.id.worker-id`
 
 Default local values now line up with the compose stack:
 
@@ -93,6 +100,8 @@ Default local values now line up with the compose stack:
 - Redis: `redis://localhost:6379`
 - RocketMQ NameServer: `localhost:9876`
 - HTTP / TCP listeners: `8080` / `9000`
+- TLS defaults: `mochat.tls.enabled=true`, `mochat.tls.self-signed=true`；当 `mochat.tls.certificate-path` 与 `mochat.tls.private-key-path` 都为空时，会生成自签名证书启动
+- `MOCHAT_TLS_ENABLED=false` is no longer supported; startup fails fast because chat TCP TLS is mandatory
 
 Current exposed service ports:
 
@@ -113,7 +122,15 @@ Current exposed service ports:
 
 ## TLS certificate generation
 
-`NettyChatServer.buildTls13Context` expects a certificate chain file and private key file. Generate local PEM files with:
+Default bootstrap keeps chat TCP on TLS 1.3 with `mochat.tls.enabled=true`. Setting `MOCHAT_TLS_ENABLED=false` is unsupported and now fails fast with a clear mandatory-TLS error.
+
+TLS override rules are:
+
+- `mochat.tls.certificate-path` 与 `mochat.tls.private-key-path` 必须成对配置；只配一边会在启动阶段直接 fail-fast。
+- 两个路径都留空时，仅当 `mochat.tls.self-signed=true` 才会生成自签名证书启动；若同时关闭自签名，同样会 fail-fast。
+- 显式提供一对有效的证书链与私钥时，运行时优先使用这组材料，而不会回退到自签名证书。
+
+`NettyChatServer.buildTls13Context` expects a certificate chain file and private key file when you want to override the generated self-signed certificate. Generate local PEM files with:
 
 ```bash
 mkdir -p certs/dev
@@ -124,12 +141,27 @@ openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365 \
   -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 ```
 
-Use `certs/dev/server.crt` and `certs/dev/server.key` when wiring TLS bootstrap.
+Use `certs/dev/server.crt` and `certs/dev/server.key` together when overriding the default generated self-signed TLS certificate.
+
+## Transport fallback mode
+
+- Default mode keeps `mochat.netty.tcp.io-uring.preferred=true` and lets the server prefer Linux `io_uring` when available.
+- If native transport is unavailable or fails during bootstrap, `NettyChatServer` falls back to Netty system default transport so upper-layer protocol behavior stays unchanged.
+- For deterministic local troubleshooting, set `MOCHAT_TCP_IO_URING_PREFERRED=false` to force the non-native path.
+- Recommended verification commands:
+
+```bash
+./gradlew :connection-module:test --tests com.github.lystran.mochat.connection.NettyChatServerTest --rerun-tasks
+MOCHAT_TCP_IO_URING_PREFERRED=false ./gradlew :app:run
+```
 
 ## Native build fallback note
 
 - Preferred command: `./gradlew :app:nativeCompile`
+- Native verification precondition: `native-image --version` must succeed before `:app:nativeCompile` can be treated as evidence that a real native binary was generated.
+- Fresh verified result on 2026-03-09: `command -v native-image` resolved `/home/lystran/.local/share/mise/installs/java/oracle-graalvm-25.0.1/bin/native-image`; `native-image --version` reported Oracle GraalVM `25.0.1`; `./gradlew :app:nativeCompile -g .gradle` actually executed native image generation and produced `app/build/native/nativeCompile/mo-chat`.
 - If `native-image` is unavailable in `javaLauncher`, `GRAALVM_HOME`, `JAVA_HOME`, or `java.home`, the build logic in `app/build.gradle.kts` skips native compilation.
+- When `./gradlew :app:nativeCompile` shows `BUILD SUCCESSFUL` but also `Skipping :app:nativeCompile: native-image is unavailable ...`, or only ends as `UP-TO-DATE`, that is not fresh proof of native binary generation; real verification requires an actual execution that emits the generation logs and output path.
 - Fallback path for local validation:
 
 ```bash
