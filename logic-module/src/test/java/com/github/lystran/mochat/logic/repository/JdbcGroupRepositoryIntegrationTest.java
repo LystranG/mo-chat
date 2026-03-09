@@ -30,18 +30,8 @@ class JdbcGroupRepositoryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        Flyway.configure()
-            .cleanDisabled(false)
-            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-            .locations("classpath:db/migration")
-            .load()
-            .clean();
-
-        Flyway.configure()
-            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-            .locations("classpath:db/migration")
-            .load()
-            .migrate();
+        cleanSchema();
+        migrateCurrentSchema();
     }
 
     @Test
@@ -175,6 +165,20 @@ class JdbcGroupRepositoryIntegrationTest {
 
         assertEquals("pending group join request already exists", exception.getMessage());
         assertEquals(1, repository.listJoinRequests(11L, group.groupId()).size());
+    }
+
+    @Test
+    void migrationAddsPendingJoinRequestUniqueIndexForLegacyV1Schema() throws SQLException {
+        cleanSchema();
+        migrateLegacySchemaWithoutPendingJoinRequestUniqueIndex();
+
+        Flyway.configure()
+            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/migration")
+            .load()
+            .migrate();
+
+        assertTrue(indexExists("group_join_requests_pending_pair_uniq"));
     }
 
     @Test
@@ -447,6 +451,43 @@ class JdbcGroupRepositoryIntegrationTest {
         try (Connection connection = dataSource().getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.executeUpdate();
+        }
+    }
+
+    private void cleanSchema() {
+        Flyway.configure()
+            .cleanDisabled(false)
+            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/migration")
+            .load()
+            .clean();
+    }
+
+    private void migrateCurrentSchema() {
+        Flyway.configure()
+            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/migration")
+            .load()
+            .migrate();
+    }
+
+    private void migrateLegacySchemaWithoutPendingJoinRequestUniqueIndex() {
+        Flyway.configure()
+            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/legacy-migration")
+            .load()
+            .migrate();
+    }
+
+    private boolean indexExists(String indexName) throws SQLException {
+        String sql = "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = ?)";
+        try (Connection connection = dataSource().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, indexName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                return resultSet.getBoolean(1);
+            }
         }
     }
 }
