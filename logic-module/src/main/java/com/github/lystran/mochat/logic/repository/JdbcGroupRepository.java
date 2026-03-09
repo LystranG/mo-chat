@@ -105,6 +105,14 @@ public final class JdbcGroupRepository implements GroupRepository {
         WHERE id = ?
         RETURNING id, group_id, from_uid, sign, status, created_at, handled_by, handled_at
         """;
+    private static final String CANCEL_SIBLING_PENDING_JOIN_REQUESTS_SQL = """
+        UPDATE group_join_requests
+        SET status = 'cancelled', handled_by = ?, handled_at = now()
+        WHERE group_id = ?
+          AND from_uid = ?
+          AND status = 'pending'
+          AND id <> ?
+        """;
     private static final String UPSERT_MEMBER_MEMBERSHIP_SQL = """
         INSERT INTO group_memberships (id, group_id, user_id, role, status)
         VALUES (?, ?, ?, 'member', 'active')
@@ -285,6 +293,9 @@ public final class JdbcGroupRepository implements GroupRepository {
                 }
             }
         } catch (SQLException sqlException) {
+            if (isDuplicatePendingJoinRequest(sqlException)) {
+                throw new IllegalArgumentException("pending group join request already exists", sqlException);
+            }
             throw new IllegalStateException("failed to create group join request", sqlException);
         }
     }
@@ -318,9 +329,23 @@ public final class JdbcGroupRepository implements GroupRepository {
                 if (!"pending".equals(current.status())) {
                     throw new IllegalArgumentException("group join request is not pending");
                 }
-                GroupJoinRequestRow handled = updateJoinRequest(connection, requestId, ownerUserId, decision);
+                if (decision == GroupJoinRequestDecision.ACCEPT) {
+                    if (hasActiveMembership(connection, groupId, current.fromUserId())) {
+                        GroupJoinRequestRow cancelled = updateJoinRequest(connection, requestId, ownerUserId, "cancelled");
+                        cancelSiblingPendingJoinRequests(connection, groupId, current.fromUserId(), requestId, ownerUserId);
+                        connection.commit();
+                        return cancelled;
+                    }
+                }
+                GroupJoinRequestRow handled = updateJoinRequest(
+                    connection,
+                    requestId,
+                    ownerUserId,
+                    decision == GroupJoinRequestDecision.ACCEPT ? "accepted" : "rejected"
+                );
                 if (decision == GroupJoinRequestDecision.ACCEPT) {
                     upsertMemberMembership(connection, groupId, current.fromUserId());
+                    cancelSiblingPendingJoinRequests(connection, groupId, current.fromUserId(), requestId, ownerUserId);
                 }
                 connection.commit();
                 return handled;
@@ -397,14 +422,10 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
-    private GroupJoinRequestRow updateJoinRequest(
-        Connection connection,
-        long requestId,
-        long ownerUserId,
-        GroupJoinRequestDecision decision
-    ) throws SQLException {
+    private GroupJoinRequestRow updateJoinRequest(Connection connection, long requestId, long ownerUserId, String targetStatus)
+        throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(UPDATE_JOIN_REQUEST_SQL)) {
-            statement.setString(1, decision == GroupJoinRequestDecision.ACCEPT ? "accepted" : "rejected");
+            statement.setString(1, targetStatus);
             statement.setLong(2, ownerUserId);
             statement.setLong(3, requestId);
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -413,6 +434,22 @@ public final class JdbcGroupRepository implements GroupRepository {
                 }
                 return mapJoinRequest(resultSet);
             }
+        }
+    }
+
+    private void cancelSiblingPendingJoinRequests(
+        Connection connection,
+        long groupId,
+        long fromUserId,
+        long handledRequestId,
+        long ownerUserId
+    ) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(CANCEL_SIBLING_PENDING_JOIN_REQUESTS_SQL)) {
+            statement.setLong(1, ownerUserId);
+            statement.setLong(2, groupId);
+            statement.setLong(3, fromUserId);
+            statement.setLong(4, handledRequestId);
+            statement.executeUpdate();
         }
     }
 
@@ -450,6 +487,10 @@ public final class JdbcGroupRepository implements GroupRepository {
 
     private static long toEpochMillis(Timestamp timestamp) {
         return Objects.requireNonNull(timestamp, "timestamp").getTime();
+    }
+
+    private static boolean isDuplicatePendingJoinRequest(SQLException sqlException) {
+        return "23505".equals(sqlException.getSQLState());
     }
 
     private record MembershipSnapshot(String role, String status) {

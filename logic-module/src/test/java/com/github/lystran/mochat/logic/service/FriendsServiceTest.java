@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FriendsServiceTest {
@@ -116,5 +117,20 @@ class FriendsServiceTest {
         FriendsService service = new FriendsService(friendListRepository, friendshipRepository);
 
         assertThrows(IllegalArgumentException.class, () -> service.sendFriendRequest(11L, 22L, " "));
+    }
+
+    @Test
+    void rejectsFriendRequestToSelfBeforeTouchingRepository() {
+        FriendListRepository friendListRepository = mock(FriendListRepository.class);
+        FriendshipRepository friendshipRepository = mock(FriendshipRepository.class);
+        FriendsService service = new FriendsService(friendListRepository, friendshipRepository);
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> service.sendFriendRequest(11L, 11L, "opaque-base64-sign")
+        );
+
+        assertEquals("toUserId must differ from fromUserId", exception.getMessage());
+        verifyNoInteractions(friendshipRepository);
     }
 }

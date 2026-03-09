@@ -28,6 +28,9 @@ public final class FriendsService {
     public FriendRequestSummary sendFriendRequest(long fromUserId, long toUserId, String sign) {
         requirePositive(fromUserId, "fromUserId");
         requirePositive(toUserId, "toUserId");
+        if (fromUserId == toUserId) {
+            throw new IllegalArgumentException("toUserId must differ from fromUserId");
+        }
         requireText(sign, "sign");
         return toFriendRequestSummary(friendshipRepository.createFriendRequest(fromUserId, toUserId, sign));
     }

@@ -1,5 +1,7 @@
 package com.github.lystran.mochat.logic.http;
 
+import com.github.lystran.mochat.logic.repository.FriendListRepository;
+import com.github.lystran.mochat.logic.repository.FriendshipRepository;
 import com.github.lystran.mochat.logic.service.FriendsService;
 import com.github.lystran.mochat.logic.service.SessionService;
 import io.micronaut.http.HttpStatus;
@@ -15,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FriendsControllerTest {
@@ -80,6 +83,23 @@ class FriendsControllerTest {
         assertEquals("pending", body.request().status());
         verify(sessionService).resolveUserId("session-ok");
         verify(friendsService).sendFriendRequest(11L, 22L, "opaque-base64-sign");
+    }
+
+    @Test
+    void returnsBadRequestWhenRequesterSendsFriendRequestToSelf() {
+        FriendListRepository friendListRepository = mock(FriendListRepository.class);
+        FriendshipRepository friendshipRepository = mock(FriendshipRepository.class);
+        FriendsService friendsService = new FriendsService(friendListRepository, friendshipRepository);
+        SessionService sessionService = mock(SessionService.class);
+        when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(11L));
+
+        FriendsController controller = new FriendsController(friendsService, sessionService);
+        var response = controller.sendFriendRequest(new FriendsController.SendFriendRequest("session-ok", 11L, "opaque-base64-sign"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatus());
+        assertEquals(Map.of("message", "toUserId must differ from fromUserId"), response.body());
+        verify(sessionService).resolveUserId("session-ok");
+        verifyNoInteractions(friendshipRepository);
     }
 
     @Test

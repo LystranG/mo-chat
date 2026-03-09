@@ -161,6 +161,23 @@ class JdbcGroupRepositoryIntegrationTest {
     }
 
     @Test
+    void duplicatePendingJoinRequestIsRejected() {
+        AtomicLong ids = new AtomicLong(9_050L);
+        JdbcGroupRepository repository = repository(ids::getAndIncrement);
+        GroupRepository.GroupRow group = repository.createGroup(11L, "dev-group");
+
+        repository.createJoinRequest(22L, group.groupId(), "opaque-sign");
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> repository.createJoinRequest(22L, group.groupId(), "opaque-sign-2")
+        );
+
+        assertEquals("pending group join request already exists", exception.getMessage());
+        assertEquals(1, repository.listJoinRequests(11L, group.groupId()).size());
+    }
+
+    @Test
     void acceptingJoinRequestCreatesActiveMembership() throws SQLException {
         AtomicLong ids = new AtomicLong(9_100L);
         JdbcGroupRepository repository = repository(ids::getAndIncrement);
@@ -178,6 +195,39 @@ class JdbcGroupRepositoryIntegrationTest {
         assertEquals(11L, handled.handledByUserId());
         assertEquals(Optional.of("member"), groupMembership(group.groupId(), 22L));
         assertEquals("active", membershipStatus(group.groupId(), 22L));
+    }
+
+    @Test
+    void acceptingJoinRequestCancelsSiblingPendingRequests() throws SQLException {
+        AtomicLong ids = new AtomicLong(9_150L);
+        JdbcGroupRepository repository = repository(ids::getAndIncrement);
+        GroupRepository.GroupRow group = repository.createGroup(11L, "dev-group");
+        dropGroupJoinRequestPendingUniqueIndex();
+        seedJoinRequest(9_151L, group.groupId(), 22L, "first-sign", "pending");
+        seedJoinRequest(9_152L, group.groupId(), 22L, "second-sign", "pending");
+
+        GroupRepository.GroupJoinRequestRow handled = repository.handleJoinRequest(
+            11L,
+            group.groupId(),
+            9_151L,
+            GroupRepository.GroupJoinRequestDecision.ACCEPT
+        );
+
+        assertEquals("accepted", handled.status());
+        assertEquals(Optional.of("member"), groupMembership(group.groupId(), 22L));
+        assertEquals("accepted", joinRequestStatus(9_151L));
+        assertEquals("cancelled", joinRequestStatus(9_152L));
+        assertTrue(repository.listJoinRequests(11L, group.groupId()).isEmpty());
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> repository.handleJoinRequest(
+                11L,
+                group.groupId(),
+                9_152L,
+                GroupRepository.GroupJoinRequestDecision.REJECT
+            )
+        );
+        assertEquals("group join request is not pending", exception.getMessage());
     }
 
     @Test
@@ -375,6 +425,27 @@ class JdbcGroupRepositoryIntegrationTest {
             statement.setLong(3, userId);
             statement.setString(4, role);
             statement.setString(5, status);
+            statement.executeUpdate();
+        }
+    }
+
+    private void seedJoinRequest(long requestId, long groupId, long fromUserId, String sign, String status) throws SQLException {
+        String sql = "INSERT INTO group_join_requests (id, group_id, from_uid, sign, status) VALUES (?, ?, ?, ?, ?)";
+        try (Connection connection = dataSource().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, requestId);
+            statement.setLong(2, groupId);
+            statement.setLong(3, fromUserId);
+            statement.setString(4, sign);
+            statement.setString(5, status);
+            statement.executeUpdate();
+        }
+    }
+
+    private void dropGroupJoinRequestPendingUniqueIndex() throws SQLException {
+        String sql = "DROP INDEX IF EXISTS group_join_requests_pending_pair_uniq";
+        try (Connection connection = dataSource().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.executeUpdate();
         }
     }
