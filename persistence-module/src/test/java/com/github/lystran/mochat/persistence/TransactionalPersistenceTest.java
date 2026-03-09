@@ -16,11 +16,17 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 @Testcontainers(disabledWithoutDocker = true)
 class TransactionalPersistenceTest {
@@ -94,6 +100,27 @@ class TransactionalPersistenceTest {
         }
 
         assertEquals(new ReceiptState(0L, 7L), receiptState(42L));
+    }
+
+    @Test
+    void groupCacheUpdateSeesCommittedGroupMessage() throws Exception {
+        insertConversation(77L, 13L, 3_000L);
+        GroupMessageCache groupMessageCache = mock(GroupMessageCache.class);
+        AtomicInteger visibleMessagesWhenCacheRuns = new AtomicInteger(-1);
+        MessageRepository.PersistedMessage message = groupMessage(9L, 77L, 14L, 3_100L, 91L, 5001L);
+
+        doAnswer(invocation -> {
+            visibleMessagesWhenCacheRuns.set(messageCount(message.msgId()));
+            return null;
+        }).when(groupMessageCache).cache(any(MessageRepository.PersistedMessage.class));
+
+        mqConsumer = new MqConsumer(dataSource(), new MessageRepository(), new ConversationRepository(), groupMessageCache);
+
+        assertDoesNotThrow(() -> mqConsumer.persistMessage(message));
+
+        assertEquals(1, visibleMessagesWhenCacheRuns.get());
+        verify(groupMessageCache).cache(message);
+        assertEquals(1, messageCount(message.msgId()));
     }
 
     private DataSource dataSource() {
@@ -201,6 +228,29 @@ class TransactionalPersistenceTest {
             null,
             serverTsMs,
             "cGF5bG9hZA=="
+        );
+    }
+
+    private static MessageRepository.PersistedMessage groupMessage(
+        long msgId,
+        long conversationId,
+        long seq,
+        long serverTsMs,
+        long clientMsgId,
+        long groupId
+    ) {
+        return new MessageRepository.PersistedMessage(
+            msgId,
+            conversationId,
+            seq,
+            clientMsgId,
+            "group",
+            100L,
+            null,
+            null,
+            groupId,
+            serverTsMs,
+            "Z3JvdXAtcGF5bG9hZA=="
         );
     }
 

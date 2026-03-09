@@ -26,11 +26,11 @@ public final class InboundRouterHandler extends SimpleChannelInboundHandler<Inbo
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, InboundMessage msg) {
-        String payload = msg.msgType().name()
-            + "|"
-            + msg.serializerType().name()
-            + "|"
-            + Base64.getEncoder().encodeToString(msg.body());
+        Long routingUserId = ctx.channel().attr(SessionBindingHandler.USER_ID_ATTRIBUTE).get();
+        String encodedBody = Base64.getEncoder().encodeToString(msg.body());
+        String payload = routingUserId == null
+            ? msg.msgType().name() + "|" + msg.serializerType().name() + "|" + encodedBody
+            : routingUserId + "|" + msg.msgType().name() + "|" + msg.serializerType().name() + "|" + encodedBody;
         eventBus.publish(topic, payload);
     }
 

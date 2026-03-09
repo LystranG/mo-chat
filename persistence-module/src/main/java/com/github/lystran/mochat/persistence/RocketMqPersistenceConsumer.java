@@ -1,5 +1,7 @@
 package com.github.lystran.mochat.persistence;
 
+import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
+import com.github.lystran.mochat.message.contract.MessagePersistencePort;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyContext;
 import org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyStatus;
@@ -17,11 +19,11 @@ public final class RocketMqPersistenceConsumer implements MessageListenerOrderly
     private static final long DEFAULT_SUSPEND_CURRENT_QUEUE_TIME_MILLIS = 3_000L;
 
     private final DefaultMQPushConsumer delegate;
-    private final MqConsumer mqConsumer;
+    private final MessagePersistencePort messagePersistencePort;
 
-    public RocketMqPersistenceConsumer(DefaultMQPushConsumer delegate, MqConsumer mqConsumer) {
+    public RocketMqPersistenceConsumer(DefaultMQPushConsumer delegate, MessagePersistencePort messagePersistencePort) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-        this.mqConsumer = Objects.requireNonNull(mqConsumer, "mqConsumer");
+        this.messagePersistencePort = Objects.requireNonNull(messagePersistencePort, "messagePersistencePort");
         this.delegate.registerMessageListener(this);
     }
 
@@ -45,7 +47,7 @@ public final class RocketMqPersistenceConsumer implements MessageListenerOrderly
 
         try {
             for (MessageExt message : messages) {
-                mqConsumer.persistMessage(parse(message));
+                messagePersistencePort.persist(parse(message));
             }
             return ConsumeOrderlyStatus.SUCCESS;
         } catch (RuntimeException | SQLException exception) {
@@ -53,10 +55,15 @@ public final class RocketMqPersistenceConsumer implements MessageListenerOrderly
                 context.setSuspendCurrentQueueTimeMillis(DEFAULT_SUSPEND_CURRENT_QUEUE_TIME_MILLIS);
             }
             return ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT;
+        } catch (Exception exception) {
+            if (context != null) {
+                context.setSuspendCurrentQueueTimeMillis(DEFAULT_SUSPEND_CURRENT_QUEUE_TIME_MILLIS);
+            }
+            return ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT;
         }
     }
 
-    private static MessageRepository.PersistedMessage parse(MessageExt message) {
+    private static MessageAcceptedEvent parse(MessageExt message) {
         Objects.requireNonNull(message, "message");
         byte[] body = Objects.requireNonNull(message.getBody(), "message.body");
         String[] fields = new String(body, StandardCharsets.UTF_8).split("\\|", -1);
@@ -64,19 +71,42 @@ public final class RocketMqPersistenceConsumer implements MessageListenerOrderly
             throw new IllegalArgumentException("Unexpected RocketMQ message envelope field count: " + fields.length);
         }
 
-        return new MessageRepository.PersistedMessage(
-            parseLong(fields[0], "msgId"),
-            parseLong(fields[1], "conversationId"),
-            parseLong(fields[2], "seq"),
-            parseLong(fields[3], "clientMsgId"),
-            fields[4],
-            parseLong(fields[5], "senderUid"),
-            parseNullableLong(fields[6]),
-            parseNullableLong(fields[7]),
-            parseNullableLong(fields[8]),
-            parseLong(fields[9], "serverTimeMs"),
-            fields[10]
-        );
+        long msgId = parseLong(fields[0], "msgId");
+        long conversationId = parseLong(fields[1], "conversationId");
+        long seq = parseLong(fields[2], "seq");
+        long clientMsgId = parseLong(fields[3], "clientMsgId");
+        String kind = fields[4];
+        long senderUid = parseLong(fields[5], "senderUid");
+        Long peerUidLow = parseNullableLong(fields[6]);
+        Long peerUidHigh = parseNullableLong(fields[7]);
+        Long groupId = parseNullableLong(fields[8]);
+        long serverTimeMs = parseLong(fields[9], "serverTimeMs");
+        String payloadBase64 = fields[10];
+
+        return switch (kind) {
+            case "private" -> MessageAcceptedEvent.privateMessage(
+                msgId,
+                conversationId,
+                seq,
+                clientMsgId,
+                senderUid,
+                peerUidLow,
+                peerUidHigh,
+                serverTimeMs,
+                payloadBase64
+            );
+            case "group" -> MessageAcceptedEvent.groupMessage(
+                msgId,
+                conversationId,
+                seq,
+                clientMsgId,
+                senderUid,
+                groupId,
+                serverTimeMs,
+                payloadBase64
+            );
+            default -> throw new IllegalArgumentException("Unsupported message kind: " + kind);
+        };
     }
 
     private static long parseLong(String value, String fieldName) {

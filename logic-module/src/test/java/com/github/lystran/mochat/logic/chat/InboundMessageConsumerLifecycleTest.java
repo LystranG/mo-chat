@@ -1,11 +1,15 @@
 package com.github.lystran.mochat.logic.chat;
 
+import com.github.lystran.mochat.common.directory.UserChannelDirectory;
+import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import com.github.lystran.mochat.common.id.IdGenerator;
 import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.common.idempotency.IdempotencyStore;
 import com.github.lystran.mochat.common.lock.ConversationLock;
 import com.github.lystran.mochat.common.lock.JucConversationLock;
+import com.github.lystran.mochat.common.offline.OfflineQueue;
 import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
+import com.github.lystran.mochat.connection.OutboundEventSubscriber;
 import com.github.lystran.mochat.logic.mq.RocketMqProducer;
 import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
@@ -16,6 +20,8 @@ import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.context.annotation.Replaces;
 import io.micronaut.context.annotation.Requires;
+import io.netty.channel.Channel;
+import io.netty.channel.embedded.EmbeddedChannel;
 import jakarta.inject.Singleton;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.junit.jupiter.api.Test;
@@ -27,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -56,28 +63,16 @@ class InboundMessageConsumerLifecycleTest {
             when(conversationSeqGenerator.next(200L)).thenReturn(77L);
             when(idGenerator.nextId()).thenReturn(9_123L);
 
-            Mochat.PrivateMessageReq request = Mochat.PrivateMessageReq.newBuilder()
-                .setSessionId("session-1")
-                .setClientMsgId(1001L)
-                .setConversationId(200L)
-                .setToUid(88L)
-                .build();
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, encodedPrivateInboundEvent(1001L, 200L, 88L));
 
-            String inboundEvent = MsgType.PRIVATE_MESSAGE.name()
-                + "|"
-                + SerializerType.PROTOBUF.name()
-                + "|"
-                + Base64.getEncoder().encodeToString(request.toByteArray());
-            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
-
-            MessageIngestEnvelope envelope = rocketMqProducer.lastEnvelope();
+            MessageAcceptedEvent envelope = rocketMqProducer.lastEnvelope();
             assertEquals("200", rocketMqProducer.lastShardingKey());
             verify(idempotencyStore).storeIfAbsent(11L, 1001L, 9_123L, 77L);
 
             assertEquals(200L, envelope.conversationId());
             assertEquals(1001L, envelope.clientMsgId());
             assertEquals(11L, envelope.senderUid());
-            assertEquals(MessageIngestRequest.KIND_PRIVATE, envelope.kind());
+            assertEquals("private", envelope.kind());
 
             Mochat.PrivateMessageReq persistedPrivatePayload = Mochat.PrivateMessageReq.parseFrom(
                 Base64.getDecoder().decode(envelope.payloadBase64())
@@ -90,17 +85,7 @@ class InboundMessageConsumerLifecycleTest {
             List<String> outboundEvents = recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC);
             assertEquals(2, outboundEvents.size());
 
-            String[] parts = outboundEvents
-                .stream()
-                .map(event -> event.split("\\|", 4))
-                .filter(segments -> MsgType.SEND_ACK.name().equals(segments[1]))
-                .findFirst()
-                .orElseThrow();
-            assertEquals("11", parts[0]);
-            assertEquals(MsgType.SEND_ACK.name(), parts[1]);
-            assertEquals(SerializerType.PROTOBUF.name(), parts[2]);
-
-            Mochat.SendAck sendAck = Mochat.SendAck.parseFrom(Base64.getDecoder().decode(parts[3]));
+            Mochat.SendAck sendAck = sendAckEvents(recordingEventBus).getFirst();
             assertEquals(1001L, sendAck.getClientMsgId());
             assertEquals(9_123L, sendAck.getMsgId());
             assertEquals(77L, sendAck.getSeq());
@@ -109,6 +94,82 @@ class InboundMessageConsumerLifecycleTest {
 
         assertEquals(0, recordingEventBus.subscriberCount(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC));
         assertEquals(1, recordingEventBus.closedSubscriptionCount());
+    }
+
+    @Test
+    void duplicateInboundPrivateMessageReusesOriginalMsgIdAndSeq() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
+            RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
+            IdempotencyStore idempotencyStore = context.getBean(IdempotencyStore.class);
+            ConversationSeqGenerator conversationSeqGenerator = context.getBean(ConversationSeqGenerator.class);
+            IdGenerator idGenerator = context.getBean(IdGenerator.class);
+            RecordingRocketMqProducer rocketMqProducer = context.getBean(RecordingRocketMqProducer.class);
+            ReceiptConversationStateStore stateStore = context.getBean(ReceiptConversationStateStore.class);
+            stateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
+
+            when(idempotencyStore.find(11L, 1001L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(new IdempotencyStore.StoredSendResult(9_123L, 77L)));
+            when(conversationSeqGenerator.next(200L)).thenReturn(77L);
+            when(idGenerator.nextId()).thenReturn(9_123L);
+
+            String inboundEvent = encodedPrivateInboundEvent(1001L, 200L, 88L);
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
+
+            List<Mochat.SendAck> sendAcks = sendAckEvents(recordingEventBus);
+            assertEquals(2, sendAcks.size());
+            assertEquals(1001L, sendAcks.get(0).getClientMsgId());
+            assertEquals(1001L, sendAcks.get(1).getClientMsgId());
+            assertEquals(sendAcks.get(0).getMsgId(), sendAcks.get(1).getMsgId());
+            assertEquals(sendAcks.get(0).getSeq(), sendAcks.get(1).getSeq());
+            assertEquals(1, rocketMqProducer.publishCount());
+        }
+    }
+
+    @Test
+    void offlineRecipientIsQueuedAfterInboundPrivateMessage() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
+            RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
+            IdempotencyStore idempotencyStore = context.getBean(IdempotencyStore.class);
+            ConversationSeqGenerator conversationSeqGenerator = context.getBean(ConversationSeqGenerator.class);
+            IdGenerator idGenerator = context.getBean(IdGenerator.class);
+            ReceiptConversationStateStore stateStore = context.getBean(ReceiptConversationStateStore.class);
+            stateStore.upsertPrivateConversation(200L, 11L, 88L, 70L);
+
+            when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+            when(conversationSeqGenerator.next(200L)).thenReturn(77L);
+            when(idGenerator.nextId()).thenReturn(9_123L);
+
+            RecordingOfflineQueue offlineQueue = new RecordingOfflineQueue();
+            InMemoryDirectory directory = new InMemoryDirectory();
+            directory.bind(11L, new EmbeddedChannel());
+            try (OutboundEventSubscriber subscriber = new OutboundEventSubscriber(recordingEventBus, directory, offlineQueue)) {
+                subscriber.start();
+                recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, encodedPrivateInboundEvent(1001L, 200L, 88L));
+            }
+
+            List<Mochat.SendAck> sendAcks = sendAckEvents(recordingEventBus);
+            assertEquals(1, sendAcks.size());
+            assertEquals(1001L, sendAcks.get(0).getClientMsgId());
+            assertEquals(9_123L, sendAcks.get(0).getMsgId());
+            assertEquals(1, offlineQueue.entries.size());
+            RecordingOfflineQueue.EnqueuedEntry enqueued = offlineQueue.entries.getFirst();
+            String[] payloadSegments = enqueued.payload().split("\\|", 3);
+            assertEquals(88L, enqueued.userId());
+            assertEquals(3, payloadSegments.length);
+            assertEquals(MsgType.PRIVATE_MESSAGE.name(), payloadSegments[0]);
+            assertEquals(SerializerType.PROTOBUF.name(), payloadSegments[1]);
+            Mochat.ChatMessageDelivery delivery = Mochat.ChatMessageDelivery.parseFrom(Base64.getDecoder().decode(payloadSegments[2]));
+            assertEquals(9_123L, delivery.getMsgId());
+            assertEquals(77L, delivery.getSeq());
+            assertEquals(200L, delivery.getConversationId());
+            assertEquals(11L, delivery.getFromUid());
+            assertEquals(88L, delivery.getPrivatePayload().getToUid());
+            assertEquals(12, delivery.getPrivatePayload().getNonce().size());
+            assertEquals("ciphertext", delivery.getPrivatePayload().getCiphertext().toStringUtf8());
+            assertEquals(50, enqueued.maxQueueSize());
+        }
     }
 
     @Test
@@ -148,6 +209,49 @@ class InboundMessageConsumerLifecycleTest {
     }
 
     @Test
+    void malformedPrivatePayloadIsIgnored() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
+            RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
+            RecordingRocketMqProducer rocketMqProducer = context.getBean(RecordingRocketMqProducer.class);
+
+            String inboundEvent = MsgType.PRIVATE_MESSAGE.name()
+                + "|"
+                + SerializerType.PROTOBUF.name()
+                + "|"
+                + Base64.getEncoder().encodeToString(new byte[] {1, 2, 3});
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
+
+            assertTrue(rocketMqProducer.lastEnvelope() == null);
+            assertTrue(recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC).isEmpty());
+        }
+    }
+
+    @Test
+    void invalidUtf8GroupPayloadIsIgnored() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
+            RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
+            RecordingRocketMqProducer rocketMqProducer = context.getBean(RecordingRocketMqProducer.class);
+
+            byte[] invalidUtf8Payload = new byte[] {
+                0x0A, 0x09, 's', 'e', 's', 's', 'i', 'o', 'n', '-', '1',
+                0x10, 0x01,
+                0x18, 0x02,
+                0x20, 0x03,
+                0x2A, 0x01, (byte) 0x80
+            };
+            String inboundEvent = MsgType.GROUP_MESSAGE.name()
+                + "|"
+                + SerializerType.PROTOBUF.name()
+                + "|"
+                + Base64.getEncoder().encodeToString(invalidUtf8Payload);
+            recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
+
+            assertTrue(rocketMqProducer.lastEnvelope() == null);
+            assertTrue(recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC).isEmpty());
+        }
+    }
+
+    @Test
     void groupMessageStripsSessionIdFromPersistedPayload() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "inbound-lifecycle"))) {
             RecordingEventBus recordingEventBus = context.getBean(RecordingEventBus.class);
@@ -175,10 +279,10 @@ class InboundMessageConsumerLifecycleTest {
                 + Base64.getEncoder().encodeToString(request.toByteArray());
             recordingEventBus.publish(InboundMessageConsumer.DEFAULT_INBOUND_TOPIC, inboundEvent);
 
-            MessageIngestEnvelope envelope = rocketMqProducer.lastEnvelope();
+            MessageAcceptedEvent envelope = rocketMqProducer.lastEnvelope();
             assertEquals(300L, envelope.conversationId());
             assertEquals(11L, envelope.senderUid());
-            assertEquals(MessageIngestRequest.KIND_GROUP, envelope.kind());
+            assertEquals("group", envelope.kind());
 
             Mochat.GroupMessageReq persistedGroupPayload = Mochat.GroupMessageReq.parseFrom(
                 Base64.getDecoder().decode(envelope.payloadBase64())
@@ -189,6 +293,33 @@ class InboundMessageConsumerLifecycleTest {
             assertEquals(300L, persistedGroupPayload.getGroupId());
             assertEquals("hello-group", persistedGroupPayload.getText());
         }
+    }
+
+    private static String encodedPrivateInboundEvent(long clientMsgId, long conversationId, long toUid) {
+        Mochat.PrivateMessageReq request = Mochat.PrivateMessageReq.newBuilder()
+            .setSessionId("session-1")
+            .setClientMsgId(clientMsgId)
+            .setConversationId(conversationId)
+            .setToUid(toUid)
+            .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+            .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+            .build();
+        return MsgType.PRIVATE_MESSAGE.name()
+            + "|"
+            + SerializerType.PROTOBUF.name()
+            + "|"
+            + Base64.getEncoder().encodeToString(request.toByteArray());
+    }
+
+    private static List<Mochat.SendAck> sendAckEvents(RecordingEventBus recordingEventBus) throws Exception {
+        List<Mochat.SendAck> sendAcks = new ArrayList<>();
+        for (String event : recordingEventBus.publishedEvents(MessageIngestService.DEFAULT_OUTBOUND_TOPIC)) {
+            String[] parts = event.split("\\|", 4);
+            if (parts.length == 4 && MsgType.SEND_ACK.name().equals(parts[1])) {
+                sendAcks.add(Mochat.SendAck.parseFrom(Base64.getDecoder().decode(parts[3])));
+            }
+        }
+        return sendAcks;
     }
 
     @Factory
@@ -239,7 +370,8 @@ class InboundMessageConsumerLifecycleTest {
     }
 
     static final class RecordingRocketMqProducer extends RocketMqProducer {
-        private MessageIngestEnvelope lastEnvelope;
+        private final List<MessageAcceptedEvent> envelopes = new ArrayList<>();
+        private MessageAcceptedEvent lastEnvelope;
         private String lastShardingKey;
 
         RecordingRocketMqProducer() {
@@ -247,18 +379,23 @@ class InboundMessageConsumerLifecycleTest {
         }
 
         @Override
-        public boolean publishOrdered(MessageIngestEnvelope envelope, String shardingKey) {
+        public boolean publishOrdered(MessageAcceptedEvent envelope) {
+            envelopes.add(envelope);
             lastEnvelope = envelope;
-            lastShardingKey = shardingKey;
+            lastShardingKey = envelope.shardingKey();
             return true;
         }
 
-        MessageIngestEnvelope lastEnvelope() {
+        MessageAcceptedEvent lastEnvelope() {
             return lastEnvelope;
         }
 
         String lastShardingKey() {
             return lastShardingKey;
+        }
+
+        int publishCount() {
+            return envelopes.size();
         }
     }
 
@@ -300,6 +437,42 @@ class InboundMessageConsumerLifecycleTest {
 
         List<String> publishedEvents(String topic) {
             return new ArrayList<>(eventsByTopic.getOrDefault(topic, new CopyOnWriteArrayList<>()));
+        }
+    }
+
+    static final class InMemoryDirectory implements UserChannelDirectory<Channel> {
+        private final ConcurrentMap<Long, Channel> channels = new ConcurrentHashMap<>();
+
+        @Override
+        public void bind(long userId, Channel channelRef) {
+            channels.put(userId, channelRef);
+        }
+
+        @Override
+        public Optional<Channel> find(long userId) {
+            return Optional.ofNullable(channels.get(userId));
+        }
+
+        @Override
+        public boolean unbind(long userId, Channel channelRef) {
+            return channels.remove(userId, channelRef);
+        }
+    }
+
+    static final class RecordingOfflineQueue implements OfflineQueue {
+        private final List<EnqueuedEntry> entries = new ArrayList<>();
+
+        @Override
+        public void enqueue(long userId, String payload, int maxQueueSize) {
+            entries.add(new EnqueuedEntry(userId, payload, maxQueueSize));
+        }
+
+        @Override
+        public List<String> drain(long userId, int maxItems) {
+            return List.of();
+        }
+
+        private record EnqueuedEntry(long userId, String payload, int maxQueueSize) {
         }
     }
 }

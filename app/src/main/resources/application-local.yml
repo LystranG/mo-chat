@@ -1,0 +1,17 @@
+mochat:
+  redis:
+    uri: ${MOCHAT_REDIS_URI:redis://localhost:6379}
+  postgres:
+    url: ${MOCHAT_POSTGRES_URL:jdbc:postgresql://localhost:5432/mochat}
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+  rocketmq:
+    name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:localhost:9876}
+    producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-producer}
+    consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+  tls:
+    enabled: ${MOCHAT_TLS_ENABLED:true}
+    self-signed: ${MOCHAT_TLS_SELF_SIGNED:true}
+    certificate-path: ${MOCHAT_TLS_CERT_PATH:}
+    private-key-path: ${MOCHAT_TLS_KEY_PATH:}

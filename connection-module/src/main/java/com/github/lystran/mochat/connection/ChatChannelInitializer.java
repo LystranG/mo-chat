@@ -1,9 +1,13 @@
 package com.github.lystran.mochat.connection;
 
+import com.github.lystran.mochat.common.directory.UserChannelDirectory;
 import com.github.lystran.mochat.common.event.EventBus;
+import com.github.lystran.mochat.common.session.InMemoryChannelSessionRegistry;
+import com.github.lystran.mochat.common.session.SessionResolver;
 import com.github.lystran.mochat.protocol.FrameConstants;
 import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
+import com.github.lystran.mochat.protocol.proto.Mochat;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -19,25 +23,100 @@ import java.util.Objects;
 
 public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
     private static final int PROTOCOL_MAGIC = 0x4D4F4348;
+    private static final int DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 10;
     private static final int DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS = 60;
 
     private final EventBus eventBus;
     private final SslContext sslContext;
+    private final SessionBindingHandler sessionBindingHandler;
     private final int maxFrameLength;
+    private final int heartbeatIntervalSeconds;
     private final int heartbeatIdleTimeoutSeconds;
 
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext) {
-        this(eventBus, sslContext, FrameConstants.DEFAULT_MAX_FRAME_LENGTH, DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS);
+        this(
+            eventBus,
+            sslContext,
+            null,
+            FrameConstants.DEFAULT_MAX_FRAME_LENGTH,
+            DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+            DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS
+        );
     }
 
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext, int maxFrameLength) {
-        this(eventBus, sslContext, maxFrameLength, DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS);
+        this(
+            eventBus,
+            sslContext,
+            null,
+            maxFrameLength,
+            DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+            DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS
+        );
     }
 
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext, int maxFrameLength, int heartbeatIdleTimeoutSeconds) {
+        this(
+            eventBus,
+            sslContext,
+            null,
+            maxFrameLength,
+            DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+            heartbeatIdleTimeoutSeconds
+        );
+    }
+
+    public ChatChannelInitializer(
+        EventBus eventBus,
+        SslContext sslContext,
+        int maxFrameLength,
+        int heartbeatIntervalSeconds,
+        int heartbeatIdleTimeoutSeconds
+    ) {
+        this(
+            eventBus,
+            sslContext,
+            null,
+            maxFrameLength,
+            heartbeatIntervalSeconds,
+            heartbeatIdleTimeoutSeconds
+        );
+    }
+
+    public ChatChannelInitializer(
+        EventBus eventBus,
+        SslContext sslContext,
+        SessionResolver sessionResolver,
+        UserChannelDirectory<Channel> userChannelDirectory,
+        int maxFrameLength,
+        int heartbeatIntervalSeconds,
+        int heartbeatIdleTimeoutSeconds
+    ) {
+        this(
+            eventBus,
+            sslContext,
+            sessionResolver == null || userChannelDirectory == null
+                ? null
+                : new SessionBindingHandler(sessionResolver, new InMemoryChannelSessionRegistry<>(userChannelDirectory)),
+            maxFrameLength,
+            heartbeatIntervalSeconds,
+            heartbeatIdleTimeoutSeconds
+        );
+    }
+
+    private ChatChannelInitializer(
+        EventBus eventBus,
+        SslContext sslContext,
+        SessionBindingHandler sessionBindingHandler,
+        int maxFrameLength,
+        int heartbeatIntervalSeconds,
+        int heartbeatIdleTimeoutSeconds
+    ) {
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
         this.sslContext = sslContext;
+        this.sessionBindingHandler = sessionBindingHandler;
         this.maxFrameLength = maxFrameLength;
+        this.heartbeatIntervalSeconds = heartbeatIntervalSeconds;
         this.heartbeatIdleTimeoutSeconds = heartbeatIdleTimeoutSeconds;
     }
 
@@ -55,14 +134,18 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
             0,
             0
         ));
-        pipeline.addLast("protobufDecodePlaceholder", new ProtobufDecodePlaceholderHandler());
+        pipeline.addLast("protocolCodec", new ProtocolMessageCodec());
         pipeline.addLast("rateLimit", new RateLimitHandler());
-        pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIdleTimeoutSeconds));
+        if (sessionBindingHandler != null) {
+            pipeline.addLast("sessionBinding", sessionBindingHandler);
+        }
+        pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIntervalSeconds, heartbeatIdleTimeoutSeconds));
         pipeline.addLast("inboundRouter", new InboundRouterHandler(eventBus));
     }
 
+
     @ChannelHandler.Sharable
-    private static final class ProtobufDecodePlaceholderHandler extends MessageToMessageDecoder<ByteBuf> {
+    private static final class ProtocolMessageCodec extends MessageToMessageDecoder<ByteBuf> {
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
             if (msg.readableBytes() < FrameConstants.HEADER_LENGTH) {
@@ -114,5 +197,23 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
             }
             throw new DecoderException("unknown serializer code: " + code);
         }
+    }
+
+    static ByteBuf encodeFrame(Channel channel, MsgType msgType, byte[] body) {
+        ByteBuf frame = channel.alloc().buffer(FrameConstants.HEADER_LENGTH + body.length);
+        frame.writeInt(PROTOCOL_MAGIC);
+        frame.writeByte(FrameConstants.PROTOCOL_VERSION);
+        frame.writeByte(msgType.code());
+        frame.writeByte(SerializerType.PROTOBUF.code());
+        frame.writeInt(body.length);
+        frame.writeBytes(body);
+        return frame;
+    }
+
+    static byte[] serverHeartbeatBody(long serverTimeMs) {
+        return Mochat.Heartbeat.newBuilder()
+            .setServerTimeMs(serverTimeMs)
+            .build()
+            .toByteArray();
     }
 }

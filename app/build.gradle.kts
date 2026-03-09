@@ -11,6 +11,7 @@ dependencies {
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     annotationProcessor("io.micronaut:micronaut-graal:4.9.0")
     implementation(project(":common"))
+    implementation(project(":message-module"))
     implementation(project(":logic-module"))
     implementation(project(":connection-module"))
     implementation(project(":infra-redis"))
@@ -22,7 +23,12 @@ dependencies {
     implementation("org.flywaydb:flyway-core:10.20.1")
     implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
     implementation("org.postgresql:postgresql:42.7.5")
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2")
+    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+        exclude(group = "io.grpc", module = "grpc-stub")
+        exclude(group = "io.grpc", module = "grpc-netty-shaded")
+        exclude(group = "io.opentelemetry")
+        exclude(group = "com.squareup.okio")
+    }
     runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
     runtimeOnly("org.yaml:snakeyaml:2.4")
 

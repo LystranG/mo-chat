@@ -1,6 +1,6 @@
 package com.github.lystran.mochat.logic.mq;
 
-import com.github.lystran.mochat.logic.chat.MessageIngestEnvelope;
+import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import jakarta.inject.Singleton;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
@@ -34,16 +34,15 @@ public class RocketMqProducer {
         this.topic = Objects.requireNonNull(topic, "topic");
     }
 
-    public boolean publishOrdered(MessageIngestEnvelope envelope, String shardingKey) {
-        Objects.requireNonNull(envelope, "envelope");
-        Objects.requireNonNull(shardingKey, "shardingKey");
+    public boolean publishOrdered(MessageAcceptedEvent acceptedEvent) {
+        Objects.requireNonNull(acceptedEvent, "acceptedEvent");
 
-        Message message = new Message(topic, serialize(envelope).getBytes(StandardCharsets.UTF_8));
-        message.setKeys(Long.toString(envelope.msgId()));
+        Message message = new Message(topic, serialize(acceptedEvent).getBytes(StandardCharsets.UTF_8));
+        message.setKeys(Long.toString(acceptedEvent.msgId()));
 
         SendResult sendResult;
         try {
-            sendResult = producer.send(message, CONVERSATION_SELECTOR, shardingKey);
+            sendResult = producer.send(message, CONVERSATION_SELECTOR, acceptedEvent.shardingKey());
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Ordered publish interrupted", interruptedException);
@@ -54,7 +53,7 @@ public class RocketMqProducer {
         return sendResult != null && sendResult.getSendStatus() == SendStatus.SEND_OK;
     }
 
-    private static String serialize(MessageIngestEnvelope envelope) {
+    private static String serialize(MessageAcceptedEvent envelope) {
         return envelope.msgId()
             + "|"
             + envelope.conversationId()

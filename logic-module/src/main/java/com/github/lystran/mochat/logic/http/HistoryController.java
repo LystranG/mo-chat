@@ -1,7 +1,7 @@
 package com.github.lystran.mochat.logic.http;
 
-import com.github.lystran.mochat.logic.service.HistoryService;
 import com.github.lystran.mochat.logic.service.ConversationStateService;
+import com.github.lystran.mochat.logic.service.HistoryService;
 import com.github.lystran.mochat.logic.service.SessionService;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.Nullable;
@@ -31,8 +31,19 @@ public final class HistoryController {
         this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
     }
 
-    @Get
     public HttpResponse<?> history(@QueryValue String sessionId, long conversationId, @Nullable Long cursorSeq, @Nullable @QueryValue Integer limit) {
+        return history(sessionId, conversationId, cursorSeq, null, null, limit);
+    }
+
+    @Get
+    public HttpResponse<?> history(
+        @QueryValue String sessionId,
+        long conversationId,
+        @Nullable @QueryValue Long cursorSeq,
+        @Nullable @QueryValue Long startSeq,
+        @Nullable @QueryValue Long endSeq,
+        @Nullable @QueryValue Integer limit
+    ) {
         var requesterUid = sessionService.resolveUserId(sessionId);
         if (requesterUid.isEmpty()) {
             return HttpResponse.unauthorized().body(Map.of("error", "invalid session"));
@@ -41,8 +52,19 @@ public final class HistoryController {
             return HttpResponse.notFound();
         }
 
+        // /history 只允许“游标翻页”或“seq 范围查询”二选一，避免同一请求出现冲突语义。
+        if (cursorSeq != null && (startSeq != null || endSeq != null)) {
+            return HttpResponse.badRequest(Map.of("error", "cursorSeq is mutually exclusive with startSeq/endSeq"));
+        }
+        if ((startSeq == null) != (endSeq == null)) {
+            return HttpResponse.badRequest(Map.of("error", "startSeq and endSeq must be provided together"));
+        }
+        if (startSeq != null && startSeq > endSeq) {
+            return HttpResponse.badRequest(Map.of("error", "startSeq must be <= endSeq"));
+        }
+
         int resolvedLimit = limit == null ? HistoryService.DEFAULT_LIMIT : limit;
-        List<HistoryItem> items = historyService.query(conversationId, cursorSeq, resolvedLimit)
+        List<HistoryItem> items = historyService.query(conversationId, cursorSeq, startSeq, endSeq, resolvedLimit)
             .stream()
             .map(message -> new HistoryItem(message.seq(), message.msgId(), message.serverTimeMs(), message.payloadBase64()))
             .toList();

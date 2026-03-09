@@ -8,6 +8,7 @@ import com.github.lystran.mochat.common.lock.ConversationLock;
 import com.github.lystran.mochat.common.lock.JucConversationLock;
 import com.github.lystran.mochat.common.offline.OfflineQueue;
 import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
+import com.github.lystran.mochat.common.session.SessionResolver;
 import com.github.lystran.mochat.connection.ChatChannelInitializer;
 import com.github.lystran.mochat.connection.NettyChatServer;
 import com.github.lystran.mochat.connection.OutboundEventSubscriber;
@@ -34,6 +35,7 @@ import io.micronaut.context.annotation.Replaces;
 import io.micronaut.context.annotation.Requires;
 import io.netty.channel.Channel;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Singleton;
 import org.apache.rocketmq.client.exception.MQClientException;
@@ -45,7 +47,6 @@ import org.postgresql.ds.PGSimpleDataSource;
 import javax.sql.DataSource;
 import java.io.File;
 import java.time.Duration;
-import java.util.Optional;
 
 @Factory
 public final class MochatRuntimeFactory {
@@ -228,36 +229,71 @@ public final class MochatRuntimeFactory {
     @Singleton
     NettyChatServer nettyChatServer(
         EventBus eventBus,
-        Optional<SslContext> sslContext,
+        SslContext sslContext,
+        SessionResolver sessionResolver,
+        UserChannelDirectory<Channel> userChannelDirectory,
         @Property(name = "mochat.netty.tcp.port") int tcpPort,
         @Property(name = "mochat.netty.tcp.frame.max-length") int maxFrameLength,
+        @Property(name = "mochat.netty.tcp.heartbeat.interval") Duration heartbeatInterval,
         @Property(name = "mochat.netty.tcp.heartbeat.timeout") Duration heartbeatTimeout
     ) {
+        int heartbeatIntervalSeconds = (int) Math.max(1L, heartbeatInterval.getSeconds());
         int heartbeatIdleTimeoutSeconds = (int) Math.max(1L, heartbeatTimeout.getSeconds());
         ChatChannelInitializer channelInitializer = new ChatChannelInitializer(
             eventBus,
-            sslContext.orElse(null),
+            sslContext,
+            sessionResolver,
+            userChannelDirectory,
             maxFrameLength,
+            heartbeatIntervalSeconds,
             heartbeatIdleTimeoutSeconds
         );
         return new NettyChatServer(tcpPort, channelInitializer);
     }
 
     @Singleton
-    @Requires(property = "mochat.tls.enabled", value = "true")
     SslContext sslContext(
+        @Property(name = "mochat.tls.enabled", defaultValue = "true") boolean tlsEnabled,
         @Property(name = "mochat.tls.certificate-path") String certificatePath,
-        @Property(name = "mochat.tls.private-key-path") String privateKeyPath
+        @Property(name = "mochat.tls.private-key-path") String privateKeyPath,
+        @Property(name = "mochat.tls.self-signed", defaultValue = "false") boolean selfSigned
     ) {
-        if (certificatePath.isBlank() || privateKeyPath.isBlank()) {
-            throw new IllegalStateException("TLS certificate-path and private-key-path are required when TLS is enabled");
-        }
-
         try {
-            return NettyChatServer.buildTls13Context(new File(certificatePath), new File(privateKeyPath));
+            return buildMandatorySslContext(tlsEnabled, certificatePath, privateKeyPath, selfSigned);
+        } catch (IllegalStateException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to build TLS context", exception);
         }
+    }
+
+    static SslContext buildMandatorySslContext(
+        boolean tlsEnabled,
+        String certificatePath,
+        String privateKeyPath,
+        boolean selfSigned
+    ) throws Exception {
+        if (!tlsEnabled) {
+            throw new IllegalStateException("TLS is mandatory for chat TCP connections; mochat.tls.enabled=false is not supported");
+        }
+        return buildSslContext(certificatePath, privateKeyPath, selfSigned);
+    }
+
+    static SslContext buildSslContext(String certificatePath, String privateKeyPath, boolean selfSigned) throws Exception {
+        boolean hasCertificatePath = !certificatePath.isBlank();
+        boolean hasPrivateKeyPath = !privateKeyPath.isBlank();
+        if (hasCertificatePath != hasPrivateKeyPath) {
+            throw new IllegalStateException("TLS certificate-path and private-key-path must both be configured together");
+        }
+        if (hasCertificatePath) {
+            return NettyChatServer.buildTls13Context(new File(certificatePath), new File(privateKeyPath));
+        }
+        if (!selfSigned) {
+            throw new IllegalStateException("TLS certificate-path and private-key-path are required when TLS is enabled and self-signed is disabled");
+        }
+
+        SelfSignedCertificate selfSignedCertificate = new SelfSignedCertificate("localhost");
+        return NettyChatServer.buildTls13Context(selfSignedCertificate.certificate(), selfSignedCertificate.privateKey());
     }
 }
 

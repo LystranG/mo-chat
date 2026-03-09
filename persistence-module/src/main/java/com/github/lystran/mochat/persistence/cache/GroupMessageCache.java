@@ -79,9 +79,33 @@ public final class GroupMessageCache {
     public List<CachedGroupMessage> recentMessages(long groupId) {
         NavigableMap<Long, CachedGroupMessage> messages = l1Cache.getIfPresent(groupId);
         if (messages == null || messages.isEmpty()) {
+            messages = warmFromRedis(groupId);
+        }
+        if (messages == null || messages.isEmpty()) {
             return List.of();
         }
         return List.copyOf(messages.values());
+    }
+
+    private NavigableMap<Long, CachedGroupMessage> warmFromRedis(long groupId) {
+        List<String> redisMembers = redisCommands.zrange(redisKey(groupId), 0, -1);
+        if (redisMembers == null || redisMembers.isEmpty()) {
+            return null;
+        }
+
+        NavigableMap<Long, CachedGroupMessage> warmed = new ConcurrentSkipListMap<>();
+        for (String member : redisMembers) {
+            CachedGroupMessage message = parseRedisMember(member);
+            if (message != null) {
+                warmed.put(message.seq(), message);
+            }
+        }
+        if (warmed.isEmpty()) {
+            return null;
+        }
+        trimL1Window(warmed);
+        l1Cache.put(groupId, warmed);
+        return warmed;
     }
 
     private void trimRedisWindow(String key) {
@@ -106,6 +130,24 @@ public final class GroupMessageCache {
 
     private static String redisMember(long seq, String payloadBase64) {
         return seq + String.valueOf(REDIS_MEMBER_DELIMITER) + payloadBase64;
+    }
+
+    private static CachedGroupMessage parseRedisMember(String redisMember) {
+        if (redisMember == null || redisMember.isBlank()) {
+            return null;
+        }
+        int delimiterIndex = redisMember.indexOf(REDIS_MEMBER_DELIMITER);
+        if (delimiterIndex <= 0 || delimiterIndex == redisMember.length() - 1) {
+            return null;
+        }
+
+        try {
+            long seq = Long.parseLong(redisMember.substring(0, delimiterIndex));
+            String payloadBase64 = redisMember.substring(delimiterIndex + 1);
+            return new CachedGroupMessage(seq, payloadBase64);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static boolean isGroupMessage(MessageRepository.PersistedMessage message) {

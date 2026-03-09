@@ -6,6 +6,7 @@ include(
     "protocol",
     "infra-redis",
     "connection-module",
+    "message-module",
     "logic-module",
     "persistence-module",
 )

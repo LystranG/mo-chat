@@ -27,7 +27,7 @@ class HistoryControllerTest {
         SessionService sessionService = mock(SessionService.class);
         when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
         when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
-        when(historyService.query(88L, null, 50)).thenReturn(
+        when(historyService.query(88L, null, null, null, 50)).thenReturn(
             List.of(new HistoryService.HistoryMessage(10L, 101L, 1234L, "payload"))
         );
 
@@ -40,7 +40,7 @@ class HistoryControllerTest {
         assertEquals(10L, body.items().getFirst().seq());
         verify(sessionService).resolveUserId("session-ok");
         verify(conversationStateService).hasConversationAccess(88L, 7L);
-        verify(historyService).query(88L, null, 50);
+        verify(historyService).query(88L, null, null, null, 50);
     }
 
     @Test
@@ -50,7 +50,7 @@ class HistoryControllerTest {
         SessionService sessionService = mock(SessionService.class);
         when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
         when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
-        when(historyService.query(88L, 120L, 20)).thenReturn(
+        when(historyService.query(88L, 120L, null, null, 20)).thenReturn(
             List.of(new HistoryService.HistoryMessage(119L, 201L, 4567L, "next"))
         );
 
@@ -63,7 +63,52 @@ class HistoryControllerTest {
         assertEquals(119L, body.items().getFirst().seq());
         verify(sessionService).resolveUserId("session-ok");
         verify(conversationStateService).hasConversationAccess(88L, 7L);
-        verify(historyService).query(88L, 120L, 20);
+        verify(historyService).query(88L, 120L, null, null, 20);
+    }
+
+    @Test
+    void usesStartAndEndSeqWindowFromRequest() {
+        HistoryService historyService = mock(HistoryService.class);
+        ConversationStateService conversationStateService = mock(ConversationStateService.class);
+        SessionService sessionService = mock(SessionService.class);
+        when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
+        when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
+        when(historyService.query(88L, null, 101L, 120L, 20)).thenReturn(
+            List.of(new HistoryService.HistoryMessage(120L, 301L, 5678L, "range"))
+        );
+
+        HistoryController controller = new HistoryController(historyService, conversationStateService, sessionService);
+        HttpResponse<?> response = controller.history("session-ok", 88L, null, 101L, 120L, 20);
+        HistoryController.HistoryResponse body = (HistoryController.HistoryResponse) response.body();
+
+        assertEquals(HttpStatus.OK, response.getStatus());
+        assertEquals(1, body.items().size());
+        assertEquals(120L, body.items().getFirst().seq());
+        verify(sessionService).resolveUserId("session-ok");
+        verify(conversationStateService).hasConversationAccess(88L, 7L);
+        verify(historyService).query(88L, null, 101L, 120L, 20);
+    }
+
+    @Test
+    void rejectsMutuallyExclusiveCursorAndRangeParameters() {
+        HistoryService historyService = mock(HistoryService.class);
+        ConversationStateService conversationStateService = mock(ConversationStateService.class);
+        SessionService sessionService = mock(SessionService.class);
+        when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
+        when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
+
+        HistoryController controller = new HistoryController(historyService, conversationStateService, sessionService);
+        HttpResponse<?> response = controller.history("session-ok", 88L, 120L, 101L, 120L, 20);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatus());
+        assertTrue(response.body() instanceof Map<?, ?>);
+        assertEquals(
+            "cursorSeq is mutually exclusive with startSeq/endSeq",
+            ((Map<?, ?>) response.body()).get("error")
+        );
+        verify(sessionService).resolveUserId("session-ok");
+        verify(conversationStateService).hasConversationAccess(88L, 7L);
+        verify(historyService, never()).query(88L, 120L, 101L, 120L, 20);
     }
 
     @Test
@@ -96,6 +141,6 @@ class HistoryControllerTest {
         assertEquals(HttpStatus.NOT_FOUND, response.getStatus());
         verify(sessionService).resolveUserId("session-ok");
         verify(conversationStateService).hasConversationAccess(88L, 7L);
-        verify(historyService, never()).query(88L, null, 50);
+        verify(historyService, never()).query(88L, null, null, null, 50);
     }
 }

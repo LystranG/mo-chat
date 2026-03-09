@@ -84,8 +84,38 @@ class AuthControllerHttpTest {
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
     }
 
+    @Test
+    void invalidBase64PublicKeyIsRejected() {
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange(
+                HttpRequest.POST("/auth/login", Map.of("username", "http-invalid-base64", "publicKey", "%%%")),
+                Map.class
+            )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+
+    @Test
+    void wrongLengthPublicKeyIsRejected() {
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange(
+                HttpRequest.POST("/auth/login", Map.of("username", "http-invalid-length", "publicKey", encodeKey(31, (byte) 3))),
+                Map.class
+            )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+
     private static String encodeKey(byte value) {
-        byte[] key = new byte[32];
+        return encodeKey(32, value);
+    }
+
+    private static String encodeKey(int size, byte value) {
+        byte[] key = new byte[size];
         Arrays.fill(key, value);
         return Base64.getEncoder().encodeToString(key);
     }

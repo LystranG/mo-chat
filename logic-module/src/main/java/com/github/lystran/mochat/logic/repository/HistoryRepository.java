@@ -5,6 +5,8 @@ import java.util.List;
 public interface HistoryRepository {
     List<HistoryMessage> findHistory(long conversationId, Long cursorSeq, int limit);
 
+    List<HistoryMessage> findHistory(long conversationId, Long cursorSeq, Long startSeq, Long endSeq, int limit);
+
     record HistoryMessage(long seq, long msgId, long serverTimeMs, String payloadBase64) {
     }
 }
