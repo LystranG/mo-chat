@@ -14,25 +14,16 @@ import com.github.lystran.mochat.protocol.internal.common.v1.SessionPrincipal;
 import io.grpc.stub.StreamObserver;
 import jakarta.inject.Singleton;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 @Singleton
 public final class ApiInternalGrpcService extends SessionAuthorityApiGrpc.SessionAuthorityApiImplBase {
+    private static final Pattern SESSION_PATTERN = Pattern.compile("^(active|expired|replaced):(\\d+):(\\d+)$");
+
     @Override
     public void resolveSession(ResolveSessionRequest request, StreamObserver<ResolveSessionResponse> responseObserver) {
-        ResolveSessionResponse response;
-        if (request.getSessionId().isBlank()) {
-            response = ResolveSessionResponse.newBuilder()
-                .setStatus(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID)
-                .build();
-        } else {
-            response = ResolveSessionResponse.newBuilder()
-                .setStatus(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_ACTIVE)
-                .setPrincipal(SessionPrincipal.newBuilder()
-                    .setSessionId(request.getSessionId())
-                    .setUserId(1L)
-                    .setSessionVersion(1L)
-                    .build())
-                .build();
-        }
+        ResolveSessionResponse response = resolveSessionResponse(request.getSessionId());
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
@@ -63,5 +54,38 @@ public final class ApiInternalGrpcService extends SessionAuthorityApiGrpc.Sessio
         }
         responseObserver.onNext(response.build());
         responseObserver.onCompleted();
+    }
+
+    private ResolveSessionResponse resolveSessionResponse(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return ResolveSessionResponse.newBuilder()
+                .setStatus(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID)
+                .build();
+        }
+
+        Matcher matcher = SESSION_PATTERN.matcher(sessionId);
+        if (!matcher.matches()) {
+            return ResolveSessionResponse.newBuilder()
+                .setStatus(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID)
+                .build();
+        }
+
+        return ResolveSessionResponse.newBuilder()
+            .setStatus(toResolutionStatus(matcher.group(1)))
+            .setPrincipal(SessionPrincipal.newBuilder()
+                .setSessionId(sessionId)
+                .setUserId(Long.parseLong(matcher.group(2)))
+                .setSessionVersion(Long.parseLong(matcher.group(3)))
+                .build())
+            .build();
+    }
+
+    private SessionResolutionStatus toResolutionStatus(String state) {
+        return switch (state) {
+            case "active" -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_ACTIVE;
+            case "expired" -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_EXPIRED;
+            case "replaced" -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_REPLACED;
+            default -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID;
+        };
     }
 }

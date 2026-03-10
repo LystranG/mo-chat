@@ -71,10 +71,10 @@ This document records the Task 1 service skeleton required by OpenSpec change `d
 
 - Internal proto files now live under `protocol/src/main/proto/mochat/internal/**`, with shared envelope/session fence types in `common/v1/common.proto`.
 - `api-service` exposes `SessionAuthorityApi` for session resolution, private messaging policy checks, and group send context queries. The session response carries `sessionVersion` in `SessionPrincipal`.
-- `access-gateway` exposes `AccessGatewayDispatchApi` for targeted delivery, kicking replaced connections, and querying local connection state. Delivery results are normalized to `DELIVERED`, `ROUTE_STALE`, `USER_OFFLINE`, and `WRITE_FAILED`.
+- `access-gateway` exposes `AccessGatewayDispatchApi` for targeted delivery, kicking replaced connections, and querying local connection state. Delivery results are normalized to `DELIVERED`, `ROUTE_STALE`, `USER_OFFLINE`, and `WRITE_FAILED`, and the placeholder implementation already fences on `sessionId` / `sessionVersion` / `routeEpoch`.
 - `message-service` exposes `MessageCommandApi` for private send, group send, offline replay, and receipt acknowledgement commands.
-- `api-service-app` wires a blocking client stub to `message-service`; `access-gateway-app` wires blocking client stubs to both `api-service` and `message-service`; `message-service-app` wires blocking client stubs to both `api-service` and `access-gateway`; all three services register gRPC server placeholder implementations in their own app modules.
-- Internal gRPC ports are reserved as `api-service:19091`, `message-service:19092`, and `access-gateway:19093`, with Micronaut gRPC channels configured by logical names `api-service`, `message-service`, and `access-gateway`.
+- `api-service-app` wires a blocking client stub to `message-service`; `access-gateway-app` wires blocking client stubs to both `api-service` and `message-service`; `message-service-app` wires a blocking client stub to `api-service` plus an address-driven `access-gateway` dispatch client factory for per-owner routing; all three services register gRPC server placeholder implementations in their own app modules.
+- Internal gRPC ports are reserved as `api-service:19091`, `message-service:19092`, and `access-gateway:19093`, with Micronaut gRPC channels configured by logical names `api-service` and `message-service`. `message-service -> access-gateway` is intentionally target-address driven instead of a static singleton channel.
 
 ## internal-only types
 

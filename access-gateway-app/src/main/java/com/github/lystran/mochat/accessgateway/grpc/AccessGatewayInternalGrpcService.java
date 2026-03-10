@@ -22,14 +22,16 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         DeliveryStatus status;
         if (request.getConnectionId().isBlank()) {
             status = DeliveryStatus.DELIVERY_STATUS_USER_OFFLINE;
-        } else if (request.getExpectedRouteEpoch() <= 0) {
+        } else if (request.getSessionId().isBlank() || request.getSessionVersion() <= 0 || request.getExpectedRouteEpoch() <= 0) {
             status = DeliveryStatus.DELIVERY_STATUS_ROUTE_STALE;
+        } else if (!request.hasEnvelope() || request.getEnvelope().getMsgId() <= 0 || request.getEnvelope().getSeq() <= 0) {
+            status = DeliveryStatus.DELIVERY_STATUS_WRITE_FAILED;
         } else {
             status = DeliveryStatus.DELIVERY_STATUS_DELIVERED;
         }
         responseObserver.onNext(DeliverToConnectionResponse.newBuilder()
             .setStatus(status)
-            .setDetail("skeleton")
+            .setDetail(status.name().toLowerCase())
             .build());
         responseObserver.onCompleted();
     }

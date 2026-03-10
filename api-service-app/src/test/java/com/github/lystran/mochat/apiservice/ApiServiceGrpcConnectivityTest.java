@@ -23,11 +23,24 @@ class ApiServiceGrpcConnectivityTest {
             "mochat.message-service.inbound-consumer.enabled", false
         ))) {
             var stub = context.getBean(SessionAuthorityApiGrpc.SessionAuthorityApiBlockingStub.class);
-            var response = stub.resolveSession(ResolveSessionRequest.newBuilder().setSessionId("session-42").build());
+            var active = stub.resolveSession(ResolveSessionRequest.newBuilder().setSessionId("active:42:7").build());
+            var expired = stub.resolveSession(ResolveSessionRequest.newBuilder().setSessionId("expired:42:7").build());
+            var replaced = stub.resolveSession(ResolveSessionRequest.newBuilder().setSessionId("replaced:42:8").build());
+            var invalid = stub.resolveSession(ResolveSessionRequest.newBuilder().setSessionId("session-42").build());
 
-            assertEquals(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_ACTIVE, response.getStatus());
-            assertEquals("session-42", response.getPrincipal().getSessionId());
-            assertEquals(1L, response.getPrincipal().getSessionVersion());
+            assertEquals(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_ACTIVE, active.getStatus());
+            assertEquals(42L, active.getPrincipal().getUserId());
+            assertEquals(7L, active.getPrincipal().getSessionVersion());
+
+            assertEquals(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_EXPIRED, expired.getStatus());
+            assertEquals(42L, expired.getPrincipal().getUserId());
+            assertEquals(7L, expired.getPrincipal().getSessionVersion());
+
+            assertEquals(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_REPLACED, replaced.getStatus());
+            assertEquals(42L, replaced.getPrincipal().getUserId());
+            assertEquals(8L, replaced.getPrincipal().getSessionVersion());
+
+            assertEquals(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID, invalid.getStatus());
         }
     }
 

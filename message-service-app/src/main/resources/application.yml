@@ -20,9 +20,6 @@ grpc:
   server:
     port: ${MOCHAT_MESSAGE_SERVICE_GRPC_PORT:19092}
   channels:
-    access-gateway:
-      address: ${MOCHAT_ACCESS_GATEWAY_GRPC_ADDRESS:access-gateway:19093}
-      plaintext: true
     api-service:
       address: ${MOCHAT_API_SERVICE_GRPC_ADDRESS:api-service:19091}
       plaintext: true
