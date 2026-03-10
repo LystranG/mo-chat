@@ -48,5 +48,6 @@ docker/
 ### AI ###
 .opencode
 .claude
+.serena/
 
 tmp.txt
