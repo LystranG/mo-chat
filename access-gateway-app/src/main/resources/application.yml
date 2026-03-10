@@ -1,0 +1,21 @@
+micronaut:
+  application:
+    name: access-gateway
+
+mochat:
+  access-gateway:
+    tcp:
+      enabled: ${MOCHAT_ACCESS_GATEWAY_TCP_ENABLED:true}
+      host: ${MOCHAT_ACCESS_GATEWAY_TCP_HOST:0.0.0.0}
+      port: ${MOCHAT_ACCESS_GATEWAY_TCP_PORT:9000}
+    tls:
+      enabled: ${MOCHAT_ACCESS_GATEWAY_TLS_ENABLED:true}
+      self-signed: ${MOCHAT_ACCESS_GATEWAY_TLS_SELF_SIGNED:true}
+    dependencies:
+      api-grpc-enabled: ${MOCHAT_ACCESS_GATEWAY_API_GRPC_ENABLED:true}
+      redis-enabled: ${MOCHAT_ACCESS_GATEWAY_REDIS_ENABLED:true}
+
+grpc:
+  channels:
+    api-service:
+      target: ${MOCHAT_API_SERVICE_GRPC_TARGET:dns:///api-service:19091}

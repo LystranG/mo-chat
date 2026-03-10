@@ -1,0 +1,14 @@
+micronaut:
+  application:
+    name: persistence-service
+
+mochat:
+  persistence-service:
+    flyway:
+      migrate-on-start: ${MOCHAT_PERSISTENCE_SERVICE_FLYWAY_MIGRATE_ON_START:true}
+    queue:
+      consumer-enabled: ${MOCHAT_PERSISTENCE_SERVICE_QUEUE_CONSUMER_ENABLED:true}
+    dependencies:
+      postgres-enabled: ${MOCHAT_PERSISTENCE_SERVICE_POSTGRES_ENABLED:true}
+      redis-enabled: ${MOCHAT_PERSISTENCE_SERVICE_REDIS_ENABLED:true}
+      mq-enabled: ${MOCHAT_PERSISTENCE_SERVICE_MQ_ENABLED:true}

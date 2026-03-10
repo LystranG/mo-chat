@@ -1,0 +1,26 @@
+micronaut:
+  application:
+    name: message-service
+
+mochat:
+  message-service:
+    grpc:
+      port: ${MOCHAT_MESSAGE_SERVICE_GRPC_PORT:19092}
+    id:
+      worker-id: ${MOCHAT_MESSAGE_SERVICE_ID_WORKER_ID:1}
+    inbound-consumer:
+      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:true}
+    dependencies:
+      api-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_API_GRPC_ENABLED:true}
+      gateway-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_GATEWAY_GRPC_ENABLED:true}
+      mq-enabled: ${MOCHAT_MESSAGE_SERVICE_MQ_ENABLED:true}
+      redis-enabled: ${MOCHAT_MESSAGE_SERVICE_REDIS_ENABLED:true}
+
+grpc:
+  server:
+    port: ${MOCHAT_MESSAGE_SERVICE_GRPC_PORT:19092}
+  channels:
+    access-gateway:
+      target: ${MOCHAT_ACCESS_GATEWAY_GRPC_TARGET:dns:///access-gateway:19093}
+    api-service:
+      target: ${MOCHAT_API_SERVICE_GRPC_TARGET:dns:///api-service:19091}
