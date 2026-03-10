@@ -9,7 +9,7 @@ mochat:
     id:
       worker-id: ${MOCHAT_MESSAGE_SERVICE_ID_WORKER_ID:1}
     inbound-consumer:
-      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:true}
+      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}
     dependencies:
       api-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_API_GRPC_ENABLED:true}
       gateway-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_GATEWAY_GRPC_ENABLED:true}

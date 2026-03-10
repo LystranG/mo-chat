@@ -75,6 +75,7 @@ This document records the Task 1 service skeleton required by OpenSpec change `d
 - `message-service` exposes `MessageCommandApi` for private send, group send, offline replay, and receipt acknowledgement commands.
 - `api-service-app` wires a blocking client stub to `message-service`; `access-gateway-app` wires blocking client stubs to both `api-service` and `message-service`; `message-service-app` wires a blocking client stub to `api-service` plus an address-driven `access-gateway` dispatch client factory for per-owner routing; all three services register gRPC server placeholder implementations in their own app modules.
 - Internal gRPC ports are reserved as `api-service:19091`, `message-service:19092`, and `access-gateway:19093`, with Micronaut gRPC channels configured by logical names `api-service` and `message-service`. `message-service -> access-gateway` is intentionally target-address driven instead of a static singleton channel.
+- As long as Task 3 has not migrated the old connection inbound pipeline, both `api-service-app` and `message-service-app` default `mochat.message-service.inbound-consumer.enabled` to `false` so they can start independently without the legacy monolith `EventBus` bean graph. The legacy inbound consumer can still be re-enabled explicitly for transitional experiments.
 
 ## internal-only types
 

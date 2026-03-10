@@ -19,8 +19,7 @@ class MessageServiceGrpcConnectivityTest {
     @Test
     void acceptsPrivateSendOverMicronautGrpcServerChannel() {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
-            "grpc.server.port", 0,
-            "mochat.message-service.inbound-consumer.enabled", false
+            "grpc.server.port", 0
         ))) {
             var stub = context.getBean(MessageCommandApiGrpc.MessageCommandApiBlockingStub.class);
             var response = stub.sendPrivateMessage(SendPrivateMessageCommand.newBuilder()

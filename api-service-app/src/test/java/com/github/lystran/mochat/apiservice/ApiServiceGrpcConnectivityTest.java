@@ -19,8 +19,7 @@ class ApiServiceGrpcConnectivityTest {
     @Test
     void resolvesSessionOverMicronautGrpcServerChannel() {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
-            "grpc.server.port", 0,
-            "mochat.message-service.inbound-consumer.enabled", false
+            "grpc.server.port", 0
         ))) {
             var stub = context.getBean(SessionAuthorityApiGrpc.SessionAuthorityApiBlockingStub.class);
             var active = stub.resolveSession(ResolveSessionRequest.newBuilder().setSessionId("active:42:7").build());

@@ -13,11 +13,11 @@ class ApiServiceApplicationContextTest {
     void bindsDedicatedApiServiceConfigurationNamespace() {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
             "mochat.api-service.grpc.port", 19191,
-            "mochat.api-service.dependencies.postgres-enabled", false,
-            "mochat.message-service.inbound-consumer.enabled", false
+            "mochat.api-service.dependencies.postgres-enabled", false
         ))) {
             assertEquals(19191, context.getRequiredProperty("mochat.api-service.grpc.port", Integer.class));
             assertFalse(context.getRequiredProperty("mochat.api-service.dependencies.postgres-enabled", Boolean.class));
+            assertFalse(context.getRequiredProperty("mochat.message-service.inbound-consumer.enabled", Boolean.class));
         }
     }
 }

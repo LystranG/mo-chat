@@ -13,7 +13,6 @@ class ApiServiceGrpcWiringTest {
     void exposesInternalGrpcServerBean() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
             "grpc.server.port", 0,
-            "mochat.message-service.inbound-consumer.enabled", false,
             "grpc.channels.message-service.address", "localhost:19092",
             "grpc.channels.message-service.plaintext", true
         ))) {

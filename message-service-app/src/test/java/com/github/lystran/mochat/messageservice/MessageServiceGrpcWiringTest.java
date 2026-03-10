@@ -15,7 +15,6 @@ class MessageServiceGrpcWiringTest {
     void exposesCommandGrpcServerAndGatewayClientFactory() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
             "grpc.server.port", 0,
-            "mochat.message-service.inbound-consumer.enabled", false,
             "grpc.channels.api-service.address", "localhost:19091",
             "grpc.channels.api-service.plaintext", true
         ))) {
@@ -40,7 +39,6 @@ class MessageServiceGrpcWiringTest {
     void createsGatewayClientPerTargetAddress() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
             "grpc.server.port", 0,
-            "mochat.message-service.inbound-consumer.enabled", false,
             "grpc.channels.api-service.address", "localhost:19091",
             "grpc.channels.api-service.plaintext", true
         ))) {
