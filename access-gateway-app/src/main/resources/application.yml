@@ -24,3 +24,6 @@ grpc:
     api-service:
       address: ${MOCHAT_API_SERVICE_GRPC_ADDRESS:api-service:19091}
       plaintext: true
+    message-service:
+      address: ${MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS:message-service:19092}
+      plaintext: true

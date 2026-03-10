@@ -19,3 +19,7 @@ mochat:
 grpc:
   server:
     port: ${MOCHAT_API_SERVICE_GRPC_PORT:19091}
+  channels:
+    message-service:
+      address: ${MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS:message-service:19092}
+      plaintext: true

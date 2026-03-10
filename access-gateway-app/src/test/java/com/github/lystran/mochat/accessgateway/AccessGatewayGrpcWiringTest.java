@@ -10,18 +10,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AccessGatewayGrpcWiringTest {
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
-    void exposesGatewayGrpcServerAndApiClientStub() throws Exception {
+    void exposesGatewayGrpcServerAndUpstreamClientStubs() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
             "grpc.server.port", 0,
             "grpc.channels.api-service.address", "localhost:19091",
-            "grpc.channels.api-service.plaintext", true
+            "grpc.channels.api-service.plaintext", true,
+            "grpc.channels.message-service.address", "localhost:19092",
+            "grpc.channels.message-service.plaintext", true
         ))) {
             Class serviceType = Class.forName("com.github.lystran.mochat.accessgateway.grpc.AccessGatewayInternalGrpcService");
-            Class blockingStubType = Class.forName(
+            Class apiBlockingStubType = Class.forName(
                 "com.github.lystran.mochat.protocol.internal.api.v1.SessionAuthorityApiGrpc$SessionAuthorityApiBlockingStub"
             );
+            Class messageBlockingStubType = Class.forName(
+                "com.github.lystran.mochat.protocol.internal.message.v1.MessageCommandApiGrpc$MessageCommandApiBlockingStub"
+            );
             assertTrue(context.containsBean(serviceType));
-            assertTrue(context.containsBean(blockingStubType));
+            assertTrue(context.containsBean(apiBlockingStubType));
+            assertTrue(context.containsBean(messageBlockingStubType));
         }
     }
 }
