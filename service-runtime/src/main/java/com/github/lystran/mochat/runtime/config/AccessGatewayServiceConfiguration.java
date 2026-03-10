@@ -6,6 +6,7 @@ import io.micronaut.context.annotation.ConfigurationProperties;
 public class AccessGatewayServiceConfiguration {
     private final Tcp tcp = new Tcp();
     private final Tls tls = new Tls();
+    private final Grpc grpc = new Grpc();
     private final Dependencies dependencies = new Dependencies();
 
     public Tcp getTcp() {
@@ -14,6 +15,10 @@ public class AccessGatewayServiceConfiguration {
 
     public Tls getTls() {
         return tls;
+    }
+
+    public Grpc getGrpc() {
+        return grpc;
     }
 
     public Dependencies getDependencies() {
@@ -70,6 +75,19 @@ public class AccessGatewayServiceConfiguration {
 
         public void setSelfSigned(boolean selfSigned) {
             this.selfSigned = selfSigned;
+        }
+    }
+
+    @ConfigurationProperties("grpc")
+    public static class Grpc {
+        private int port = 19093;
+
+        public int getPort() {
+            return port;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
         }
     }
 

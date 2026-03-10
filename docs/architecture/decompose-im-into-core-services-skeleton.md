@@ -67,6 +67,15 @@ This document records the Task 1 service skeleton required by OpenSpec change `d
 - `common`: cross-service abstractions such as `SessionResolver`, `EventBus`, `OfflineQueue`, `ConversationSeqGenerator`, `ConversationLock`, and id generation contracts.
 - `service-runtime`: service-scoped Micronaut configuration models and future runtime wiring shared by the new app entry modules.
 
+## task 2 internal grpc skeleton
+
+- Internal proto files now live under `protocol/src/main/proto/mochat/internal/**`, with shared envelope/session fence types in `common/v1/common.proto`.
+- `api-service` exposes `SessionAuthorityApi` for session resolution, private messaging policy checks, and group send context queries. The session response carries `sessionVersion` in `SessionPrincipal`.
+- `access-gateway` exposes `AccessGatewayDispatchApi` for targeted delivery, kicking replaced connections, and querying local connection state. Delivery results are normalized to `DELIVERED`, `ROUTE_STALE`, `USER_OFFLINE`, and `WRITE_FAILED`.
+- `message-service` exposes `MessageCommandApi` for private send, group send, offline replay, and receipt acknowledgement commands.
+- `access-gateway-app` wires a blocking client stub to `api-service`; `message-service-app` wires blocking client stubs to both `api-service` and `access-gateway`; all three services register gRPC server placeholder implementations in their own app modules.
+- Internal gRPC ports are reserved as `api-service:19091`, `message-service:19092`, and `access-gateway:19093`, with Micronaut gRPC channels configured by logical names `api-service` and `access-gateway`.
+
 ## internal-only types
 
 - `logic-module` internal HTTP/controller wiring and repository implementations that should not leak across service boundaries except through service contracts.

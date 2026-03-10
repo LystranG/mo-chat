@@ -9,6 +9,8 @@ dependencies {
     implementation(project(":message-module"))
     implementation(project(":protocol"))
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
+    implementation("io.micronaut.grpc:micronaut-grpc-runtime:4.9.0")
+    implementation("io.micronaut.grpc:micronaut-grpc-client-runtime:4.9.0")
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
     runtimeOnly("org.yaml:snakeyaml:2.4")

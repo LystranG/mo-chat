@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package mochat.internal.message.v1;
+
+option java_multiple_files = true;
+option java_package = "com.github.lystran.mochat.protocol.internal.message.v1";
+
+service MessageCommandApi {
+  rpc SendPrivateMessage(SendPrivateMessageCommand) returns (SendPrivateMessageAck);
+  rpc SendGroupMessage(SendGroupMessageCommand) returns (SendGroupMessageAck);
+  rpc ReplayOfflineMessages(ReplayOfflineMessagesCommand) returns (ReplayOfflineMessagesAck);
+  rpc AcknowledgeReceipt(AcknowledgeReceiptCommand) returns (AcknowledgeReceiptAck);
+}
+
+message SendPrivateMessageCommand {
+  string session_id = 1;
+  int64 session_version = 2;
+  int64 sender_uid = 3;
+  int64 client_msg_id = 4;
+  int64 conversation_id = 5;
+  int64 recipient_uid = 6;
+  bytes nonce = 7;
+  bytes ciphertext = 8;
+}
+
+message SendPrivateMessageAck {
+  bool accepted = 1;
+  int64 client_msg_id = 2;
+  int64 msg_id = 3;
+  int64 seq = 4;
+  int64 server_time_ms = 5;
+  string detail = 6;
+}
+
+message SendGroupMessageCommand {
+  string session_id = 1;
+  int64 session_version = 2;
+  int64 sender_uid = 3;
+  int64 client_msg_id = 4;
+  int64 conversation_id = 5;
+  int64 group_id = 6;
+  string text = 7;
+}
+
+message SendGroupMessageAck {
+  bool accepted = 1;
+  int64 client_msg_id = 2;
+  int64 msg_id = 3;
+  int64 seq = 4;
+  int64 server_time_ms = 5;
+  string detail = 6;
+}
+
+message ReplayOfflineMessagesCommand {
+  string session_id = 1;
+  int64 session_version = 2;
+  int64 user_id = 3;
+  int32 max_batch_size = 4;
+}
+
+message ReplayOfflineMessagesAck {
+  bool accepted = 1;
+  int32 replayed_count = 2;
+  string detail = 3;
+}
+
+message AcknowledgeReceiptCommand {
+  string session_id = 1;
+  int64 session_version = 2;
+  int64 user_id = 3;
+  int64 conversation_id = 4;
+  int64 latest_received_seq = 5;
+}
+
+message AcknowledgeReceiptAck {
+  bool accepted = 1;
+  int64 conversation_id = 2;
+  int64 latest_received_seq = 3;
+  string detail = 4;
+}

@@ -21,6 +21,8 @@ grpc:
     port: ${MOCHAT_MESSAGE_SERVICE_GRPC_PORT:19092}
   channels:
     access-gateway:
-      target: ${MOCHAT_ACCESS_GATEWAY_GRPC_TARGET:dns:///access-gateway:19093}
+      address: ${MOCHAT_ACCESS_GATEWAY_GRPC_ADDRESS:access-gateway:19093}
+      plaintext: true
     api-service:
-      target: ${MOCHAT_API_SERVICE_GRPC_TARGET:dns:///api-service:19091}
+      address: ${MOCHAT_API_SERVICE_GRPC_ADDRESS:api-service:19091}
+      plaintext: true

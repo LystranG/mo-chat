@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package mochat.internal.api.v1;
+
+option java_multiple_files = true;
+option java_package = "com.github.lystran.mochat.protocol.internal.api.v1";
+
+import "mochat/internal/common/v1/common.proto";
+
+service SessionAuthorityApi {
+  rpc ResolveSession(ResolveSessionRequest) returns (ResolveSessionResponse);
+  rpc CheckPrivateMessagingPolicy(CheckPrivateMessagingPolicyRequest) returns (CheckPrivateMessagingPolicyResponse);
+  rpc GetGroupSendContext(GetGroupSendContextRequest) returns (GetGroupSendContextResponse);
+}
+
+message ResolveSessionRequest {
+  string session_id = 1;
+}
+
+message ResolveSessionResponse {
+  SessionResolutionStatus status = 1;
+  mochat.internal.common.v1.SessionPrincipal principal = 2;
+}
+
+enum SessionResolutionStatus {
+  SESSION_RESOLUTION_STATUS_UNSPECIFIED = 0;
+  SESSION_RESOLUTION_STATUS_ACTIVE = 1;
+  SESSION_RESOLUTION_STATUS_INVALID = 2;
+  SESSION_RESOLUTION_STATUS_EXPIRED = 3;
+  SESSION_RESOLUTION_STATUS_REPLACED = 4;
+}
+
+message CheckPrivateMessagingPolicyRequest {
+  int64 conversation_id = 1;
+  int64 sender_uid = 2;
+  int64 recipient_uid = 3;
+}
+
+message CheckPrivateMessagingPolicyResponse {
+  PrivateMessagingPolicy policy = 1;
+}
+
+enum PrivateMessagingPolicy {
+  PRIVATE_MESSAGING_POLICY_UNSPECIFIED = 0;
+  PRIVATE_MESSAGING_POLICY_ALLOWED = 1;
+  PRIVATE_MESSAGING_POLICY_NOT_FRIEND = 2;
+  PRIVATE_MESSAGING_POLICY_BLOCKED = 3;
+}
+
+message GetGroupSendContextRequest {
+  int64 group_id = 1;
+  int64 sender_uid = 2;
+}
+
+message GetGroupSendContextResponse {
+  GroupSendEligibility eligibility = 1;
+  repeated int64 member_uids = 2;
+}
+
+enum GroupSendEligibility {
+  GROUP_SEND_ELIGIBILITY_UNSPECIFIED = 0;
+  GROUP_SEND_ELIGIBILITY_ALLOWED = 1;
+  GROUP_SEND_ELIGIBILITY_NOT_MEMBER = 2;
+  GROUP_SEND_ELIGIBILITY_GROUP_NOT_FOUND = 3;
+}

@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package mochat.internal.gateway.v1;
+
+option java_multiple_files = true;
+option java_package = "com.github.lystran.mochat.protocol.internal.gateway.v1";
+
+import "mochat/internal/common/v1/common.proto";
+
+service AccessGatewayDispatchApi {
+  rpc DeliverToConnection(DeliverToConnectionRequest) returns (DeliverToConnectionResponse);
+  rpc KickConnection(KickConnectionRequest) returns (KickConnectionResponse);
+  rpc GetLocalConnectionState(GetLocalConnectionStateRequest) returns (GetLocalConnectionStateResponse);
+}
+
+message DeliverToConnectionRequest {
+  int64 user_id = 1;
+  string connection_id = 2;
+  string session_id = 3;
+  int64 session_version = 4;
+  int64 expected_route_epoch = 5;
+  mochat.internal.common.v1.DeliveryEnvelope envelope = 6;
+}
+
+message DeliverToConnectionResponse {
+  DeliveryStatus status = 1;
+  string detail = 2;
+}
+
+enum DeliveryStatus {
+  DELIVERY_STATUS_UNSPECIFIED = 0;
+  DELIVERY_STATUS_DELIVERED = 1;
+  DELIVERY_STATUS_ROUTE_STALE = 2;
+  DELIVERY_STATUS_USER_OFFLINE = 3;
+  DELIVERY_STATUS_WRITE_FAILED = 4;
+}
+
+message KickConnectionRequest {
+  int64 user_id = 1;
+  string connection_id = 2;
+  int64 session_version = 3;
+  int64 expected_route_epoch = 4;
+  string reason = 5;
+}
+
+message KickConnectionResponse {
+  bool kicked = 1;
+  string detail = 2;
+}
+
+message GetLocalConnectionStateRequest {
+  int64 user_id = 1;
+  string connection_id = 2;
+}
+
+message GetLocalConnectionStateResponse {
+  LocalConnectionState state = 1;
+  string session_id = 2;
+  int64 session_version = 3;
+  int64 route_epoch = 4;
+}
+
+enum LocalConnectionState {
+  LOCAL_CONNECTION_STATE_UNSPECIFIED = 0;
+  LOCAL_CONNECTION_STATE_BOUND = 1;
+  LOCAL_CONNECTION_STATE_NOT_FOUND = 2;
+  LOCAL_CONNECTION_STATE_DRAINING = 3;
+  LOCAL_CONNECTION_STATE_STALE = 4;
+}

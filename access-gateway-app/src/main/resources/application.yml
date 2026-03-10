@@ -4,6 +4,8 @@ micronaut:
 
 mochat:
   access-gateway:
+    grpc:
+      port: ${MOCHAT_ACCESS_GATEWAY_GRPC_PORT:19093}
     tcp:
       enabled: ${MOCHAT_ACCESS_GATEWAY_TCP_ENABLED:true}
       host: ${MOCHAT_ACCESS_GATEWAY_TCP_HOST:0.0.0.0}
@@ -16,6 +18,9 @@ mochat:
       redis-enabled: ${MOCHAT_ACCESS_GATEWAY_REDIS_ENABLED:true}
 
 grpc:
+  server:
+    port: ${MOCHAT_ACCESS_GATEWAY_GRPC_PORT:19093}
   channels:
     api-service:
-      target: ${MOCHAT_API_SERVICE_GRPC_TARGET:dns:///api-service:19091}
+      address: ${MOCHAT_API_SERVICE_GRPC_ADDRESS:api-service:19091}
+      plaintext: true
