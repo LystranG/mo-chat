@@ -12,12 +12,12 @@ mochat:
       port: ${MOCHAT_API_SERVICE_HTTP_PORT:8080}
     grpc:
       port: ${MOCHAT_API_SERVICE_GRPC_PORT:19091}
-  message-service:
-    inbound-consumer:
-      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}
     dependencies:
       redis-enabled: ${MOCHAT_API_SERVICE_REDIS_ENABLED:true}
       postgres-enabled: ${MOCHAT_API_SERVICE_POSTGRES_ENABLED:true}
+  message-service:
+    inbound-consumer:
+      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}
 
 grpc:
   server:
