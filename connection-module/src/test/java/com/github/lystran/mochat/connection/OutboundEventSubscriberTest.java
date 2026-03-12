@@ -12,6 +12,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.AttributeKey;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -21,8 +22,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class OutboundEventSubscriberTest {
+    private static final AttributeKey<Boolean> ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE =
+        AttributeKey.valueOf("mochat.routeOwnershipActive");
+
     @Test
     void onlineRecipientReceivesFramedPayload() {
         var eventBus = new InProcessEventBus();
@@ -33,8 +38,68 @@ class OutboundEventSubscriberTest {
 
         var channel = new EmbeddedChannel();
         directory.bind(42L, channel);
+        channel.attr(ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE).set(true);
 
         eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|PRIVATE_MESSAGE|PROTOBUF|AQID");
+
+        Object outbound = channel.readOutbound();
+        ByteBuf frame = (ByteBuf) outbound;
+        try {
+            assertEquals(FrameConstants.HEADER_LENGTH + 3, frame.readableBytes());
+            assertEquals(0x4D4F4348, frame.readInt());
+            assertEquals(FrameConstants.PROTOCOL_VERSION, frame.readUnsignedByte());
+            assertEquals(MsgType.PRIVATE_MESSAGE.code(), frame.readUnsignedByte());
+            assertEquals(SerializerType.PROTOBUF.code(), frame.readUnsignedByte());
+            assertEquals(3, frame.readInt());
+            assertEquals(1, frame.readUnsignedByte());
+            assertEquals(2, frame.readUnsignedByte());
+            assertEquals(3, frame.readUnsignedByte());
+        } finally {
+            frame.release();
+        }
+        assertEquals(0, queue.entries.size());
+    }
+
+    @Test
+    void directoryHitWithoutActiveOwnershipIsTreatedAsOffline() {
+        var eventBus = new InProcessEventBus();
+        var directory = new InMemoryDirectory();
+        var queue = new RecordingOfflineQueue();
+        var subscriber = new OutboundEventSubscriber(eventBus, directory, queue);
+        subscriber.start();
+
+        var channel = new EmbeddedChannel();
+        directory.bind(42L, channel);
+        channel.attr(ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE).set(false);
+
+        eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|PRIVATE_MESSAGE|PROTOBUF|AQID");
+
+        channel.runPendingTasks();
+
+        assertEquals(1, queue.entries.size());
+        assertEquals("PRIVATE_MESSAGE|PROTOBUF|AQID", queue.entries.getFirst().payload());
+        assertNull(channel.readOutbound());
+    }
+
+    @Test
+    void directoryHitWithoutActiveOwnershipRetriesOnceAndDeliversAfterActivation() {
+        var eventBus = new InProcessEventBus();
+        var directory = new InMemoryDirectory();
+        var queue = new RecordingOfflineQueue();
+        var subscriber = new OutboundEventSubscriber(eventBus, directory, queue);
+        subscriber.start();
+
+        var channel = new EmbeddedChannel();
+        directory.bind(42L, channel);
+        channel.attr(ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE).set(false);
+
+        eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|PRIVATE_MESSAGE|PROTOBUF|AQID");
+
+        assertEquals(0, queue.entries.size());
+        assertNull(channel.readOutbound());
+
+        channel.attr(ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE).set(true);
+        channel.runPendingTasks();
 
         Object outbound = channel.readOutbound();
         ByteBuf frame = (ByteBuf) outbound;
@@ -86,6 +151,7 @@ class OutboundEventSubscriberTest {
             }
         });
         directory.bind(42L, failingChannel);
+        failingChannel.attr(ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE).set(true);
 
         eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|PRIVATE_MESSAGE|PROTOBUF|payload-base64");
 
@@ -124,6 +190,7 @@ class OutboundEventSubscriberTest {
             }
         });
         directory.bind(42L, failingChannel);
+        failingChannel.attr(ROUTE_OWNERSHIP_ACTIVE_ATTRIBUTE).set(true);
 
         eventBus.publish(OutboundEventSubscriber.DEFAULT_OUTBOUND_TOPIC, "42|DELIVERED_ACK|PROTOBUF|payload-base64");
 

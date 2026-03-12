@@ -21,11 +21,15 @@ import static org.mockito.Mockito.when;
 class JdbcReceiptConversationStateStoreTest {
     @Test
     void beanRequiresMakeJdbcStorePrimaryWhenDataSourceExists() {
-        Requires jdbcRequires = JdbcReceiptConversationStateStore.class.getAnnotation(Requires.class);
-        Requires fallbackRequires = InMemoryReceiptConversationStateStore.class.getAnnotation(Requires.class);
+        Requires[] jdbcRequires = JdbcReceiptConversationStateStore.class.getAnnotationsByType(Requires.class);
+        Requires[] fallbackRequires = InMemoryReceiptConversationStateStore.class.getAnnotationsByType(Requires.class);
 
-        assertEquals(DataSource.class, jdbcRequires.beans()[0]);
-        assertEquals(ReceiptConversationStateStore.class, fallbackRequires.missingBeans()[0]);
+        assertTrue(java.util.Arrays.stream(jdbcRequires)
+            .flatMap(requires -> java.util.Arrays.stream(requires.beans()))
+            .anyMatch(DataSource.class::equals));
+        assertTrue(java.util.Arrays.stream(fallbackRequires)
+            .flatMap(requires -> java.util.Arrays.stream(requires.missingBeans()))
+            .anyMatch(ReceiptConversationStateStore.class::equals));
     }
 
     @Test

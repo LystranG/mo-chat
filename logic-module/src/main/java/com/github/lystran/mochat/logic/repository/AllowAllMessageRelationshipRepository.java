@@ -15,6 +15,11 @@ public final class AllowAllMessageRelationshipRepository implements MessageRelat
     }
 
     @Override
+    public boolean groupExists(long groupId) {
+        return true;
+    }
+
+    @Override
     public boolean isActiveGroupMember(long groupId, long userId) {
         return true;
     }

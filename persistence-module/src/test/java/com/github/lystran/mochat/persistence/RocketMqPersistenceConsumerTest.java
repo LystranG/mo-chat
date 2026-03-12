@@ -7,7 +7,6 @@ import org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyStatus;
 import org.apache.rocketmq.common.message.MessageExt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
@@ -85,9 +84,36 @@ class RocketMqPersistenceConsumerTest {
         verify(messagePersistencePort, never()).persist(any());
     }
 
+    @Test
+    void returnsSuspendWhenPersistenceSignalsDurableConflict() throws Exception {
+        MessageExt message = message("1|42|6|11|private|100|100|200||2000|cGF5bG9hZA==");
+        MessageAcceptedEvent event = MessageAcceptedEvent.privateMessage(
+            1L,
+            42L,
+            6L,
+            11L,
+            100L,
+            100L,
+            200L,
+            2000L,
+            "cGF5bG9hZA=="
+        );
+        DurableMessageConflictException conflict = new DurableMessageConflictException(
+            new MessageRepository.PersistedMessage(1L, 43L, 7L, 12L, "private", 100L, 100L, 200L, null, 3000L, "Y29uZmxpY3Q="),
+            new MessageRepository.PersistedMessage(1L, 42L, 6L, 11L, "private", 100L, 100L, 200L, null, 2000L, "cGF5bG9hZA=="),
+            new SQLException("duplicate key")
+        );
+        doThrow(conflict).when(messagePersistencePort).persist(event);
+
+        ConsumeOrderlyStatus status = persistenceConsumer.consumeMessage(List.of(message), null);
+
+        assertEquals(ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT, status);
+    }
+
     private static MessageExt message(String body) {
         MessageExt message = new MessageExt();
         message.setBody(body.getBytes(StandardCharsets.UTF_8));
         return message;
     }
+
 }

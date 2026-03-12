@@ -4,6 +4,9 @@ plugins {
 
 dependencies {
     implementation(project(":message-module"))
+    annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
+    implementation("io.micronaut:micronaut-runtime:4.9.0")
+    implementation("jakarta.inject:jakarta.inject-api:2.0.1")
     implementation("org.flywaydb:flyway-core:10.20.1")
     implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
     implementation("org.postgresql:postgresql:42.7.5")

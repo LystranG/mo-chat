@@ -4,6 +4,7 @@ import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
+import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Singleton;
 
 import java.time.Clock;
@@ -11,6 +12,7 @@ import java.util.Base64;
 import java.util.Objects;
 
 @Singleton
+@Requires(property = "micronaut.application.name", notEquals = "api-service", defaultValue = "")
 public final class ReceiptService {
     public static final String DEFAULT_OUTBOUND_TOPIC = "connection.outbound";
 

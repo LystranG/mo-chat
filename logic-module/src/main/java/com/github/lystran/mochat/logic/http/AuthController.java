@@ -17,12 +17,16 @@ import java.util.Objects;
 public final class AuthController {
     private final UserService userService;
     private final SessionService sessionService;
-    private final OfflineReplayService offlineReplayService;
+    private final LoginOfflineReplayGateway loginOfflineReplayGateway;
 
-    public AuthController(UserService userService, SessionService sessionService, OfflineReplayService offlineReplayService) {
+    public AuthController(
+        UserService userService,
+        SessionService sessionService,
+        LoginOfflineReplayGateway loginOfflineReplayGateway
+    ) {
         this.userService = Objects.requireNonNull(userService, "userService");
         this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
-        this.offlineReplayService = Objects.requireNonNull(offlineReplayService, "offlineReplayService");
+        this.loginOfflineReplayGateway = Objects.requireNonNull(loginOfflineReplayGateway, "loginOfflineReplayGateway");
     }
 
     @Post("/login")
@@ -30,9 +34,10 @@ public final class AuthController {
         try {
             var userProfile = userService.loginOrRegister(loginRequest.username(), loginRequest.publicKey());
             String sessionId = sessionService.issueSession(userProfile.userId());
+            long sessionVersion = sessionService.resolveAuthority(sessionId).sessionVersion();
 
             try {
-                offlineReplayService.replayOnLogin(userProfile.userId());
+                loginOfflineReplayGateway.replayOnLogin(userProfile.userId(), sessionId, sessionVersion);
             } catch (RuntimeException ignored) {
                 // Replay is best-effort after successful authentication/session issuance.
             }

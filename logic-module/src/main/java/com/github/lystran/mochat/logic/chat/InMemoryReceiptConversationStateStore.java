@@ -9,6 +9,9 @@ import java.util.concurrent.ConcurrentMap;
 
 @Singleton
 @Requires(missingBeans = ReceiptConversationStateStore.class)
+@Requires(property = "micronaut.application.name", notEquals = "message-service", defaultValue = "")
+@Requires(property = "micronaut.application.name", notEquals = "api-service", defaultValue = "")
+@Requires(property = "micronaut.application.name", notEquals = "mochat", defaultValue = "")
 public final class InMemoryReceiptConversationStateStore implements ReceiptConversationStateStore {
     private final ConcurrentMap<Long, MutableState> states = new ConcurrentHashMap<>();
 

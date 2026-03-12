@@ -1,0 +1,26 @@
+micronaut:
+  application:
+    name: persistence-service
+
+mochat:
+  flyway:
+    locations: classpath:db/migration
+  redis:
+    uri: '${MOCHAT_REDIS_URI:`redis://127.0.0.1:6379`}'
+  postgres:
+    url: ${MOCHAT_POSTGRES_URL:`jdbc:postgresql://127.0.0.1:5432/mochat`}
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+  rocketmq:
+    name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+    consumer-group: ${MOCHAT_PERSISTENCE_SERVICE_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+  persistence-service:
+    flyway:
+      migrate-on-start: ${MOCHAT_PERSISTENCE_SERVICE_FLYWAY_MIGRATE_ON_START:true}
+    queue:
+      consumer-enabled: ${MOCHAT_PERSISTENCE_SERVICE_QUEUE_CONSUMER_ENABLED:true}
+    dependencies:
+      postgres-enabled: ${MOCHAT_PERSISTENCE_SERVICE_POSTGRES_ENABLED:true}
+      redis-enabled: ${MOCHAT_PERSISTENCE_SERVICE_REDIS_ENABLED:true}
+      mq-enabled: ${MOCHAT_PERSISTENCE_SERVICE_MQ_ENABLED:true}

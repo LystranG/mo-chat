@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -32,6 +33,8 @@ class MqConsumerTransactionTest {
     void setUp() throws SQLException {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
+        when(messageRepository.insert(any(Connection.class), any(MessageRepository.PersistedMessage.class)))
+            .thenReturn(MessageRepository.InsertResult.INSERTED);
         mqConsumer = new MqConsumer(dataSource, messageRepository, conversationRepository, groupMessageCache);
     }
 
@@ -49,6 +52,20 @@ class MqConsumerTransactionTest {
         callOrder.verify(connection).setAutoCommit(true);
         verify(connection, never()).rollback();
         verify(groupMessageCache, never()).cache(message);
+    }
+
+    @Test
+    void commitsWithoutAdvancingConversationWhenDurableDuplicateAlreadyExists() throws SQLException {
+        MessageRepository.PersistedMessage message = groupMessage(9L, 77L, 14L, 3_100L, 91L, 5001L);
+        when(messageRepository.insert(connection, message)).thenReturn(MessageRepository.InsertResult.DURABLE_DUPLICATE);
+
+        assertDoesNotThrow(() -> mqConsumer.persistMessage(message));
+
+        verify(connection).commit();
+        verify(connection, never()).rollback();
+        verify(conversationRepository, never()).updateLatestState(connection, 77L, 14L, 3_100L);
+        verify(groupMessageCache, never()).cache(message);
+        verify(connection).setAutoCommit(true);
     }
 
     @Test
@@ -87,7 +104,7 @@ class MqConsumerTransactionTest {
     void rollsBackAndRethrowsWhenMessageInsertFails() throws SQLException {
         MessageRepository.PersistedMessage message = privateMessage(2L, 77L, 1L, 3_000L, 12L);
         SQLException failure = new SQLException("insert failed");
-        doThrow(failure).when(messageRepository).insert(connection, message);
+        when(messageRepository.insert(connection, message)).thenThrow(failure);
 
         SQLException thrown = assertThrows(SQLException.class, () -> mqConsumer.persistMessage(message));
 
@@ -102,7 +119,7 @@ class MqConsumerTransactionTest {
     void doesNotUpdateGroupCacheWhenTransactionFails() throws SQLException {
         MessageRepository.PersistedMessage message = groupMessage(8L, 88L, 2L, 4_000L, 92L, 5002L);
         SQLException failure = new SQLException("insert failed");
-        doThrow(failure).when(messageRepository).insert(connection, message);
+        when(messageRepository.insert(connection, message)).thenThrow(failure);
 
         assertThrows(SQLException.class, () -> mqConsumer.persistMessage(message));
 

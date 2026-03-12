@@ -1,0 +1,30 @@
+micronaut:
+  application:
+    name: api-service
+  server:
+    host: ${MOCHAT_API_SERVICE_HTTP_HOST:0.0.0.0}
+    port: ${MOCHAT_API_SERVICE_HTTP_PORT:8080}
+
+mochat:
+  redis:
+    uri: '${MOCHAT_REDIS_URI:`redis://127.0.0.1:6379`}'
+  api-service:
+    http:
+      host: ${MOCHAT_API_SERVICE_HTTP_HOST:0.0.0.0}
+      port: ${MOCHAT_API_SERVICE_HTTP_PORT:8080}
+    grpc:
+      port: ${MOCHAT_API_SERVICE_GRPC_PORT:19091}
+    dependencies:
+      redis-enabled: ${MOCHAT_API_SERVICE_REDIS_ENABLED:true}
+      postgres-enabled: ${MOCHAT_API_SERVICE_POSTGRES_ENABLED:true}
+  message-service:
+    inbound-consumer:
+      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}
+
+grpc:
+  server:
+    port: ${MOCHAT_API_SERVICE_GRPC_PORT:19091}
+  channels:
+    message-service:
+      address: ${MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS:message-service:19092}
+      plaintext: true

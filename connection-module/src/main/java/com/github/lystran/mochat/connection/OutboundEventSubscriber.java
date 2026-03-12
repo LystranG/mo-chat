@@ -70,24 +70,43 @@ public final class OutboundEventSubscriber implements AutoCloseable {
 
         String payload = event.substring(separator + 1);
         userChannelDirectory.find(userId).ifPresentOrElse(
-            channel -> {
-                ByteBuf frame = null;
-                try {
-                    frame = encodeFrame(channel, payload);
-                    channel.writeAndFlush(frame).addListener(future -> {
-                        if (!future.isSuccess()) {
-                            queueOffline(userId, payload);
-                        }
-                    });
-                } catch (RuntimeException ignored) {
-                    if (frame != null) {
-                        frame.release();
-                    }
-                    queueOffline(userId, payload);
-                }
-            },
+            channel -> attemptDelivery(channel, userId, payload, true),
             () -> queueOffline(userId, payload)
         );
+    }
+
+    private void attemptDelivery(Channel channel, long userId, String payload, boolean allowRetry) {
+        if (!SessionBindingHandler.hasActiveRouteOwnership(channel)) {
+            if (allowRetry) {
+                scheduleRetry(channel, userId, payload);
+                return;
+            }
+            queueOffline(userId, payload);
+            return;
+        }
+
+        ByteBuf frame = null;
+        try {
+            frame = encodeFrame(channel, payload);
+            channel.writeAndFlush(frame).addListener(future -> {
+                if (!future.isSuccess()) {
+                    queueOffline(userId, payload);
+                }
+            });
+        } catch (RuntimeException ignored) {
+            if (frame != null) {
+                frame.release();
+            }
+            queueOffline(userId, payload);
+        }
+    }
+
+    private void scheduleRetry(Channel channel, long userId, String payload) {
+        try {
+            channel.eventLoop().execute(() -> attemptDelivery(channel, userId, payload, false));
+        } catch (RuntimeException ignored) {
+            queueOffline(userId, payload);
+        }
     }
 
     private static ByteBuf encodeFrame(Channel channel, String payload) {

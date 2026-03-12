@@ -8,6 +8,7 @@ import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.micronaut.context.annotation.Context;
+import io.micronaut.context.annotation.Requires;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
@@ -17,6 +18,7 @@ import java.util.Objects;
 
 @Singleton
 @Context
+@Requires(property = "mochat.message-service.inbound-consumer.enabled", value = "true", defaultValue = "true")
 public final class InboundMessageConsumer implements AutoCloseable {
     public static final String DEFAULT_INBOUND_TOPIC = "connection.inbound";
     private static final String SESSION_INVALID_MESSAGE = "session invalid";

@@ -5,6 +5,8 @@ import java.util.List;
 public interface MessageRelationshipRepository {
     PrivateMessageState privateMessageState(long conversationId, long peerUidLow, long peerUidHigh);
 
+    boolean groupExists(long groupId);
+
     boolean isActiveGroupMember(long groupId, long userId);
 
     List<Long> listActiveGroupMemberIds(long groupId);

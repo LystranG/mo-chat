@@ -20,6 +20,7 @@ import io.netty.handler.ssl.SslContext;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
     private static final int PROTOCOL_MAGIC = 0x4D4F4348;
@@ -95,16 +96,42 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         this(
             eventBus,
             sslContext,
-            sessionResolver == null || userChannelDirectory == null
-                ? null
-                : new SessionBindingHandler(sessionResolver, new InMemoryChannelSessionRegistry<>(userChannelDirectory)),
+            sessionResolver,
+            userChannelDirectory,
+            null,
             maxFrameLength,
             heartbeatIntervalSeconds,
             heartbeatIdleTimeoutSeconds
         );
     }
 
-    private ChatChannelInitializer(
+    public ChatChannelInitializer(
+        EventBus eventBus,
+        SslContext sslContext,
+        SessionResolver sessionResolver,
+        UserChannelDirectory<Channel> userChannelDirectory,
+        Executor resolutionExecutor,
+        int maxFrameLength,
+        int heartbeatIntervalSeconds,
+        int heartbeatIdleTimeoutSeconds
+    ) {
+        this(
+            eventBus,
+            sslContext,
+            sessionResolver == null || userChannelDirectory == null
+                ? null
+                : new SessionBindingHandler(
+                    sessionResolver,
+                    new InMemoryChannelSessionRegistry<>(userChannelDirectory),
+                    resolutionExecutor
+                ),
+            maxFrameLength,
+            heartbeatIntervalSeconds,
+            heartbeatIdleTimeoutSeconds
+        );
+    }
+
+    public ChatChannelInitializer(
         EventBus eventBus,
         SslContext sslContext,
         SessionBindingHandler sessionBindingHandler,
@@ -136,10 +163,10 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         ));
         pipeline.addLast("protocolCodec", new ProtocolMessageCodec());
         pipeline.addLast("rateLimit", new RateLimitHandler());
+        pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIntervalSeconds, heartbeatIdleTimeoutSeconds));
         if (sessionBindingHandler != null) {
             pipeline.addLast("sessionBinding", sessionBindingHandler);
         }
-        pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIntervalSeconds, heartbeatIdleTimeoutSeconds));
         pipeline.addLast("inboundRouter", new InboundRouterHandler(eventBus));
     }
 

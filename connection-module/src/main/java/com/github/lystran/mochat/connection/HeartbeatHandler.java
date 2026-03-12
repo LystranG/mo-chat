@@ -8,6 +8,8 @@ import io.netty.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
+    static final HeartbeatReceivedEvent HEARTBEAT_RECEIVED_EVENT = HeartbeatReceivedEvent.INSTANCE;
+    static final HeartbeatTimeoutEvent HEARTBEAT_TIMEOUT_EVENT = HeartbeatTimeoutEvent.INSTANCE;
     private final long heartbeatIntervalMillis;
     private final long idleTimeoutMillis;
     private ScheduledFuture<?> heartbeatTask;
@@ -43,7 +45,7 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof InboundRouterHandler.InboundMessage inbound
             && inbound.msgType() == MsgType.CLIENT_HEARTBEAT) {
             scheduleIdleTimeout(ctx);
-            ctx.fireUserEventTriggered("heartbeat-received");
+            ctx.fireUserEventTriggered(HEARTBEAT_RECEIVED_EVENT);
             return;
         }
 
@@ -83,7 +85,10 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
         cancelIdleTimeout();
         idleTimeoutTask = ctx.executor().schedule(() -> {
             if (ctx.channel().isActive()) {
-                ctx.close();
+                ctx.fireUserEventTriggered(HEARTBEAT_TIMEOUT_EVENT);
+                if (ctx.channel().isActive()) {
+                    ctx.close();
+                }
             }
         }, idleTimeoutMillis, TimeUnit.MILLISECONDS);
     }
@@ -99,6 +104,20 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
         if (idleTimeoutTask != null) {
             idleTimeoutTask.cancel(false);
             idleTimeoutTask = null;
+        }
+    }
+
+    static final class HeartbeatReceivedEvent {
+        private static final HeartbeatReceivedEvent INSTANCE = new HeartbeatReceivedEvent();
+
+        private HeartbeatReceivedEvent() {
+        }
+    }
+
+    static final class HeartbeatTimeoutEvent {
+        private static final HeartbeatTimeoutEvent INSTANCE = new HeartbeatTimeoutEvent();
+
+        private HeartbeatTimeoutEvent() {
         }
     }
 }

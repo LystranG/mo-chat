@@ -15,6 +15,8 @@ import java.util.Optional;
 
 @Singleton
 @Requires(beans = DataSource.class)
+@Requires(property = "micronaut.application.name", notEquals = "message-service", defaultValue = "")
+@Requires(property = "micronaut.application.name", notEquals = "mochat", defaultValue = "")
 public final class JdbcReceiptConversationStateStore implements ReceiptConversationStateStore {
     private static final long DEFAULT_SERVER_KNOWN_CACHE_MAX_SIZE = 100_000L;
     private static final String FIND_PRIVATE_CONVERSATION_SQL = """
