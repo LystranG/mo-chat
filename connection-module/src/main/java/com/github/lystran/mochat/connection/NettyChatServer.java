@@ -22,6 +22,9 @@ import java.lang.reflect.Method;
 import java.util.Objects;
 
 public final class NettyChatServer {
+    private static final String DEFAULT_HOST = "0.0.0.0";
+
+    private final String host;
     private final int port;
     private final ChatChannelInitializer channelInitializer;
     private final TransportSelector transportSelector;
@@ -33,6 +36,7 @@ public final class NettyChatServer {
 
     public NettyChatServer(int port, EventBus eventBus, SslContext sslContext) {
         this(
+            DEFAULT_HOST,
             port,
             new ChatChannelInitializer(
                 eventBus,
@@ -42,7 +46,11 @@ public final class NettyChatServer {
     }
 
     public NettyChatServer(int port, ChatChannelInitializer channelInitializer) {
-        this(port, channelInitializer, NettyChatServer::selectTransport, NettyChatServer::bindServerChannel);
+        this(DEFAULT_HOST, port, channelInitializer);
+    }
+
+    public NettyChatServer(String host, int port, ChatChannelInitializer channelInitializer) {
+        this(host, port, channelInitializer, NettyChatServer::selectTransport, NettyChatServer::bindServerChannel);
     }
 
     NettyChatServer(
@@ -51,6 +59,17 @@ public final class NettyChatServer {
         TransportSelector transportSelector,
         ServerBinder serverBinder
     ) {
+        this(DEFAULT_HOST, port, channelInitializer, transportSelector, serverBinder);
+    }
+
+    NettyChatServer(
+        String host,
+        int port,
+        ChatChannelInitializer channelInitializer,
+        TransportSelector transportSelector,
+        ServerBinder serverBinder
+    ) {
+        this.host = Objects.requireNonNull(host, "host");
         this.port = port;
         this.channelInitializer = Objects.requireNonNull(channelInitializer, "channelInitializer");
         this.transportSelector = Objects.requireNonNull(transportSelector, "transportSelector");
@@ -173,10 +192,11 @@ public final class NettyChatServer {
     private void startWithTransport(TransportSelection transport) throws InterruptedException {
         this.bossGroup = transport.bossGroup();
         this.workerGroup = transport.workerGroup();
-        this.serverChannel = serverBinder.bind(port, channelInitializer, transport);
+        this.serverChannel = serverBinder.bind(host, port, channelInitializer, transport);
     }
 
     private static Channel bindServerChannel(
+        String host,
         int port,
         ChatChannelInitializer channelInitializer,
         TransportSelection transport
@@ -185,7 +205,7 @@ public final class NettyChatServer {
             .group(transport.bossGroup(), transport.workerGroup())
             .channel(transport.serverChannelClass())
             .childHandler(channelInitializer)
-            .bind(port)
+            .bind(host, port)
             .sync()
             .channel();
     }
@@ -214,7 +234,7 @@ public final class NettyChatServer {
 
     @FunctionalInterface
     interface ServerBinder {
-        Channel bind(int port, ChatChannelInitializer channelInitializer, TransportSelection transport)
+        Channel bind(String host, int port, ChatChannelInitializer channelInitializer, TransportSelection transport)
             throws InterruptedException;
     }
 

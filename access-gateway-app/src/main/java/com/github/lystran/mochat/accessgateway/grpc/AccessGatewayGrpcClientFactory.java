@@ -9,6 +9,7 @@ import io.micronaut.grpc.annotation.GrpcChannel;
 import jakarta.inject.Singleton;
 
 @Factory
+@Requires(property = "micronaut.application.name", value = "access-gateway")
 public final class AccessGatewayGrpcClientFactory {
     @Singleton
     @Requires(property = "mochat.access-gateway.dependencies.api-grpc-enabled", notEquals = "false", defaultValue = "true")

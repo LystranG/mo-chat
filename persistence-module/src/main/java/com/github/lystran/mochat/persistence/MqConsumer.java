@@ -37,22 +37,26 @@ public final class MqConsumer implements MessagePersistencePort {
 
     public void persistMessage(MessageRepository.PersistedMessage message) throws SQLException {
         Objects.requireNonNull(message, "message");
-        boolean committed = false;
+        boolean transactionCommitted = false;
+        boolean inserted = false;
 
         try (Connection connection = dataSource.getConnection()) {
             boolean previousAutoCommit = connection.getAutoCommit();
             Throwable failure = null;
             connection.setAutoCommit(false);
             try {
-                messageRepository.insert(connection, message);
-                conversationRepository.updateLatestState(
-                    connection,
-                    message.conversationId(),
-                    message.seq(),
-                    message.serverTsMs()
-                );
+                MessageRepository.InsertResult insertResult = messageRepository.insert(connection, message);
+                inserted = insertResult == MessageRepository.InsertResult.INSERTED;
+                if (inserted) {
+                    conversationRepository.updateLatestState(
+                        connection,
+                        message.conversationId(),
+                        message.seq(),
+                        message.serverTsMs()
+                    );
+                }
                 connection.commit();
-                committed = true;
+                transactionCommitted = true;
             } catch (SQLException | RuntimeException exception) {
                 failure = exception;
                 rollbackQuietly(connection, exception);
@@ -62,7 +66,7 @@ public final class MqConsumer implements MessagePersistencePort {
             }
         }
 
-        if (committed && isGroupMessage(message)) {
+        if (transactionCommitted && inserted && isGroupMessage(message)) {
             try {
                 groupMessageCache.cache(message);
             } catch (RuntimeException ignored) {

@@ -1,5 +1,6 @@
 package com.github.lystran.mochat.logic.chat;
 
+import com.github.lystran.mochat.common.offline.OfflineQueue;
 import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import com.github.lystran.mochat.common.id.IdGenerator;
@@ -17,14 +18,17 @@ import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -189,6 +193,126 @@ class MessageIngestServiceRelationshipAndGroupTest {
         assertEquals("hello-group", delivery.getGroupPayload().getText());
     }
 
+    @Test
+    void groupRetryOnlyQueuesRecipientsThatStillFailAfterRefresh() throws Exception {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        MessageSendPolicyGateway messageSendPolicyGateway = mock(MessageSendPolicyGateway.class);
+        MessageRecipientDispatcher dispatcher = mock(MessageRecipientDispatcher.class);
+        OfflineQueue offlineQueue = mock(OfflineQueue.class);
+
+        when(idempotencyStore.find(11L, 2002L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(300L)).thenReturn(7L);
+        when(idGenerator.nextId()).thenReturn(9_002L);
+        when(rocketMqProducer.publishOrdered(any(MessageAcceptedEvent.class))).thenReturn(true);
+        when(messageSendPolicyGateway.resolveGroupRecipientUids(300L, 11L)).thenReturn(List.of(11L, 22L, 33L, 44L));
+        when(dispatcher.dispatchGroup(any(GroupMessageDelivery.class)))
+            .thenReturn(Map.of(
+                22L, MessageDeliveryStatus.DELIVERED,
+                33L, MessageDeliveryStatus.ROUTE_STALE,
+                44L, MessageDeliveryStatus.WRITE_FAILED
+            ))
+            .thenReturn(Map.of(
+                33L, MessageDeliveryStatus.DELIVERED,
+                44L, MessageDeliveryStatus.USER_OFFLINE
+            ));
+
+        MessageIngestService service = new MessageIngestService(
+            new JucConversationLock(),
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
+            rocketMqProducer,
+            messageSendPolicyGateway,
+            (senderUid, clientMsgId, msgId, seq, serverTimeMs) -> {
+            },
+            dispatcher,
+            (conversationId, peerUidLow, peerUidHigh, seq) -> {
+            },
+            offlineQueue
+        );
+
+        service.ingest(MessageIngestRequest.groupMessage(11L, 300L, 2002L, 300L, encodedGroupRequest()));
+
+        ArgumentCaptor<GroupMessageDelivery> deliveryCaptor = ArgumentCaptor.forClass(GroupMessageDelivery.class);
+        verify(dispatcher, times(2)).dispatchGroup(deliveryCaptor.capture());
+        List<GroupMessageDelivery> deliveries = deliveryCaptor.getAllValues();
+        assertEquals(List.of(11L, 22L, 33L, 44L), deliveries.get(0).recipientUids());
+        assertEquals(List.of(33L, 44L), deliveries.get(1).recipientUids());
+
+        ArgumentCaptor<String> offlinePayloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(offlineQueue).enqueue(eq(44L), offlinePayloadCaptor.capture(), eq(50));
+        verify(offlineQueue, never()).enqueue(eq(22L), anyString(), eq(50));
+        verify(offlineQueue, never()).enqueue(eq(33L), anyString(), eq(50));
+
+        String[] payloadSegments = offlinePayloadCaptor.getValue().split("\\|", 3);
+        assertEquals(MsgType.GROUP_MESSAGE.name(), payloadSegments[0]);
+        assertEquals(SerializerType.PROTOBUF.name(), payloadSegments[1]);
+        Mochat.ChatMessageDelivery delivery = Mochat.ChatMessageDelivery.parseFrom(
+            Base64.getDecoder().decode(payloadSegments[2])
+        );
+        assertEquals(9_002L, delivery.getMsgId());
+        assertEquals(7L, delivery.getSeq());
+        assertEquals(300L, delivery.getConversationId());
+        assertEquals(11L, delivery.getFromUid());
+        assertEquals(300L, delivery.getGroupPayload().getGroupId());
+        assertEquals("hello-group", delivery.getGroupPayload().getText());
+    }
+
+    @Test
+    void groupRetryAfterDispatcherExceptionQueuesValidRecipientsThatStillFail() {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        MessageSendPolicyGateway messageSendPolicyGateway = mock(MessageSendPolicyGateway.class);
+        MessageRecipientDispatcher dispatcher = mock(MessageRecipientDispatcher.class);
+        OfflineQueue offlineQueue = mock(OfflineQueue.class);
+
+        when(idempotencyStore.find(11L, 2002L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(300L)).thenReturn(7L);
+        when(idGenerator.nextId()).thenReturn(9_002L);
+        when(rocketMqProducer.publishOrdered(any(MessageAcceptedEvent.class))).thenReturn(true);
+        when(messageSendPolicyGateway.resolveGroupRecipientUids(300L, 11L))
+            .thenReturn(Arrays.asList(11L, 22L, 33L, null, 0L));
+        when(dispatcher.dispatchGroup(any(GroupMessageDelivery.class)))
+            .thenThrow(new RuntimeException("gateway unavailable"))
+            .thenReturn(Map.of(
+                22L, MessageDeliveryStatus.DELIVERED,
+                33L, MessageDeliveryStatus.WRITE_FAILED
+            ));
+
+        MessageIngestService service = new MessageIngestService(
+            new JucConversationLock(),
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
+            rocketMqProducer,
+            messageSendPolicyGateway,
+            (senderUid, clientMsgId, msgId, seq, serverTimeMs) -> {
+            },
+            dispatcher,
+            (conversationId, peerUidLow, peerUidHigh, seq) -> {
+            },
+            offlineQueue
+        );
+
+        service.ingest(MessageIngestRequest.groupMessage(11L, 300L, 2002L, 300L, encodedGroupRequest()));
+
+        ArgumentCaptor<GroupMessageDelivery> deliveryCaptor = ArgumentCaptor.forClass(GroupMessageDelivery.class);
+        verify(dispatcher, times(2)).dispatchGroup(deliveryCaptor.capture());
+        List<GroupMessageDelivery> deliveries = deliveryCaptor.getAllValues();
+        assertEquals(Arrays.asList(11L, 22L, 33L, null, 0L), deliveries.get(0).recipientUids());
+        assertEquals(List.of(22L, 33L), deliveries.get(1).recipientUids());
+
+        verify(offlineQueue).enqueue(eq(33L), anyString(), eq(50));
+        verify(offlineQueue, never()).enqueue(eq(22L), anyString(), eq(50));
+    }
+
     private static String encodedPrivateRequest() {
         return Base64.getEncoder().encodeToString(
             Mochat.PrivateMessageReq.newBuilder()
@@ -224,6 +348,11 @@ class MessageIngestServiceRelationshipAndGroupTest {
         @Override
         public PrivateMessageState privateMessageState(long conversationId, long peerUidLow, long peerUidHigh) {
             return privateState;
+        }
+
+        @Override
+        public boolean groupExists(long groupId) {
+            return true;
         }
 
         @Override

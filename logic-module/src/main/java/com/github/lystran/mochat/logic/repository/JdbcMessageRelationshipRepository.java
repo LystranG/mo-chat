@@ -31,6 +31,13 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
               AND status = 'active'
         )
         """;
+    private static final String GROUP_EXISTS_SQL = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM groups
+            WHERE id = ?
+        )
+        """;
     private static final String LIST_ACTIVE_GROUP_MEMBERS_SQL = """
         SELECT user_id
         FROM group_memberships
@@ -64,6 +71,22 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
             }
         } catch (SQLException sqlException) {
             throw new IllegalStateException("failed to query private friendship state", sqlException);
+        }
+    }
+
+    @Override
+    public boolean groupExists(long groupId) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(GROUP_EXISTS_SQL)) {
+            statement.setLong(1, groupId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return false;
+                }
+                return resultSet.getBoolean(1);
+            }
+        } catch (SQLException sqlException) {
+            throw new IllegalStateException("failed to verify group existence", sqlException);
         }
     }
 

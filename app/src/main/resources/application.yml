@@ -45,3 +45,9 @@ mochat:
     private-key-path: ${MOCHAT_TLS_KEY_PATH:}
   id:
     worker-id: ${MOCHAT_ID_WORKER_ID:1}
+  legacy:
+    persistence:
+      enabled: ${MOCHAT_LEGACY_PERSISTENCE_ENABLED:false}
+  message-service:
+    inbound-consumer:
+      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}

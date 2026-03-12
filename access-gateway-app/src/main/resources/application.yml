@@ -3,16 +3,34 @@ micronaut:
     name: access-gateway
 
 mochat:
+  redis:
+    uri: ${MOCHAT_REDIS_URI:redis://127.0.0.1:6379}
   access-gateway:
+    runtime:
+      enabled: ${MOCHAT_ACCESS_GATEWAY_RUNTIME_ENABLED:true}
     grpc:
       port: ${MOCHAT_ACCESS_GATEWAY_GRPC_PORT:19093}
+    route:
+      gateway-pod: ${MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD:${HOSTNAME:access-gateway-local}}
+      peer-targets: {}
+    drain:
+      enabled: ${MOCHAT_ACCESS_GATEWAY_DRAIN_ENABLED:false}
+      grace-period: ${MOCHAT_ACCESS_GATEWAY_DRAIN_GRACE_PERIOD:30s}
     tcp:
       enabled: ${MOCHAT_ACCESS_GATEWAY_TCP_ENABLED:true}
       host: ${MOCHAT_ACCESS_GATEWAY_TCP_HOST:0.0.0.0}
       port: ${MOCHAT_ACCESS_GATEWAY_TCP_PORT:9000}
+      frame-max-length: ${MOCHAT_ACCESS_GATEWAY_TCP_FRAME_MAX_LENGTH:65536}
+      heartbeat-interval: ${MOCHAT_ACCESS_GATEWAY_TCP_HEARTBEAT_INTERVAL:10s}
+      heartbeat-timeout: ${MOCHAT_ACCESS_GATEWAY_TCP_HEARTBEAT_TIMEOUT:60s}
+      session-resolution-threads: ${MOCHAT_ACCESS_GATEWAY_TCP_SESSION_RESOLUTION_THREADS:4}
+      session-resolution-queue-capacity: ${MOCHAT_ACCESS_GATEWAY_TCP_SESSION_RESOLUTION_QUEUE_CAPACITY:128}
+      session-resolution-pending-limit: ${MOCHAT_ACCESS_GATEWAY_TCP_SESSION_RESOLUTION_PENDING_LIMIT:64}
     tls:
       enabled: ${MOCHAT_ACCESS_GATEWAY_TLS_ENABLED:true}
       self-signed: ${MOCHAT_ACCESS_GATEWAY_TLS_SELF_SIGNED:true}
+      certificate-path: ${MOCHAT_ACCESS_GATEWAY_TLS_CERTIFICATE_PATH:}
+      private-key-path: ${MOCHAT_ACCESS_GATEWAY_TLS_PRIVATE_KEY_PATH:}
     dependencies:
       api-grpc-enabled: ${MOCHAT_ACCESS_GATEWAY_API_GRPC_ENABLED:true}
       redis-enabled: ${MOCHAT_ACCESS_GATEWAY_REDIS_ENABLED:true}

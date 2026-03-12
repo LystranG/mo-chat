@@ -12,6 +12,7 @@ class AccessGatewayGrpcWiringTest {
     @SuppressWarnings({"unchecked", "rawtypes"})
     void exposesGatewayGrpcServerAndUpstreamClientStubs() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of(
+            "mochat.access-gateway.runtime.enabled", false,
             "grpc.server.port", 0,
             "grpc.channels.api-service.address", "localhost:19091",
             "grpc.channels.api-service.plaintext", true,

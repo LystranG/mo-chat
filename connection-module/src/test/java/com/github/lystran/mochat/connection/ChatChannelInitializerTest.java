@@ -2,6 +2,7 @@ package com.github.lystran.mochat.connection;
 
 import com.github.lystran.mochat.common.directory.UserChannelDirectory;
 import com.github.lystran.mochat.common.event.InProcessEventBus;
+import com.github.lystran.mochat.common.session.ResolvedSession;
 import com.github.lystran.mochat.common.session.SessionResolver;
 import com.github.lystran.mochat.protocol.FrameConstants;
 import com.github.lystran.mochat.protocol.MsgType;
@@ -244,8 +245,9 @@ class ChatChannelInitializerTest {
         }
 
         @Override
-        public Optional<Long> resolveUserId(String sessionId) {
-            return Optional.ofNullable(userIdsBySessionId.get(sessionId));
+        public Optional<ResolvedSession> resolveSession(String sessionId) {
+            Long userId = userIdsBySessionId.get(sessionId);
+            return userId == null ? Optional.empty() : Optional.of(new ResolvedSession(sessionId, userId, 1L));
         }
     }
 

@@ -5,6 +5,7 @@ import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import com.github.lystran.mochat.common.id.IdGenerator;
 import com.github.lystran.mochat.common.idempotency.IdempotencyStore;
 import com.github.lystran.mochat.common.lock.JucConversationLock;
+import com.github.lystran.mochat.common.offline.OfflineQueue;
 import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
 import com.github.lystran.mochat.logic.mq.RocketMqProducer;
 import com.github.lystran.mochat.logic.repository.MessageRelationshipRepository;
@@ -27,14 +28,17 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class MessageIngestServiceTest {
@@ -674,6 +678,176 @@ class MessageIngestServiceTest {
         }
     }
 
+    @Test
+    void privateRetryAfterRouteFailureDoesNotQueueOfflineWhenRetrySucceeds() {
+        for (MessageDeliveryStatus firstAttemptStatus : List.of(
+            MessageDeliveryStatus.ROUTE_STALE,
+            MessageDeliveryStatus.USER_OFFLINE,
+            MessageDeliveryStatus.WRITE_FAILED
+        )) {
+            IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+            ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+            IdGenerator idGenerator = mock(IdGenerator.class);
+            RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+            MessageSendPolicyGateway messageSendPolicyGateway = mock(MessageSendPolicyGateway.class);
+            MessageRecipientDispatcher dispatcher = mock(MessageRecipientDispatcher.class);
+            OfflineQueue offlineQueue = mock(OfflineQueue.class);
+
+            when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+            when(seqGenerator.next(200L)).thenReturn(77L);
+            when(idGenerator.nextId()).thenReturn(9_123L);
+            when(rocketMqProducer.publishOrdered(any(MessageAcceptedEvent.class))).thenReturn(true);
+            when(dispatcher.dispatchPrivate(any(PrivateMessageDelivery.class)))
+                .thenReturn(firstAttemptStatus)
+                .thenReturn(MessageDeliveryStatus.DELIVERED);
+
+            MessageIngestService service = directMessageService(
+                idempotencyStore,
+                seqGenerator,
+                idGenerator,
+                rocketMqProducer,
+                messageSendPolicyGateway,
+                dispatcher,
+                offlineQueue
+            );
+
+            service.ingest(MessageIngestRequest.privateMessage(
+                11L,
+                200L,
+                1001L,
+                11L,
+                88L,
+                encodedPrivateRequest(1001L, 200L, 88L)
+            ));
+
+            verify(dispatcher, times(2)).dispatchPrivate(any(PrivateMessageDelivery.class));
+            verifyNoInteractions(offlineQueue);
+        }
+    }
+
+    @Test
+    void privateRetryFailureQueuesReplayableOfflineEnvelopeOnce() throws Exception {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        MessageSendPolicyGateway messageSendPolicyGateway = mock(MessageSendPolicyGateway.class);
+        MessageRecipientDispatcher dispatcher = mock(MessageRecipientDispatcher.class);
+        OfflineQueue offlineQueue = mock(OfflineQueue.class);
+
+        when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(200L)).thenReturn(77L);
+        when(idGenerator.nextId()).thenReturn(9_123L);
+        when(rocketMqProducer.publishOrdered(any(MessageAcceptedEvent.class))).thenReturn(true);
+        when(dispatcher.dispatchPrivate(any(PrivateMessageDelivery.class)))
+            .thenReturn(MessageDeliveryStatus.ROUTE_STALE)
+            .thenReturn(MessageDeliveryStatus.USER_OFFLINE);
+
+        MessageIngestService service = directMessageService(
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            rocketMqProducer,
+            messageSendPolicyGateway,
+            dispatcher,
+            offlineQueue
+        );
+
+        service.ingest(MessageIngestRequest.privateMessage(
+            11L,
+            200L,
+            1001L,
+            11L,
+            88L,
+            encodedPrivateRequest(1001L, 200L, 88L)
+        ));
+
+        ArgumentCaptor<String> offlinePayloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(dispatcher, times(2)).dispatchPrivate(any(PrivateMessageDelivery.class));
+        verify(offlineQueue).enqueue(eq(88L), offlinePayloadCaptor.capture(), eq(50));
+        verify(offlineQueue, times(1)).enqueue(anyLong(), anyString(), anyInt());
+
+        String[] payloadSegments = offlinePayloadCaptor.getValue().split("\\|", 3);
+        assertEquals(MsgType.PRIVATE_MESSAGE.name(), payloadSegments[0]);
+        assertEquals(SerializerType.PROTOBUF.name(), payloadSegments[1]);
+        Mochat.ChatMessageDelivery delivery = Mochat.ChatMessageDelivery.parseFrom(
+            Base64.getDecoder().decode(payloadSegments[2])
+        );
+        assertEquals(9_123L, delivery.getMsgId());
+        assertEquals(77L, delivery.getSeq());
+        assertEquals(200L, delivery.getConversationId());
+        assertEquals(11L, delivery.getFromUid());
+        assertEquals(88L, delivery.getPrivatePayload().getToUid());
+        assertEquals("ciphertext", delivery.getPrivatePayload().getCiphertext().toStringUtf8());
+    }
+
+    @Test
+    void privateRetryExceptionQueuesOfflineEnvelope() {
+        IdempotencyStore idempotencyStore = mock(IdempotencyStore.class);
+        ConversationSeqGenerator seqGenerator = mock(ConversationSeqGenerator.class);
+        IdGenerator idGenerator = mock(IdGenerator.class);
+        RocketMqProducer rocketMqProducer = mock(RocketMqProducer.class);
+        MessageSendPolicyGateway messageSendPolicyGateway = mock(MessageSendPolicyGateway.class);
+        MessageRecipientDispatcher dispatcher = mock(MessageRecipientDispatcher.class);
+        OfflineQueue offlineQueue = mock(OfflineQueue.class);
+
+        when(idempotencyStore.find(11L, 1001L)).thenReturn(Optional.empty());
+        when(seqGenerator.next(200L)).thenReturn(77L);
+        when(idGenerator.nextId()).thenReturn(9_123L);
+        when(rocketMqProducer.publishOrdered(any(MessageAcceptedEvent.class))).thenReturn(true);
+        when(dispatcher.dispatchPrivate(any(PrivateMessageDelivery.class)))
+            .thenReturn(MessageDeliveryStatus.WRITE_FAILED)
+            .thenThrow(new RuntimeException("gateway rpc unavailable"));
+
+        MessageIngestService service = directMessageService(
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            rocketMqProducer,
+            messageSendPolicyGateway,
+            dispatcher,
+            offlineQueue
+        );
+
+        service.ingest(MessageIngestRequest.privateMessage(
+            11L,
+            200L,
+            1001L,
+            11L,
+            88L,
+            encodedPrivateRequest(1001L, 200L, 88L)
+        ));
+
+        verify(dispatcher, times(2)).dispatchPrivate(any(PrivateMessageDelivery.class));
+        verify(offlineQueue).enqueue(eq(88L), anyString(), eq(50));
+    }
+
+    private static MessageIngestService directMessageService(
+        IdempotencyStore idempotencyStore,
+        ConversationSeqGenerator seqGenerator,
+        IdGenerator idGenerator,
+        RocketMqProducer rocketMqProducer,
+        MessageSendPolicyGateway messageSendPolicyGateway,
+        MessageRecipientDispatcher dispatcher,
+        OfflineQueue offlineQueue
+    ) {
+        return new MessageIngestService(
+            new JucConversationLock(),
+            idempotencyStore,
+            seqGenerator,
+            idGenerator,
+            Clock.fixed(Instant.ofEpochMilli(1_710_000_000_000L), ZoneOffset.UTC),
+            rocketMqProducer,
+            messageSendPolicyGateway,
+            (senderUid, clientMsgId, msgId, seq, serverTimeMs) -> {
+            },
+            dispatcher,
+            (conversationId, peerUidLow, peerUidHigh, seq) -> {
+            },
+            offlineQueue
+        );
+    }
+
     private static String encodedPrivateRequest(long clientMsgId, long conversationId, long toUid) {
         var request = Mochat.PrivateMessageReq.newBuilder()
             .setSessionId("session-test")
@@ -705,6 +879,11 @@ class MessageIngestServiceTest {
         @Override
         public PrivateMessageState privateMessageState(long conversationId, long peerUidLow, long peerUidHigh) {
             return privateState;
+        }
+
+        @Override
+        public boolean groupExists(long groupId) {
+            return true;
         }
 
         @Override

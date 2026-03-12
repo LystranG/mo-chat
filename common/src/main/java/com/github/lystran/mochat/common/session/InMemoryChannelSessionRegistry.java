@@ -15,9 +15,11 @@ public final class InMemoryChannelSessionRegistry<C> implements ChannelSessionRe
     }
 
     @Override
-    public void bind(String sessionId, long userId, C channelRef) {
-        Objects.requireNonNull(sessionId, "sessionId");
+    public void bind(ResolvedSession resolvedSession, C channelRef) {
+        Objects.requireNonNull(resolvedSession, "resolvedSession");
         Objects.requireNonNull(channelRef, "channelRef");
+        String sessionId = resolvedSession.sessionId();
+        long userId = resolvedSession.userId();
 
         bindingsBySessionId.compute(sessionId, (ignored, current) -> {
             if (current != null && current.userId() != userId) {

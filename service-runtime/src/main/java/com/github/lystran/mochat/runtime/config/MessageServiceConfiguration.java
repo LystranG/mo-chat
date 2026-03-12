@@ -8,6 +8,7 @@ public class MessageServiceConfiguration {
     private final Id id = new Id();
     private final InboundConsumer inboundConsumer = new InboundConsumer();
     private final Dependencies dependencies = new Dependencies();
+    private final Route route = new Route();
 
     public Grpc getGrpc() {
         return grpc;
@@ -23,6 +24,10 @@ public class MessageServiceConfiguration {
 
     public Dependencies getDependencies() {
         return dependencies;
+    }
+
+    public Route getRoute() {
+        return route;
     }
 
     @ConfigurationProperties("grpc")
@@ -101,6 +106,19 @@ public class MessageServiceConfiguration {
 
         public void setRedisEnabled(boolean redisEnabled) {
             this.redisEnabled = redisEnabled;
+        }
+    }
+
+    @ConfigurationProperties("route")
+    public static class Route {
+        private java.util.Map<String, String> gatewayTargets = new java.util.LinkedHashMap<>();
+
+        public java.util.Map<String, String> getGatewayTargets() {
+            return gatewayTargets;
+        }
+
+        public void setGatewayTargets(java.util.Map<String, String> gatewayTargets) {
+            this.gatewayTargets = gatewayTargets == null ? new java.util.LinkedHashMap<>() : new java.util.LinkedHashMap<>(gatewayTargets);
         }
     }
 }

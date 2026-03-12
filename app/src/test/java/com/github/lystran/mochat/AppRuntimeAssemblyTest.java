@@ -8,6 +8,10 @@ import com.github.lystran.mochat.common.lock.ConversationLock;
 import com.github.lystran.mochat.common.offline.OfflineQueue;
 import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
 import com.github.lystran.mochat.connection.NettyChatServer;
+import com.github.lystran.mochat.logic.chat.InboundMessageConsumer;
+import com.github.lystran.mochat.logic.chat.JdbcReceiptConversationStateStore;
+import com.github.lystran.mochat.logic.chat.ReceiptConversationStateStore;
+import com.github.lystran.mochat.logic.chat.ReceiptService;
 import com.github.lystran.mochat.logic.mq.RocketMqProducer;
 import com.github.lystran.mochat.logic.http.FriendsController;
 import com.github.lystran.mochat.logic.http.GroupsController;
@@ -53,13 +57,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import javax.sql.DataSource;
 
 class AppRuntimeAssemblyTest {
     @Test
-    void embeddedServerSeesLogicControllersAndServices() {
+    void embeddedServerSeesLogicControllersAndServicesWhenLegacyPersistenceCompatibilityEnabled() {
         try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, AppTestSupport.runtimeAssemblyServerProperties())) {
             var context = server.getApplicationContext();
 
@@ -76,7 +81,7 @@ class AppRuntimeAssemblyTest {
     }
 
     @Test
-    void applicationContextAssemblesRuntimeBeans() {
+    void applicationContextAssemblesRuntimeBeansWhenLegacyPersistenceCompatibilityEnabled() {
         try (ApplicationContext context = ApplicationContext.run(AppTestSupport.runtimeAssemblyContextProperties())) {
             assertNotNull(context.getBean(DataSource.class));
             assertNotNull(context.getBean(RedisClient.class));
@@ -104,13 +109,30 @@ class AppRuntimeAssemblyTest {
     }
 
     @Test
-    void applicationContextUsesApplicationYamlDefaultRuntimeProperties() {
+    void applicationContextUsesApplicationYamlDefaultRuntimePropertiesWithoutPersistenceOwners() {
         try (ApplicationContext context = ApplicationContext.run(AppTestSupport.runtimeAssemblyDefaultConfigProperties())) {
             assertNotNull(context.getBean(DataSource.class));
             assertNotNull(context.getBean(RedisClient.class));
-            assertNotNull(context.getBean(DefaultMQPushConsumer.class));
             assertNotNull(context.getBean(DefaultMQProducer.class));
             assertNotNull(context.getBean(NettyChatServer.class));
+            assertTrue(context.findBean(MessageRepository.class).isEmpty());
+            assertTrue(context.findBean(ConversationRepository.class).isEmpty());
+            assertTrue(context.findBean(GroupMessageCache.class).isEmpty());
+            assertTrue(context.findBean(MqConsumer.class).isEmpty());
+            assertTrue(context.findBean(DefaultMQPushConsumer.class).isEmpty());
+            assertTrue(context.findBean(RocketMqPersistenceConsumer.class).isEmpty());
+            assertTrue(context.findBean(PersistenceRuntimeLifecycle.class).isEmpty());
+            assertTrue(context.findBean(ReceiptConversationStateStore.class).isEmpty());
+            assertTrue(context.findBean(InboundMessageConsumer.class).isEmpty());
+        }
+    }
+
+    @Test
+    void applicationContextAssemblesInboundConsumerWhenLegacyPersistenceCompatibilityExplicitlyEnabled() {
+        try (ApplicationContext context = ApplicationContext.run(AppTestSupport.runtimeAssemblyInboundConsumerCompatibilityProperties())) {
+            assertInstanceOf(JdbcReceiptConversationStateStore.class, context.getBean(ReceiptConversationStateStore.class));
+            assertNotNull(context.getBean(ReceiptService.class));
+            assertNotNull(context.getBean(InboundMessageConsumer.class));
         }
     }
 }

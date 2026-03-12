@@ -7,6 +7,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,7 +42,7 @@ class NettyChatServerTest {
             8080,
             initializer,
             allowIoUring -> allowIoUring ? ioUringTransport : defaultTransport,
-            (port, channelInitializer, transport) -> {
+            (host, port, channelInitializer, transport) -> {
                 bindAttempts.incrementAndGet();
                 if (transport.ioUringTransport()) {
                     throw new IllegalStateException("io_uring bootstrap failed");
@@ -53,6 +54,39 @@ class NettyChatServerTest {
         server.start();
 
         assertEquals(2, bindAttempts.get());
+        server.stop();
+        assertFalse(serverChannel.isOpen());
+    }
+
+    @Test
+    void bindsConfiguredHostAndPort() throws Exception {
+        var eventBus = new InProcessEventBus();
+        var initializer = new ChatChannelInitializer(eventBus, null);
+        var transport = new NettyChatServer.TransportSelection(
+            new DefaultEventLoopGroup(1),
+            new DefaultEventLoopGroup(1),
+            NioServerSocketChannel.class,
+            false
+        );
+        var boundHost = new AtomicReference<String>();
+        var boundPort = new AtomicInteger();
+        var serverChannel = new EmbeddedChannel();
+        var server = new NettyChatServer(
+            "127.0.0.2",
+            8081,
+            initializer,
+            allowIoUring -> transport,
+            (host, port, channelInitializer, selectedTransport) -> {
+                boundHost.set(host);
+                boundPort.set(port);
+                return serverChannel;
+            }
+        );
+
+        server.start();
+
+        assertEquals("127.0.0.2", boundHost.get());
+        assertEquals(8081, boundPort.get());
         server.stop();
         assertFalse(serverChannel.isOpen());
     }

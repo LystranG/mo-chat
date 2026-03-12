@@ -84,6 +84,35 @@ class TransactionalPersistenceTest {
     }
 
     @Test
+    void treatsRepeatedMessageReplayAsDurableIdempotentNoOp() throws SQLException {
+        insertConversation(42L, 5L, 1_000L);
+        MessageRepository.PersistedMessage message = privateMessage(1L, 42L, 6L, 2_000L, 11L);
+
+        assertDoesNotThrow(() -> mqConsumer.persistMessage(message));
+        assertDoesNotThrow(() -> mqConsumer.persistMessage(message));
+
+        assertEquals(1, messageCount(message.msgId()));
+        assertEquals(new ConversationState(6L, 2_000L), conversationState(42L));
+    }
+
+    @Test
+    void rethrowsWhenDuplicateMsgIdDoesNotMatchExistingDurableFact() throws SQLException {
+        insertConversation(42L, 5L, 1_000L);
+        insertConversation(43L, 7L, 1_500L);
+        mqConsumer.persistMessage(privateMessage(1L, 42L, 6L, 2_000L, 11L));
+
+        SQLException exception = assertThrows(
+            SQLException.class,
+            () -> mqConsumer.persistMessage(privateMessage(1L, 43L, 8L, 3_000L, 12L))
+        );
+
+        assertEquals("DurableMessageConflictException", exception.getClass().getSimpleName());
+        assertEquals(1, messageCount(1L));
+        assertEquals(new ConversationState(6L, 2_000L), conversationState(42L));
+        assertEquals(new ConversationState(7L, 1_500L), conversationState(43L));
+    }
+
+    @Test
     void privateReceiptSeqIsUpdatedMonotonicallyWithGreatest() throws SQLException {
         insertConversation(42L, 20L, 1_000L);
 

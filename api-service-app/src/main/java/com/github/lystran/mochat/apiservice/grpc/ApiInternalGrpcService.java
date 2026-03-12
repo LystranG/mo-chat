@@ -1,5 +1,9 @@
 package com.github.lystran.mochat.apiservice.grpc;
 
+import com.github.lystran.mochat.common.session.SessionAuthority;
+import com.github.lystran.mochat.common.session.SessionAuthorityStatus;
+import com.github.lystran.mochat.logic.service.MessageSendPolicyService;
+import com.github.lystran.mochat.logic.service.SessionService;
 import com.github.lystran.mochat.protocol.internal.api.v1.CheckPrivateMessagingPolicyRequest;
 import com.github.lystran.mochat.protocol.internal.api.v1.CheckPrivateMessagingPolicyResponse;
 import com.github.lystran.mochat.protocol.internal.api.v1.GetGroupSendContextRequest;
@@ -14,12 +18,17 @@ import com.github.lystran.mochat.protocol.internal.common.v1.SessionPrincipal;
 import io.grpc.stub.StreamObserver;
 import jakarta.inject.Singleton;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Objects;
 
 @Singleton
 public final class ApiInternalGrpcService extends SessionAuthorityApiGrpc.SessionAuthorityApiImplBase {
-    private static final Pattern SESSION_PATTERN = Pattern.compile("^(active|expired|replaced):(\\d+):(\\d+)$");
+    private final SessionService sessionService;
+    private final MessageSendPolicyService messageSendPolicyService;
+
+    public ApiInternalGrpcService(SessionService sessionService, MessageSendPolicyService messageSendPolicyService) {
+        this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
+        this.messageSendPolicyService = Objects.requireNonNull(messageSendPolicyService, "messageSendPolicyService");
+    }
 
     @Override
     public void resolveSession(ResolveSessionRequest request, StreamObserver<ResolveSessionResponse> responseObserver) {
@@ -33,9 +42,11 @@ public final class ApiInternalGrpcService extends SessionAuthorityApiGrpc.Sessio
         CheckPrivateMessagingPolicyRequest request,
         StreamObserver<CheckPrivateMessagingPolicyResponse> responseObserver
     ) {
-        PrivateMessagingPolicy policy = request.getSenderUid() > 0 && request.getRecipientUid() > 0
-            ? PrivateMessagingPolicy.PRIVATE_MESSAGING_POLICY_ALLOWED
-            : PrivateMessagingPolicy.PRIVATE_MESSAGING_POLICY_NOT_FRIEND;
+        PrivateMessagingPolicy policy = toPrivateMessagingPolicy(messageSendPolicyService.checkPrivateMessagingPolicy(
+            request.getConversationId(),
+            request.getSenderUid(),
+            request.getRecipientUid()
+        ));
         responseObserver.onNext(CheckPrivateMessagingPolicyResponse.newBuilder().setPolicy(policy).build());
         responseObserver.onCompleted();
     }
@@ -45,47 +56,51 @@ public final class ApiInternalGrpcService extends SessionAuthorityApiGrpc.Sessio
         GetGroupSendContextRequest request,
         StreamObserver<GetGroupSendContextResponse> responseObserver
     ) {
-        GetGroupSendContextResponse.Builder response = GetGroupSendContextResponse.newBuilder();
-        if (request.getGroupId() <= 0 || request.getSenderUid() <= 0) {
-            response.setEligibility(GroupSendEligibility.GROUP_SEND_ELIGIBILITY_NOT_MEMBER);
-        } else {
-            response.setEligibility(GroupSendEligibility.GROUP_SEND_ELIGIBILITY_ALLOWED)
-                .addMemberUids(request.getSenderUid());
-        }
+        MessageSendPolicyService.GroupSendContext groupSendContext =
+            messageSendPolicyService.getGroupSendContext(request.getGroupId(), request.getSenderUid());
+        GetGroupSendContextResponse.Builder response = GetGroupSendContextResponse.newBuilder()
+            .setEligibility(toGroupSendEligibility(groupSendContext.eligibility()))
+            .addAllMemberUids(groupSendContext.memberUids());
         responseObserver.onNext(response.build());
         responseObserver.onCompleted();
     }
 
     private ResolveSessionResponse resolveSessionResponse(String sessionId) {
-        if (sessionId == null || sessionId.isBlank()) {
-            return ResolveSessionResponse.newBuilder()
-                .setStatus(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID)
-                .build();
+        SessionAuthority authority = sessionService.resolveAuthority(sessionId);
+        ResolveSessionResponse.Builder response = ResolveSessionResponse.newBuilder()
+            .setStatus(toResolutionStatus(authority.status()));
+        if (authority.userId() > 0L) {
+            response.setPrincipal(SessionPrincipal.newBuilder()
+                .setSessionId(authority.sessionId())
+                .setUserId(authority.userId())
+                .setSessionVersion(authority.sessionVersion())
+                .build());
         }
-
-        Matcher matcher = SESSION_PATTERN.matcher(sessionId);
-        if (!matcher.matches()) {
-            return ResolveSessionResponse.newBuilder()
-                .setStatus(SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID)
-                .build();
-        }
-
-        return ResolveSessionResponse.newBuilder()
-            .setStatus(toResolutionStatus(matcher.group(1)))
-            .setPrincipal(SessionPrincipal.newBuilder()
-                .setSessionId(sessionId)
-                .setUserId(Long.parseLong(matcher.group(2)))
-                .setSessionVersion(Long.parseLong(matcher.group(3)))
-                .build())
-            .build();
+        return response.build();
     }
 
-    private SessionResolutionStatus toResolutionStatus(String state) {
-        return switch (state) {
-            case "active" -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_ACTIVE;
-            case "expired" -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_EXPIRED;
-            case "replaced" -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_REPLACED;
-            default -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID;
+    private SessionResolutionStatus toResolutionStatus(SessionAuthorityStatus status) {
+        return switch (status) {
+            case ACTIVE -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_ACTIVE;
+            case EXPIRED -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_EXPIRED;
+            case REPLACED -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_REPLACED;
+            case INVALID -> SessionResolutionStatus.SESSION_RESOLUTION_STATUS_INVALID;
+        };
+    }
+
+    private PrivateMessagingPolicy toPrivateMessagingPolicy(MessageSendPolicyService.PrivateMessagingPolicy policy) {
+        return switch (policy) {
+            case ALLOWED -> PrivateMessagingPolicy.PRIVATE_MESSAGING_POLICY_ALLOWED;
+            case NOT_FRIEND -> PrivateMessagingPolicy.PRIVATE_MESSAGING_POLICY_NOT_FRIEND;
+            case BLOCKED -> PrivateMessagingPolicy.PRIVATE_MESSAGING_POLICY_BLOCKED;
+        };
+    }
+
+    private GroupSendEligibility toGroupSendEligibility(MessageSendPolicyService.GroupSendEligibility eligibility) {
+        return switch (eligibility) {
+            case ALLOWED -> GroupSendEligibility.GROUP_SEND_ELIGIBILITY_ALLOWED;
+            case NOT_MEMBER -> GroupSendEligibility.GROUP_SEND_ELIGIBILITY_NOT_MEMBER;
+            case GROUP_NOT_FOUND -> GroupSendEligibility.GROUP_SEND_ELIGIBILITY_GROUP_NOT_FOUND;
         };
     }
 }

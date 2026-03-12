@@ -3,12 +3,14 @@ package com.github.lystran.mochat.runtime;
 import com.github.lystran.mochat.persistence.RocketMqPersistenceConsumer;
 import io.micronaut.context.annotation.Context;
 import io.micronaut.context.annotation.Property;
+import io.micronaut.context.annotation.Requires;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
 
 @Singleton
 @Context
+@Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
 public final class PersistenceRuntimeLifecycle implements AutoCloseable {
     private final RocketMqPersistenceConsumer persistenceConsumer;
     private final boolean consumerEnabled;

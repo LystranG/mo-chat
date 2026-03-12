@@ -17,6 +17,8 @@ import com.github.lystran.mochat.infra.redis.RedisEventBus;
 import com.github.lystran.mochat.infra.redis.RedisIdempotencyStore;
 import com.github.lystran.mochat.infra.redis.RedisOfflineQueue;
 import com.github.lystran.mochat.logic.mq.RocketMqProducer;
+import com.github.lystran.mochat.logic.chat.JdbcReceiptConversationStateStore;
+import com.github.lystran.mochat.logic.chat.ReceiptConversationStateStore;
 import com.github.lystran.mochat.logic.repository.ConversationStateRepository;
 import com.github.lystran.mochat.persistence.ConversationRepository;
 import com.github.lystran.mochat.persistence.MessageRepository;
@@ -144,21 +146,31 @@ public final class MochatRuntimeFactory {
     }
 
     @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
     MessageRepository messageRepository() {
         return new MessageRepository();
     }
 
     @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
     ConversationRepository conversationRepository() {
         return new ConversationRepository();
     }
 
     @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
     GroupMessageCache groupMessageCache(RedisCommands<String, String> redisCommands) {
         return new GroupMessageCache(redisCommands);
     }
 
     @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
+    ReceiptConversationStateStore receiptConversationStateStore(DataSource dataSource) {
+        return new JdbcReceiptConversationStateStore(dataSource);
+    }
+
+    @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
     MqConsumer mqConsumer(
         DataSource dataSource,
         MessageRepository messageRepository,
@@ -169,6 +181,7 @@ public final class MochatRuntimeFactory {
     }
 
     @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
     DefaultMQPushConsumer defaultMqPushConsumer(
         @Property(name = "mochat.rocketmq.name-server") String nameServer,
         @Property(name = "mochat.rocketmq.consumer-group", defaultValue = "mochat-persistence-consumer") String consumerGroup,
@@ -185,6 +198,7 @@ public final class MochatRuntimeFactory {
     }
 
     @Singleton
+    @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
     RocketMqPersistenceConsumer rocketMqPersistenceConsumer(
         DefaultMQPushConsumer defaultMqPushConsumer,
         MqConsumer mqConsumer

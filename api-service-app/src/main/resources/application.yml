@@ -6,6 +6,8 @@ micronaut:
     port: ${MOCHAT_API_SERVICE_HTTP_PORT:8080}
 
 mochat:
+  redis:
+    uri: '${MOCHAT_REDIS_URI:`redis://127.0.0.1:6379`}'
   api-service:
     http:
       host: ${MOCHAT_API_SERVICE_HTTP_HOST:0.0.0.0}

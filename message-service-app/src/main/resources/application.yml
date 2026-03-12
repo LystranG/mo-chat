@@ -15,6 +15,8 @@ mochat:
       gateway-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_GATEWAY_GRPC_ENABLED:true}
       mq-enabled: ${MOCHAT_MESSAGE_SERVICE_MQ_ENABLED:true}
       redis-enabled: ${MOCHAT_MESSAGE_SERVICE_REDIS_ENABLED:true}
+    route:
+      gateway-targets: {}
 
 grpc:
   server:

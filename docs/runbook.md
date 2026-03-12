@@ -33,6 +33,112 @@ Stop dependencies:
 podman compose down
 ```
 
+## Dedicated service topology (Phase 1)
+
+Phase 1 now treats the split runtime as the default local topology. Four dedicated services share the same PostgreSQL, Redis, and RocketMQ stack.
+
+| Service | Default listeners | Owns | Depends on |
+| --- | --- | --- | --- |
+| `api-service` | HTTP `8080`, gRPC `19091` | login, session authority, social graph, history query | PostgreSQL, Redis, optional `message-service` gRPC for offline replay trigger |
+| `message-service` | gRPC `19092` | message ingest, idempotency, sender ACK, online delivery orchestration, offline fallback | Redis, RocketMQ, `api-service` gRPC, per-gateway target map |
+| `access-gateway` | TCP `9000`, gRPC `19093` per instance | TCP bind, heartbeat, online route ownership, targeted channel delivery | Redis, `api-service` gRPC, `message-service` gRPC, unique `gateway-pod` identity |
+| `persistence-service` | no public HTTP/TCP listener | MQ consume, durable persistence, conversation advancement, post-commit cache work | PostgreSQL, Redis, RocketMQ |
+
+Shared infrastructure and cross-service addressing:
+
+- PostgreSQL via `MOCHAT_POSTGRES_URL`, `MOCHAT_POSTGRES_USERNAME`, `MOCHAT_POSTGRES_PASSWORD`
+- Redis via `MOCHAT_REDIS_URI`
+- RocketMQ via `MOCHAT_ROCKETMQ_NAME_SERVER`, `MOCHAT_ROCKETMQ_TOPIC`
+- `access-gateway -> api-service`: `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
+- `access-gateway -> message-service`: `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
+- `message-service -> api-service`: `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
+- `api-service -> message-service`: `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
+
+Route-aware delivery and duplicate-login fencing:
+
+- `message-service` resolves owners through `mochat.message-service.route.gateway-targets.*`
+- each `access-gateway` instance must advertise a unique `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD`
+- cross-gateway replacement kicks require `mochat.access-gateway.route.peer-targets.*`
+
+### Local multi-process startup
+
+One local verification layout is:
+
+- `api-service` on `127.0.0.1:8080` + `127.0.0.1:19091`
+- `message-service` on `127.0.0.1:19092`
+- `persistence-service` consuming MQ in the background
+- `access-gateway-a` on TCP `9000`, gRPC `19093`, `gateway-pod=gateway-a`
+- `access-gateway-b` on TCP `9001`, gRPC `19094`, `gateway-pod=gateway-b`
+
+Start them from repository root in separate terminals after `podman compose up -d`:
+
+```bash
+./gradlew :api-service-app:run
+```
+
+```bash
+JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
+  -Dmochat.message-service.route.gateway-targets.gateway-a=127.0.0.1:19093 \
+  -Dmochat.message-service.route.gateway-targets.gateway-b=127.0.0.1:19094' \
+  ./gradlew :message-service-app:run
+```
+
+```bash
+./gradlew :persistence-service-app:run
+```
+
+```bash
+MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-a \
+MOCHAT_ACCESS_GATEWAY_GRPC_PORT=19093 \
+MOCHAT_ACCESS_GATEWAY_TCP_PORT=9000 \
+MOCHAT_API_SERVICE_GRPC_ADDRESS=127.0.0.1:19091 \
+MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=127.0.0.1:19092 \
+JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-b=127.0.0.1:19094' \
+  ./gradlew :access-gateway-app:run
+```
+
+```bash
+MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-b \
+MOCHAT_ACCESS_GATEWAY_GRPC_PORT=19094 \
+MOCHAT_ACCESS_GATEWAY_TCP_PORT=9001 \
+MOCHAT_API_SERVICE_GRPC_ADDRESS=127.0.0.1:19091 \
+MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=127.0.0.1:19092 \
+JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-a=127.0.0.1:19093' \
+  ./gradlew :access-gateway-app:run
+```
+
+Quick listener probe:
+
+```bash
+for port in 8080 19091 19092 19093 19094 9000 9001; do
+  ss -ltn | rg -q ":${port}\\b" && echo "ok:${port}" || echo "missing:${port}"
+done
+```
+
+Notes:
+
+- `message-service` must know every owning gateway target through `mochat.message-service.route.gateway-targets.*`.
+- Each `access-gateway` instance must use a unique `mochat.access-gateway.route.gateway-pod`.
+- Cross-gateway duplicate-login kick flow requires `mochat.access-gateway.route.peer-targets.*` on each gateway instance.
+- `persistence-service` is intentionally background-only in this phase; no extra HTTP/gRPC port is documented for it yet.
+
+### Rollback posture
+
+Rollback stays at the runtime-entrypoint level rather than the data layer:
+
+- Stop the dedicated `access-gateway-app`, `api-service-app`, `message-service-app`, and `persistence-service-app` processes.
+- Keep PostgreSQL, Redis, and RocketMQ running; the split services and the legacy app use the same shared infrastructure.
+- Restart the legacy shell with persistence compatibility re-enabled:
+
+```bash
+MOCHAT_LEGACY_PERSISTENCE_ENABLED=true \
+MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=true \
+  ./gradlew :app:run
+```
+
+- Route HTTP traffic back to the legacy app on `8080` and TCP traffic back to the legacy app on `9000`.
+- Because external TCP/HTTP contracts and shared storage remain unchanged in Phase 1, this rollback does not require schema or payload migration.
+
 ### Verified outcome (2026-03-07)
 
 - `podman compose up -d` started Postgres, Redis, RocketMQ NameServer, and RocketMQ Broker.
@@ -41,7 +147,7 @@ podman compose down
 - `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
 - Local app defaults were aligned with `docker-compose.yml`: PostgreSQL now defaults to `jdbc:postgresql://localhost:5432/mochat` with `mochat` / `mochat` credentials.
 
-## Build, test, and run commands
+## Build, test, and compatibility-shell commands
 
 From repository root:
 
@@ -78,9 +184,9 @@ curl -fsS "http://127.0.0.1:8080/friends?sessionId=${session_id}"
 
 Interpretation:
 
-- `app` is no longer CLI-only bootstrap; it now starts the Micronaut HTTP server and the Netty TCP listener as a composed runtime.
-- Startup now eagerly creates PostgreSQL, Redis, and RocketMQ clients, runs Flyway migrations by default, then starts HTTP and TCP listeners.
-- The RocketMQ persistence consumer also starts on boot unless `mochat.rocketmq.consumer.enabled=false`.
+- `app` is now a compatibility shell rather than the default production topology.
+- Startup still eagerly creates PostgreSQL, Redis, and RocketMQ clients, runs Flyway migrations by default, then starts HTTP and TCP listeners.
+- Persistence-side consumers and inbound compatibility wiring only come back when `MOCHAT_LEGACY_PERSISTENCE_ENABLED=true` and related compatibility toggles are explicitly enabled.
 
 ## Config keys overview
 
