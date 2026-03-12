@@ -1,170 +1,238 @@
 # MoChat 技术总览
 
-本文档只描述当前代码库中已经落地并得到确认的技术事实，用于说明系统边界、运行时装配、核心能力、数据真相来源和主要缺口。
+本文档只记录当前代码库已经落地的稳定技术事实，用来说明默认运行拓扑、服务边界、核心交互语义、数据 ownership 和兼容壳定位。
 
-操作步骤、启动命令和排障细节不放在这里；这些内容统一放在 `docs/runbook.md`。
+启动命令、排障步骤、端口探测、TLS 证书生成和回滚操作不在这里展开，统一见 `docs/runbook.md`。
 
-## 1. 系统定位
+## 1. 默认运行形态
 
-MoChat 当前采用“模块化单体 + 显式接口边界”的形态，目标是在单机高吞吐 IM 场景下交付可运行的一期后端，同时为后续拆分为更独立的运行单元保留边界。
+MoChat 当前默认采用四个 dedicated services 加共享基础设施的形态运行：
 
-当前仓库已经不是单纯的骨架工程，而是一个可启动、可迁移、可测试的运行时组合：
+- `access-gateway`
+- `api-service`
+- `message-service`
+- `persistence-service`
 
-- `app` 负责 Micronaut 装配、生命周期管理和 Native Image 构建入口。
-- `common` 提供事件总线、幂等、会话锁、离线队列和用户连接目录等跨模块抽象。
-- `protocol` 定义 TCP 固定头、错误码和 protobuf 协议。
-- `connection-module` 负责 Netty TCP、TLS、拆帧、心跳、限流、Session 绑定和出入站桥接。
-- `logic-module` 负责登录注册、Session、消息摄入、ACK、历史查询、会话状态、好友与群管理 HTTP 生命周期。
-- `infra-redis` 提供 Redis 驱动的 `seq`、事件分发、幂等和离线队列实现。
-- `persistence-module` 负责 Flyway migration、JDBC 真相存储、RocketMQ 持久化消费和群消息缓存。
+它们共享同一套 PostgreSQL、Redis 和 RocketMQ，但运行时 ownership 已经按服务拆开，而不是继续把业务装配在单个 Micronaut 进程里。
 
-## 2. 运行时与配置事实
+`app` 仍然存在，但它的角色已经降为 compatibility shell。它不再是默认拓扑的 source of truth，只在需要恢复 legacy 兼容路径时才应被显式启用。
 
-### 2.1 装配方式
+## 2. 服务边界
 
-`app` 已经把以下运行时能力装配到同一个 Micronaut 进程中：
+### 2.1 `access-gateway`
 
-- HTTP 服务
-- Netty TCP 聊天入口
-- PostgreSQL `DataSource`
-- Flyway migration
-- Redis 客户端与 Pub/Sub
-- RocketMQ producer / consumer
-- JDBC 仓储与持久化消费链路
+`access-gateway` 负责长连接入口和在线连接 ownership：
 
-运行时核心装配集中在 `MochatRuntimeFactory` 及各类 lifecycle Bean，而不是放在 `Application` 主类中。
+- TCP/TLS 聊天入口
+- Session bind 入口与会话权威校验
+- 心跳、续租、超时关闭
+- Redis 在线 route 写入与续租
+- duplicate login 后的旧连接踢除
+- targeted delivery 的本地 channel 写回
+- drain / rollout 期间的新连接拒绝与存量连接宽限关闭
 
-### 2.2 TLS 现实
+它只拥有连接生命周期和在线路由，不承担消息持久化真相或 history read-side。
 
-聊天 TCP 当前是强制 TLS 的，这一点不是文档约定，而是运行时约束：
+### 2.2 `api-service`
 
-- `mochat.tls.enabled=false` 会直接触发 fail-fast，运行时不会退化为明文 TCP。
-- `mochat.tls.certificate-path` 与 `mochat.tls.private-key-path` 必须成对提供。
-- 如果没有显式提供证书材料，则只有在 `mochat.tls.self-signed=true` 时才会生成自签名证书启动。
-- 当显式提供证书链与私钥时，运行时优先使用用户提供的材料。
+`api-service` 负责账户、会话权威和读侧 HTTP：
 
-### 2.3 配置文件角色
+- 登录与首次用户 bootstrap
+- authoritative session record 签发与校验
+- 好友、拉黑、群成员资格等消息前置业务校验
+- social graph 和 group management HTTP 生命周期
+- history query 与 conversation state read-side
+- 登录后离线重放触发
 
-- `app/src/main/resources/application.yml` 提供运行时默认配置。
-- `app/src/main/resources/application-local.yml` 仍被 git 跟踪，用于本地依赖与 TLS 相关覆盖值的项目内默认约定。
+它是 session authority owner，也是 history read-side owner。
 
-`application-local.yml` 当前保留了本地 PostgreSQL、Redis、RocketMQ 与 TLS 相关配置键，因此它属于受版本控制的本地支持文件，而不是临时个人文件。
+### 2.3 `message-service`
 
-## 3. 已实现的核心能力
+`message-service` 负责同步消息接受路径和在线投递编排：
 
-### 3.1 认证、用户与 Session
+- 私聊 / 群聊命令入口
+- Redis 幂等窗口
+- `msgId` 与会话内 `seq` 分配
+- RocketMQ 同步 publish
+- sender `SEND_ACK`
+- Redis route 解析
+- 针对 owning gateway 的 targeted delivery
+- route refresh once 后的 offline fallback
+- replayable offline envelope 编排
 
-- `AuthController` 提供登录入口。
-- 首次登录要求提供 32 字节公钥；已存在用户再次登录时会校验公钥一致性。
-- 运行时有 `DataSource` 时优先走 `JdbcUserRepository`，否则回退到内存实现。
-- `SessionService` 使用 Redis 保存 `sessionId -> userId`，并配合本地缓存读取。
-- 登录成功后会触发离线消息重放。
+它不拥有 durable message truth，也不承载 history query。
 
-### 3.2 连接层与在线投递
+### 2.4 `persistence-service`
 
-- `ChatChannelInitializer` 已组装 TLS、拆帧、限流、心跳、Session 绑定和入站路由。
-- `SessionBindingHandler` 会在首个带 `sessionId` 的业务帧上解析会话并绑定用户与 Netty Channel。
-- `HeartbeatHandler` 会发送服务端心跳并在客户端超时后关闭连接、清理绑定。
-- `OutboundEventSubscriber` 负责把 `connection.outbound` 事件编码为二进制帧，并优先写回在线连接。
-- `DELIVERED_ACK` 被排除在离线队列之外，避免回执消息积压。
+`persistence-service` 负责异步 durable truth：
 
-### 3.3 消息摄入、顺序、幂等与回执
+- RocketMQ consume
+- 事务内写入 `messages` 与 `conversations`
+- receipt/state 推进
+- post-commit group cache update
+- duplicate consume 下的 durable idempotency
 
-- `InboundMessageConsumer` 处理私聊、群聊和客户端送达 ACK。
-- `MessageIngestService` 在会话锁内完成幂等判断、`seq` 分配、`msgId` 分配、RocketMQ 有序发送和发送方 ACK。
-- 私聊发送前会校验会话参与者与关系约束；群聊发送前会校验成员资格。
-- `ReceiptService` 支持私聊二阶段送达回执，并将最新接收 `seq` 写回会话状态。
+它是消息事实和 conversation advancement 的默认 owner。
 
-### 3.4 历史查询与会话状态
+### 2.5 共享层
 
-- 历史查询基于 `conversation_id + seq` 工作，而不是仅依赖时间戳。
-- 支持无游标、游标分页和 `startSeq/endSeq` 范围查询。
-- 会话状态查询和历史查询都会先做 Session 鉴权及会话访问控制。
+当前共享层主要包括：
 
-### 3.5 好友与群管理
+- `protocol`: 外部 TCP 协议和内部 gRPC protobuf 契约
+- `common`: 跨服务抽象，例如 session、event bus、offline queue、id 生成和连接目录契约
+- `service-runtime`: 各 dedicated service 的配置模型
+- `message-module`: 需要跨服务共享的消息域契约
 
-基础 HTTP 生命周期入口已经落地，当前已覆盖：
+共享层只保留协议和契约，不应重新演化成隐式单体装配层。
 
-- 好友申请、处理、列表、删除好友、拉黑、解黑
-- 建群、群列表、退群、踢人、解散
-- 入群申请、审批
+## 3. 核心交互语义
 
-这部分已经具备 JDBC 真相仓储和对应测试覆盖，但更细粒度的权限约束仍未补齐。
+### 3.1 bind 后才建立 gateway ownership
 
-## 4. 数据与持久化事实
+用户只有在 `access-gateway` 成功解析 session 并完成 bind 之后，才会被视为在线 owner 已建立。
 
-### 4.1 真相来源
+成功 bind 会把在线 route 写入 Redis，并带上以下 fencing 信息：
 
-数据库相关事实以以下两类实现为准：
+- `gatewayPod`
+- `connectionId`
+- `sessionId`
+- `sessionVersion`
+- `routeEpoch`
+- lease metadata
 
-- Flyway migration
-- JDBC 仓储代码
+当前 phase 1 只允许单用户单活连接。更新 bind 会覆盖旧 route，并让旧连接在显式替换或下一次心跳续租时被判定为 stale。
 
-`docs/ddl/phase1.sql` 仍可作为设计参考，但当它与 migration 或仓储实现不一致时，应以 migration 和代码为准。
+### 3.2 session authority、`sessionVersion` 与 `routeEpoch`
 
-### 4.2 当前关键表
+会话权威由 `api-service` 持有，`access-gateway` 和 targeted delivery 只能消费 authority 结果，不能自定 session 有效性。
 
-当前主干数据模型包含：
+当前 stale fence 由两层组成：
 
-- `users`
-- `user_friendships`
-- `friend_requests`
-- `groups`
-- `group_memberships`
-- `group_join_requests`
-- `conversations`
+- `sessionVersion`: 防止旧 session 或旧登录状态继续占有连接
+- `routeEpoch`: 防止旧 route 或旧 gateway owner 继续接收投递
+
+这两层 fence 同时用于：
+
+- bind 阶段的 ownership 建立
+- heartbeat renew
+- duplicate login 替换旧连接
+- `message-service -> access-gateway` 的 targeted delivery
+
+### 3.3 在线投递、offline fallback 与 sender ACK
+
+`message-service` 会在接受消息时完成：
+
+- 幂等判断
+- `msgId` / `seq` 分配
+- RocketMQ publish
+- sender `SEND_ACK`
+
+`SEND_ACK` 只表示消息已经被 `message-service` 接受并成功写入 MQ，不表示：
+
+- recipient 已确认接收
+- 数据库事务已提交
+- history 查询已经可见
+
+针对在线 recipient，`message-service` 会先按 Redis route 做 targeted delivery。若结果为 `ROUTE_STALE`、`USER_OFFLINE` 或 `WRITE_FAILED`，它最多刷新一次 route；仍失败时才写入 offline envelope。
+
+### 3.4 history visibility 与 durable commit 边界
+
+history query 继续归属 `api-service`。当前语义明确区分三件事：
+
+- sender accepted
+- realtime delivery attempted/completed
+- durable persistence committed
+
+前两者都不等于 history 已可见。`/history` 与 `/conversations/{id}/state` 以后续持久化提交结果为准，因此系统允许出现“实时先送达、历史稍后可见”的窗口。
+
+## 4. 数据 ownership 与真相来源
+
+### 4.1 PostgreSQL
+
+PostgreSQL 中的 durable truth 由 `persistence-service` 写入和推进，核心对象包括：
+
 - `messages`
+- `conversations`
+- receipt/state 相关进度
 
-其中 `conversations` 维护 `latest_seq`、`latest_message_time`、`uid_1_seq` 和 `uid_2_seq`，因此它不仅是会话索引表，也是回执与状态查询的重要事实来源。
+当文档、DDL 参考稿和实际代码不一致时，应以以下两类事实为准：
 
-### 4.3 Flyway 状态
+- Flyway migrations
+- JDBC 仓储与运行时代码
 
-当前群入群申请的 pending 唯一约束已经从基线 migration 中拆出，采用独立版本化 migration 维护：
+`docs/ddl/phase1.sql` 只能作为参考，不是最终 truth source。
 
-- `V1__phase1.sql` 保留基线表结构与通用索引
-- `V2__group_join_requests_pending_pair_uniq.sql` 创建 `group_join_requests_pending_pair_uniq`
+### 4.2 Redis
 
-这样可以兼容“旧库已经执行过 `V1`”的升级路径，避免通过修改基线 migration 破坏 Flyway checksum。
+Redis 当前承担两类不同职责：
 
-### 4.4 持久化与缓存链路
+- `api-service` 的 authoritative session state
+- `access-gateway` / `message-service` 使用的在线 route、幂等窗口和短期 offline replay 协调数据
 
-- `RocketMqPersistenceConsumer` 负责消费逻辑层发出的持久化消息。
-- `MqConsumer.persistMessage(...)` 会在一个 JDBC 事务内写 `messages` 并推进 `conversations` 状态。
-- 群消息缓存只在事务提交成功后更新。
-- `GroupMessageCache` 当前具备写路径、L1 读取和 Redis ZSET 作为 L2 存储，但尚未形成完整的 L2 回源读链路。
+Redis 在这里是权威 session / coordination store，但不是最终消息事实库。
 
-## 5. 验证状态
+### 4.3 RocketMQ
 
-当前仓库已经具备持续可运行的自动化验证基础：
+RocketMQ 是同步接受和异步持久化之间的 handoff boundary：
 
-- Flyway 升级路径测试已覆盖 legacy `V1` 升级到当前 migration 后补建 `group_join_requests_pending_pair_uniq` 的场景。
-- 群仓储集成测试和整仓测试已经在修复前后的主干候选结果上完成 fresh 通过。
-- 本仓库也已有 JVM 启动验证和 Native Image 构建验证。
+- `message-service` publish 成功后才返回 `SEND_ACK`
+- `persistence-service` commit 成功后才确认消费
 
-这些事实说明当前代码库已经具备：
+这条边界定义了系统为何允许 realtime delivery 与 durable visibility 暂时分离。
 
-- 可迁移的数据库模式
-- 可合并的主干状态
-- 可重复执行的整仓自动化测试基线
+## 5. 协议与运行时事实
 
-## 6. 主要缺口
+当前稳定的协议与运行时事实包括：
 
-当前最主要的技术缺口可以收敛为以下几类：
+- 外部聊天链路仍保持固定头 + protobuf body 的 TCP 协议
+- 聊天 TCP 默认要求 TLS 1.3，禁用 TLS 会 fail-fast
+- `access-gateway`、`api-service`、`message-service` 之间的同步调用使用内部 gRPC
+- `message-service -> access-gateway` 的路由不是随机负载均衡，而是 owner-addressed targeted delivery
+- phase 1 本地默认端口基线为：
+  - `api-service` HTTP `8080`，gRPC `19091`
+  - `message-service` gRPC `19092`
+  - `access-gateway-a` TCP `9000`，gRPC `19093`
+  - `access-gateway-b` TCP `9001`，gRPC `19094`
 
-1. 连接层虽然具备 Session 绑定、在线写回和离线重放基础设施，但缺少更完整的 TCP 端到端自动化验证。
-2. 私聊主链路已经具备核心处理能力，但独立的私聊会话初始化入口仍未补齐，因此不能把“空数据库直接发起完整私聊链路”视为已完成能力。
-3. 好友与群管理已有基础 HTTP 生命周期入口，但更细粒度的群权限规则和一致性约束仍待补齐。
-4. `DELIVERED_ACK` 不做离线补推，发送方离线时不会收到补偿性送达反馈。
-5. EventBus 与 MQ envelope 仍以字符串协议为主，契约表达和长期演进性都偏弱。
-6. 群消息缓存尚未形成完整的 L1/L2 回源读链路。
-7. Session 仍缺少 TTL 与真正的过期语义。
-8. 历史查询目前只覆盖会话级访问控制，尚未扩展到更细的业务可见性规则。
-9. 测试运行时仍存在一些非阻塞性 JDK / 依赖告警，但不影响当前测试通过。
+这些是拓扑和契约事实；具体启动方式与环境变量见 `docs/runbook.md`。
 
-## 7. 总体判断
+## 6. Compatibility Shell 与回滚姿态
 
-MoChat 当前已经具备统一运行时装配、持久化 schema 管理、消息主链路处理、基础好友与群管理入口，以及可重复执行的整仓测试基线。
+`app` 当前保留的唯一核心意义是 compatibility shell：
 
-它仍然不是功能完全闭环的一期成品，但也不再是“只有骨架的原型”。更准确的判断是：
+- 它可以在 dedicated services 拓扑之外提供 legacy 入口
+- 但默认不再 materialize persistence ownership
+- 相关兼容路径必须通过显式开关启用，而不是作为默认行为恢复
 
-> 这是一个已经完成主运行时装配并具备可验证主干状态的 IM 后端实现；后续重点应放在补齐私聊会话初始化、收紧群权限与一致性规则、完善缓存回源，以及补强真正的端到端自动化验证。
+当前回滚策略是 runtime-entrypoint 级别回滚，而不是数据层回滚。也就是说，保留共享 PostgreSQL / Redis / RocketMQ，不在 phase 1 内引入 schema migration rollback 或跨服务数据迁移。
+
+## 7. 当前明确非目标与剩余缺口
+
+以下边界在当前阶段是明确的非目标或延后项：
+
+- 不做 database-per-service
+- 不做 distributed transaction
+- 不做 service mesh 或 KEDA
+- 不支持 multi-device concurrent presence
+- 不做 live connection migration
+- 不实现 group member-level delivered/read state
+
+当前仍保留的主要技术限制包括：
+
+- gateway route target 和 peer target 仍依赖显式配置，而不是动态服务发现
+- offline queue 仍以 replayable envelope 为主，未做进一步压缩或长期归档
+- shared infrastructure 仍然存在，因此服务隔离是 logical ownership，而非物理隔离
+- compatibility shell 仍在仓库中保留，说明迁移已经完成默认路径切换，但还没有彻底移除 legacy 回退面
+
+## 8. 总体判断
+
+MoChat 当前已经完成从“模块化单体默认运行”到“dedicated services 默认运行”的切换。稳定的主干事实是：
+
+- 四个服务的职责边界已经落地
+- internal gRPC、Redis route 和 RocketMQ handoff 已成为默认运行语义
+- sender accepted、online delivery 和 durable visibility 的边界已经被显式定义并得到 focused 验证
+- `app` 只作为 compatibility shell 存在，不再代表默认生产拓扑
+
+因此，当前仓库更准确的定位是：
+
+> 一个以四服务 dedicated topology 为默认运行形态、并以 OpenSpec 规格驱动边界定义的 IM 后端实现。
