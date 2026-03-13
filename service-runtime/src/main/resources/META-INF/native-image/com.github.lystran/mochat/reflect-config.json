@@ -1,0 +1,11 @@
+[
+  {
+    "name": "com.github.benmanes.caffeine.cache.SSMS",
+    "allDeclaredConstructors": true,
+    "fields": [
+      {
+        "name": "FACTORY"
+      }
+    ]
+  }
+]

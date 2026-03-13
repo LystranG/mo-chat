@@ -29,11 +29,19 @@ When multiple services share PostgreSQL, Redis, or MQ infrastructure, each table
 - **THEN** only the owning `access-gateway` flow writes the authoritative route record for that user
 
 ### Requirement: GraalVM native image compatibility
-The build pipeline MUST support GraalVM native image packaging for the service.
+The build and packaging pipeline MUST support GraalVM native image packaging for every deployable microservice entrypoint: `access-gateway-app`, `api-service-app`, `message-service-app`, and `persistence-service-app`. Each deployable service MUST have an explicit Dockerfile that packages its service-specific native binary into a runnable container image. Shared library modules MUST remain internal build dependencies and MUST NOT be treated as standalone deployable container targets.
 
-#### Scenario: native image build run
-- **WHEN** native build profile is executed
-- **THEN** the project produces native binary artifact with required runtime metadata
+#### Scenario: dedicated service native build run
+- **WHEN** the native build profile is executed for any deployable service entry module
+- **THEN** that service produces its own native binary artifact with the runtime metadata required for that entrypoint
+
+#### Scenario: dedicated service container image build
+- **WHEN** an operator builds the image for one of the deployable service entry modules
+- **THEN** the repository provides a service-owned Dockerfile that packages that service's native binary into a runnable container image
+
+#### Scenario: containerized service keeps existing runtime contract
+- **WHEN** a deployable service is started from its native-image-based container
+- **THEN** it uses the same documented environment-variable configuration surface and listener contract as the dedicated runtime instead of requiring a separate container-only configuration model
 
 ### Requirement: Token-bucket rate limiting handler
 The Netty pipeline MUST include a configurable token-bucket rate limiting handler for inbound client messages. Rate limiting MUST be enforced per channel (per user session), and timer-driven refills SHOULD use Netty `HashedWheelTimer`.

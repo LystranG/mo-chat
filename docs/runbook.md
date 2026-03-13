@@ -122,6 +122,167 @@ Notes:
 - Cross-gateway duplicate-login kick flow requires `mochat.access-gateway.route.peer-targets.*` on each gateway instance.
 - `persistence-service` is intentionally background-only in this phase; no extra HTTP/gRPC port is documented for it yet.
 
+### Dedicated service native and Docker image builds
+
+Repository-root native build commands:
+
+```bash
+./gradlew :access-gateway-app:nativeCompile
+./gradlew :api-service-app:nativeCompile
+./gradlew :message-service-app:nativeCompile
+./gradlew :persistence-service-app:nativeCompile
+```
+
+Expected native outputs:
+
+- `access-gateway-app/build/native/nativeCompile/access-gateway`
+- `api-service-app/build/native/nativeCompile/api-service`
+- `message-service-app/build/native/nativeCompile/message-service`
+- `persistence-service-app/build/native/nativeCompile/persistence-service`
+
+Repository-root Podman image builds:
+
+```bash
+podman build -f access-gateway-app/Dockerfile -t mochat/access-gateway:dev .
+podman build -f api-service-app/Dockerfile -t mochat/api-service:dev .
+podman build -f message-service-app/Dockerfile -t mochat/message-service:dev .
+podman build -f persistence-service-app/Dockerfile -t mochat/persistence-service:dev .
+```
+
+The Dockerfiles must be built from repository root so the build context includes the root Gradle files and sibling shared modules.
+
+Example container runs on a shared bridge network after PostgreSQL, Redis, and RocketMQ are reachable from that network:
+
+```bash
+podman network create mochat-net
+```
+
+```bash
+podman run --rm --network mochat-net --name api-service \
+  -p 8080:8080 -p 19091:19091 \
+  -e MOCHAT_REDIS_URI=redis://redis:6379 \
+  -e MOCHAT_POSTGRES_URL=jdbc:postgresql://postgres:5432/mochat \
+  -e MOCHAT_POSTGRES_USERNAME=mochat \
+  -e MOCHAT_POSTGRES_PASSWORD=mochat \
+  mochat/api-service:dev
+```
+
+```bash
+podman run --rm --network mochat-net --name message-service \
+  -p 19092:19092 \
+  -e MOCHAT_REDIS_URI=redis://redis:6379 \
+  -e MOCHAT_ROCKETMQ_NAME_SERVER=rocketmq-namesrv:9876 \
+  -e MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091 \
+  -e JAVA_TOOL_OPTIONS='-Dmochat.message-service.route.gateway-targets.gateway-a=access-gateway-a:19093' \
+  mochat/message-service:dev
+```
+
+```bash
+podman run --rm --network mochat-net --name access-gateway-a \
+  -p 9000:9000 -p 19093:19093 \
+  -e MOCHAT_REDIS_URI=redis://redis:6379 \
+  -e MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-a \
+  -e MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091 \
+  -e MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092 \
+  -e JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-b=access-gateway-b:19094' \
+  mochat/access-gateway:dev
+```
+
+```bash
+podman run --rm --network mochat-net --name persistence-service \
+  -e MOCHAT_REDIS_URI=redis://redis:6379 \
+  -e MOCHAT_POSTGRES_URL=jdbc:postgresql://postgres:5432/mochat \
+  -e MOCHAT_POSTGRES_USERNAME=mochat \
+  -e MOCHAT_POSTGRES_PASSWORD=mochat \
+  -e MOCHAT_ROCKETMQ_NAME_SERVER=rocketmq-namesrv:9876 \
+  mochat/persistence-service:dev
+```
+
+Containerized runs keep the same runtime contract as the process-based dedicated topology: the same `MOCHAT_*` environment variables still apply, and route-target maps are still passed explicitly through `JAVA_TOOL_OPTIONS` until dynamic service discovery is introduced.
+
+Fresh dedicated-service verification (2026-03-13):
+
+- `command -v native-image && native-image --version` resolved `/home/lystran/.local/share/mise/installs/java/oracle-graalvm-25.0.1/bin/native-image` and reported Oracle GraalVM `25.0.1`.
+- `./gradlew :access-gateway-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `access-gateway-app/build/native/nativeCompile/access-gateway`.
+- `./gradlew :api-service-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `api-service-app/build/native/nativeCompile/api-service`.
+- `./gradlew :message-service-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `message-service-app/build/native/nativeCompile/message-service`.
+- `./gradlew :persistence-service-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `persistence-service-app/build/native/nativeCompile/persistence-service`.
+- Shared GraalVM native support for this verification includes `resources.autodetect()` so `application.yml` is embedded, `service-runtime` native defaults for Netty under native runtime, and shared reflection metadata for Caffeine bounded caches used by `api-service` and `persistence-service`.
+- `podman build -f access-gateway-app/Dockerfile -t mochat/access-gateway:dev .` completed with `Successfully tagged localhost/mochat/access-gateway:dev`.
+- `podman build -f api-service-app/Dockerfile -t mochat/api-service:dev .` completed with `Successfully tagged localhost/mochat/api-service:dev`.
+- `podman build -f message-service-app/Dockerfile -t mochat/message-service:dev .` completed with `Successfully tagged localhost/mochat/message-service:dev`.
+- `podman build -f persistence-service-app/Dockerfile -t mochat/persistence-service:dev .` completed with `Successfully tagged localhost/mochat/persistence-service:dev`.
+- The verified Dockerfile path used `ghcr.1ms.run/graalvm/native-image-community:25` for the builder stage and `gcr.1ms.run/distroless/cc` for the runtime stage across all four dedicated service images.
+- `gradle/wrapper/gradle-wrapper.properties` now points to `https://mirrors.aliyun.com/gradle/distributions/v9.3.1/gradle-9.3.1-bin.zip`; this was required because containerized `./gradlew` still hit `services.gradle.org` before the change and failed with `javax.net.ssl.SSLHandshakeException`.
+- `podman compose up -d` followed by `podman compose ps` brought PostgreSQL, Redis, RocketMQ NameServer, and RocketMQ Broker into `Up` state, and `for port in 5432 6379 9876 10909 10911 10912; do ...; done` reported `ok:<port>` for all six ports.
+- Minimal smoke verification was run against the freshly built host native binaries, using the same native entrypoints that the Dockerfiles copy into the distroless images.
+
+`access-gateway` smoke command:
+
+```bash
+MOCHAT_ACCESS_GATEWAY_RUNTIME_ENABLED=true \
+MOCHAT_ACCESS_GATEWAY_TCP_ENABLED=false \
+MOCHAT_ACCESS_GATEWAY_REDIS_ENABLED=false \
+MOCHAT_ACCESS_GATEWAY_API_GRPC_ENABLED=true \
+MOCHAT_ACCESS_GATEWAY_GRPC_PORT=49093 \
+MOCHAT_API_SERVICE_GRPC_ADDRESS=127.0.0.1:59999 \
+MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=127.0.0.1:59998 \
+  access-gateway-app/build/native/nativeCompile/access-gateway
+```
+
+- Result: `Startup completed in 35ms. Server Running: http://localhost:49093`, and `ss -ltn` reported listener `*:49093`.
+
+`api-service` smoke command:
+
+```bash
+MOCHAT_API_SERVICE_POSTGRES_ENABLED=false \
+MOCHAT_API_SERVICE_HTTP_PORT=48080 \
+MOCHAT_API_SERVICE_GRPC_PORT=49191 \
+MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=127.0.0.1:59997 \
+  api-service-app/build/native/nativeCompile/api-service
+```
+
+- Result: `Startup completed in 131ms. Server Running: http://0.0.0.0:48080`, and `ss -ltn` reported listeners `*:48080` and `*:49191`.
+
+`message-service` smoke command:
+
+```bash
+MOCHAT_REDIS_URI=redis://127.0.0.1:6379 \
+MOCHAT_MESSAGE_SERVICE_GRPC_PORT=49092 \
+MOCHAT_MESSAGE_SERVICE_API_GRPC_ENABLED=true \
+MOCHAT_MESSAGE_SERVICE_GATEWAY_GRPC_ENABLED=false \
+MOCHAT_MESSAGE_SERVICE_REDIS_ENABLED=true \
+MOCHAT_MESSAGE_SERVICE_MQ_ENABLED=true \
+MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=false \
+MOCHAT_API_SERVICE_GRPC_ADDRESS=127.0.0.1:59998 \
+MOCHAT_ROCKETMQ_NAME_SERVER=127.0.0.1:9876 \
+  message-service-app/build/native/nativeCompile/message-service
+```
+
+- Result: `Startup completed in 78ms. Server Running: http://localhost:49092`, and `ss -ltn` reported listener `*:49092`.
+- `message-service-app` now supplies a default `MOCHAT_ROCKETMQ_PRODUCER_GROUP=mochat-message-producer`, so the smoke no longer needs a one-off producer-group override.
+
+`persistence-service` smoke command:
+
+```bash
+MOCHAT_PERSISTENCE_SERVICE_QUEUE_CONSUMER_ENABLED=false \
+MOCHAT_PERSISTENCE_SERVICE_FLYWAY_MIGRATE_ON_START=false \
+MOCHAT_REDIS_URI=redis://127.0.0.1:6379 \
+MOCHAT_POSTGRES_URL=jdbc:postgresql://127.0.0.1:5432/mochat \
+MOCHAT_POSTGRES_USERNAME=mochat \
+MOCHAT_POSTGRES_PASSWORD=mochat \
+MOCHAT_ROCKETMQ_NAME_SERVER=127.0.0.1:9876 \
+  persistence-service-app/build/native/nativeCompile/persistence-service
+```
+
+- Result: process exited `0` and logged `No embedded container found. Running as CLI application`.
+
+Smoke-test constraints confirmed by this run:
+
+- `access-gateway` does not support `MOCHAT_ACCESS_GATEWAY_API_GRPC_ENABLED=false` in production wiring; the minimal valid smoke keeps the API gRPC stub enabled while turning off TCP and Redis.
+- `message-service` does not support disabling Redis, MQ, and API gRPC together in production wiring; the minimal valid smoke still requires Redis, RocketMQ, and an API gRPC stub, while `gateway-grpc` can be turned off.
+- To avoid the earlier TLS handshake failures seen inside containerized Gradle resolution, the repository now prefers `https://maven.aliyun.com/repository/gradle-plugin` for Gradle plugins, `https://maven.aliyun.com/repository/public` for Maven dependencies, and the Aliyun Gradle distribution mirror for the wrapper.
+
 ### Rollback posture
 
 Rollback stays at the runtime-entrypoint level rather than the data layer:
