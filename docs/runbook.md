@@ -1,121 +1,121 @@
-# Phase 1 Kubernetes Deployment Runbook
+# 第一阶段 Kubernetes 部署操作手册
 
-This runbook now treats Kubernetes-native deployment as the primary deployment contract for the split MoChat topology: `api-service`, `message-service`, `persistence-service`, and `access-gateway`.
+这份 runbook 现在把 Kubernetes 原生部署视为拆分后 MoChat 拓扑的主要部署方式，涉及的服务包括 `api-service`、`message-service`、`persistence-service` 和 `access-gateway`。
 
-Current scope as of 2026-03-14:
+截至 2026-03-14，当前范围如下：
 
-- The repository already has per-service Dockerfiles, dedicated service runtimes, runtime topology abstractions, and repository-owned Kubernetes assets under `deploy/kubernetes/base` and `deploy/kubernetes/overlays/kind`.
-- The currently shipped local verification entrypoints are `bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh` and `GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh`.
-- This document records the current worktree resource structure, the verified local `kind` path, the ConfigMap/Secret conventions, the cluster-external infrastructure contract, and the rollback path back to the current static-address runtime.
+- 仓库里已经有按服务拆分的 Dockerfile、独立的服务运行时、运行时拓扑抽象，以及仓库自带的 Kubernetes 资源，位置在 `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind`。
+- 当前仓库已经提供的本地验证入口是 `bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh` 和 `GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh`。
+- 本文档记录的是当前 worktree 里真实存在的资源结构、已经验证过的本地 `kind` 路径、ConfigMap / Secret 约定、集群外基础设施约束，以及回滚到当前静态地址运行时的做法。
 
-## Deployment Goals
+## 部署目标
 
-- `api-service`, `message-service`, and `persistence-service` run as independently scalable Kubernetes workloads.
-- `access-gateway` runs as a StatefulSet so each gateway replica keeps a stable `gatewayPod` identity.
-- In-cluster synchronous calls resolve through Kubernetes Service DNS or headless-Service Pod DNS.
-- PostgreSQL, Redis, and RocketMQ remain outside the cluster in this phase.
-- Static `gateway-targets` and `peer-targets` remain a compatibility fallback only; they are not the primary production contract in Kubernetes.
+- `api-service`、`message-service` 和 `persistence-service` 作为可独立扩缩容的 Kubernetes 工作负载运行。
+- `access-gateway` 使用 StatefulSet 运行，这样每个网关副本都能保留稳定的 `gatewayPod` 身份。
+- 集群内的同步调用通过 Kubernetes Service DNS 或 headless Service 的 Pod DNS 解析。
+- PostgreSQL、Redis 和 RocketMQ 在这一阶段仍然放在集群外。
+- 静态的 `gateway-targets` 和 `peer-targets` 只保留为兼容兜底方案，不再是 Kubernetes 下的主要生产约定。
 
-## Repository Delivery Format
+## 仓库当前交付的 Kubernetes 资源形式
 
-The current repository-owned Kubernetes packaging format is `kustomize`:
+当前仓库自带的 Kubernetes 打包方式是 `kustomize`：
 
 - `deploy/kubernetes/base`
 - `deploy/kubernetes/overlays/kind`
 
-The current worktree does not yet ship a `deploy/kubernetes/overlays/prod` overlay. Do not infer a production overlay from this document alone.
+当前 worktree 里还没有 `deploy/kubernetes/overlays/prod` 这个 overlay。不要仅凭这份文档就推断仓库已经提供生产环境 overlay。
 
-## Current Kubernetes Resource Structure
+## 当前 Kubernetes 资源结构
 
-| Runtime | Workload kind | Service shape | Primary ports | Discovery contract | Notes |
+| 运行时 | 工作负载类型 | Service 形态 | 主要端口 | 服务发现约定 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| `api-service` | `Deployment` | `ClusterIP Service` | HTTP `8080`, gRPC `19091` | `api-service:19091` inside namespace | Session authority, login, social graph, history query |
-| `message-service` | `Deployment` | `ClusterIP Service` | gRPC `19092` | `message-service:19092` inside namespace | Message ingest, ACK orchestration, online delivery, offline fallback |
-| `persistence-service` | `Deployment` | no public Service required yet | none | none today | MQ consumer / persistence worker; add a Service only after it exposes an inbound API or probe-only sidecar |
-| `access-gateway` | `StatefulSet` | headless Service for pod DNS, separate TCP ingress Service | TCP `9000`, gRPC `19093` | `<pod>.access-gateway-headless.<namespace>.svc.cluster.local:19093` | Stable owner identity, targeted delivery, drain-first rollout |
+| `api-service` | `Deployment` | `ClusterIP Service` | HTTP `8080`，gRPC `19091` | 命名空间内使用 `api-service:19091` | 负责 session 权威、登录、社交关系、历史消息查询 |
+| `message-service` | `Deployment` | `ClusterIP Service` | gRPC `19092` | 命名空间内使用 `message-service:19092` | 负责消息写入、ACK 编排、在线投递和离线兜底 |
+| `persistence-service` | `Deployment` | 目前还不需要公开 Service | 无 | 当前无 | MQ 消费 / 持久化工作进程；只有在它暴露入站 API，或需要仅承载探针的 sidecar 时，再补 Service |
+| `access-gateway` | `StatefulSet` | 一个 headless Service 用于 Pod DNS，另一个独立 TCP ingress Service 用于外部接入 | TCP `9000`，gRPC `19093` | `<pod>.access-gateway-headless.<namespace>.svc.cluster.local:19093` | 提供稳定 owner 身份、定向投递和先 drain 再滚动发布 |
 
-Current repository-owned Kubernetes objects:
+当前仓库里已有的 Kubernetes 对象：
 
 - `Namespace`: `mochat`
 - `ConfigMap`: `mochat-runtime-config`
 - `ConfigMap`: `mochat-external-dependencies`
 - `Secret`: `mochat-external-dependency-secrets`
 - `Secret`: `access-gateway-tls`
-- `Deployment`: `api-service`, `message-service`, `persistence-service`
-- `Service`: `api-service`, `message-service`
+- `Deployment`: `api-service`、`message-service`、`persistence-service`
+- `Service`: `api-service`、`message-service`
 - `StatefulSet`: `access-gateway`
-- `Service` with `clusterIP: None`: `access-gateway-headless`
-- `Service` for client TCP ingress: `access-gateway-tcp`
+- `clusterIP: None` 的 `Service`: `access-gateway-headless`
+- 面向客户端 TCP 入口的 `Service`: `access-gateway-tcp`
 
-### Access Gateway Naming Contract
+### Access Gateway 命名约定
 
-`access-gateway` keeps stable identity through StatefulSet pod names:
+`access-gateway` 通过 StatefulSet 的 Pod 名字保持稳定身份：
 
 - `access-gateway-0`
 - `access-gateway-1`
 - `access-gateway-2`
 
-The canonical owner-addressed gRPC target is derived from the pod name and the headless Service:
+标准的 owner 定向 gRPC 目标地址，是由 Pod 名加 headless Service 推导出来的：
 
 ```text
 <gatewayPod>.access-gateway-headless.mochat.svc.cluster.local:19093
 ```
 
-Examples:
+例如：
 
 - `access-gateway-0.access-gateway-headless.mochat.svc.cluster.local:19093`
 - `access-gateway-1.access-gateway-headless.mochat.svc.cluster.local:19093`
 
-Redis online-route ownership in Kubernetes should therefore persist the pod identity itself, for example `gatewayPod=access-gateway-0`, instead of a handwritten alias such as `gateway-a`.
+所以在 Kubernetes 里，Redis 里的在线路由 owner 应该直接保存 Pod 身份本身，比如 `gatewayPod=access-gateway-0`，而不是手写别名，例如 `gateway-a`。
 
-## Configuration Ownership Rules
+## 配置归属规则
 
-Configuration is currently split into five buckets.
+当前配置分成五类。
 
-### 1. ConfigMap: in-cluster runtime discovery
+### 1. ConfigMap：集群内运行时发现
 
-`mochat-runtime-config` currently carries only non-secret, in-cluster discovery defaults:
+`mochat-runtime-config` 当前只放非敏感、用于集群内发现的默认值：
 
-| Key | Why it belongs in ConfigMap |
+| Key | 为什么放在 ConfigMap |
 | --- | --- |
-| `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091` | stable in-cluster Service DNS |
-| `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092` | stable in-cluster Service DNS |
-| `MOCHAT_GATEWAY_HEADLESS_SERVICE=access-gateway-headless` | stable headless Service name for Pod DNS resolution |
+| `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091` | 稳定的集群内 Service DNS |
+| `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092` | 稳定的集群内 Service DNS |
+| `MOCHAT_GATEWAY_HEADLESS_SERVICE=access-gateway-headless` | 用于 Pod DNS 解析的稳定 headless Service 名称 |
 
-### 2. ConfigMap: cluster-external dependency endpoints
+### 2. ConfigMap：集群外依赖地址
 
-`mochat-external-dependencies` carries the non-secret endpoints that are replaced by the `kind` overlay from `.local/external-dependencies.env`:
+`mochat-external-dependencies` 保存非敏感的外部依赖地址，这些值会被 `kind` overlay 用 `.local/external-dependencies.env` 覆盖：
 
-| Key | Why it belongs in ConfigMap |
+| Key | 为什么放在 ConfigMap |
 | --- | --- |
-| `MOCHAT_REDIS_URI=redis://<external-host>:6379` | external endpoint without embedded secret |
-| `MOCHAT_POSTGRES_URL=jdbc:postgresql://<external-host>:5432/mochat` | external endpoint, not a credential by itself |
-| `MOCHAT_ROCKETMQ_NAME_SERVER=<external-host>:9876` | external endpoint |
-| `MOCHAT_ROCKETMQ_TOPIC=mochat.messages` | non-secret topic name |
+| `MOCHAT_REDIS_URI=redis://<external-host>:6379` | 外部地址本身不含密钥 |
+| `MOCHAT_POSTGRES_URL=jdbc:postgresql://<external-host>:5432/mochat` | 外部地址本身不是凭据 |
+| `MOCHAT_ROCKETMQ_NAME_SERVER=<external-host>:9876` | 外部地址 |
+| `MOCHAT_ROCKETMQ_TOPIC=mochat.messages` | 非敏感 topic 名称 |
 
-### 3. Secret: credentials and TLS material
+### 3. Secret：凭据和 TLS 材料
 
-Sensitive values are currently split between `mochat-external-dependency-secrets` and `access-gateway-tls`:
+敏感值当前分散在 `mochat-external-dependency-secrets` 和 `access-gateway-tls` 里：
 
-| Key / material | Why it belongs in Secret |
+| Key / material | 为什么放在 Secret |
 | --- | --- |
-| `MOCHAT_POSTGRES_USERNAME` | credential |
-| `MOCHAT_POSTGRES_PASSWORD` | credential |
-| `MOCHAT_REDIS_URI` when it embeds auth or TLS params | may contain password / auth material |
-| RocketMQ username / password if enabled later | credential |
-| gateway TLS certificate and private key | sensitive key material |
+| `MOCHAT_POSTGRES_USERNAME` | 凭据 |
+| `MOCHAT_POSTGRES_PASSWORD` | 凭据 |
+| `MOCHAT_REDIS_URI`，当其中带有认证信息或 TLS 参数时 | 可能包含密码或认证材料 |
+| 以后如果启用 RocketMQ 用户名 / 密码 | 凭据 |
+| gateway TLS 证书和私钥 | 敏感密钥材料 |
 
-For gateway TLS, the current manifests mount `access-gateway-tls` to `/var/run/mochat/tls` and set:
+对于 gateway TLS，当前 manifest 会把 `access-gateway-tls` 挂载到 `/var/run/mochat/tls`，并设置：
 
-- mount Secret volume to a fixed path such as `/var/run/mochat/tls`
-- set `MOCHAT_ACCESS_GATEWAY_TLS_CERTIFICATE_PATH=/var/run/mochat/tls/tls.crt`
-- set `MOCHAT_ACCESS_GATEWAY_TLS_PRIVATE_KEY_PATH=/var/run/mochat/tls/tls.key`
+- 把 Secret volume 挂载到固定路径，例如 `/var/run/mochat/tls`
+- 设置 `MOCHAT_ACCESS_GATEWAY_TLS_CERTIFICATE_PATH=/var/run/mochat/tls/tls.crt`
+- 设置 `MOCHAT_ACCESS_GATEWAY_TLS_PRIVATE_KEY_PATH=/var/run/mochat/tls/tls.key`
 
-### 4. Pod metadata: identity derived from Kubernetes
+### 4. Pod 元数据：身份由 Kubernetes 提供
 
-The Kubernetes-native owner identity currently comes from pod metadata through `MOCHAT_RUNTIME_POD_NAME` / `MOCHAT_RUNTIME_POD_NAMESPACE`, not from a handwritten per-replica `gatewayPod`.
+当前 Kubernetes 原生 owner 身份来自 Pod 元数据中的 `MOCHAT_RUNTIME_POD_NAME` / `MOCHAT_RUNTIME_POD_NAMESPACE`，而不是手写的每副本 `gatewayPod`。
 
-Current env injection:
+当前注入的环境变量如下：
 
 ```yaml
 env:
@@ -129,36 +129,36 @@ env:
         fieldPath: metadata.namespace
 ```
 
-`access-gateway-app/src/main/resources/application.yml` still keeps `mochat.access-gateway.route.gateway-pod` backed by `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD` / `${HOSTNAME}` as the local static fallback.
+`access-gateway-app/src/main/resources/application.yml` 里仍然保留 `mochat.access-gateway.route.gateway-pod`，并通过 `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD` / `${HOSTNAME}` 作为本地静态模式下的兜底。
 
-### 5. Compatibility-only static target maps
+### 5. 仅为兼容保留的静态目标映射
 
-These keys are fallback-only and should remain empty in Kubernetes manifests:
+下面这些 key 在 Kubernetes manifest 里应该保持为空，它们只用于兼容兜底：
 
 - `mochat.message-service.route.gateway-targets.*`
 - `mochat.access-gateway.route.peer-targets.*`
 
-They are still required when rolling back to the current local static-address topology.
+当回滚到当前本地静态地址拓扑时，仍然需要这些配置。
 
-## Cluster-External Infrastructure Prerequisites
+## 集群外基础设施前置条件
 
-The first Kubernetes version keeps PostgreSQL, Redis, and RocketMQ outside the cluster. Before any `kind` or production rollout, confirm:
+第一版 Kubernetes 部署仍然把 PostgreSQL、Redis 和 RocketMQ 放在集群外。在执行任何 `kind` 或生产部署之前，先确认以下几点：
 
-- Kubernetes nodes can reach PostgreSQL on `5432`
-- Kubernetes nodes can reach Redis on `6379`
-- Kubernetes nodes can reach RocketMQ NameServer on `9876`
-- Kubernetes nodes can reach RocketMQ Broker on `10909`, `10911`, and `10912`
-- DNS names or fixed IPs for those systems are stable enough to place in ConfigMap / Secret
-- Firewall, security group, or local host networking allows traffic from cluster nodes to those endpoints
-- Any credential or TLS material required by those systems is available as Kubernetes Secrets, not baked into container images
+- Kubernetes 节点可以访问 PostgreSQL 的 `5432`
+- Kubernetes 节点可以访问 Redis 的 `6379`
+- Kubernetes 节点可以访问 RocketMQ NameServer 的 `9876`
+- Kubernetes 节点可以访问 RocketMQ Broker 的 `10909`、`10911` 和 `10912`
+- 这些系统对应的 DNS 名称或固定 IP 足够稳定，可以写进 ConfigMap / Secret
+- 防火墙、安全组或本地主机网络允许集群节点访问这些地址
+- 这些系统需要的凭据或 TLS 材料都以 Kubernetes Secret 提供，而不是直接打进镜像
 
-If `MOCHAT_REDIS_URI` contains password, username, or TLS options, treat the whole URI as secret material.
+如果 `MOCHAT_REDIS_URI` 里包含密码、用户名或 TLS 选项，就把整个 URI 都按敏感信息处理。
 
-## Local `kind` Verification Path
+## 本地 `kind` 验证路径
 
-This section defines the current local verification flow for the repository-owned `deploy/kubernetes/overlays/kind` overlay.
+这一节说明的是当前仓库自带 `deploy/kubernetes/overlays/kind` overlay 的本地验证流程。
 
-### Tooling Prerequisites
+### 工具前置条件
 
 - `kind`
 - `kubectl`
@@ -166,11 +166,11 @@ This section defines the current local verification flow for the repository-owne
 - `jq`
 - `rg`
 - `ss`
-- `openssl` for TCP/TLS probe
+- `openssl`，用于 TCP / TLS 探测
 
-### 1. Build service images
+### 1. 构建服务镜像
 
-From repository root:
+在仓库根目录执行：
 
 ```bash
 podman build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
@@ -179,11 +179,11 @@ podman build -f message-service-app/Dockerfile -t localhost/mochat/message-servi
 podman build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
 ```
 
-### 2. Create the `kind` cluster
+### 2. 创建 `kind` 集群
 
-Use a config that forwards host port `9000` to the gateway Service `nodePort: 32000`. The verification script defaults to `KIND_CLUSTER_NAME=kind-cluster` and `KUBECTL_CONTEXT=kind-kind-cluster`; override them explicitly if your cluster uses different names.
+使用一个配置，把宿主机端口 `9000` 转发到 gateway Service 的 `nodePort: 32000`。验证脚本默认使用 `KIND_CLUSTER_NAME=kind-cluster` 和 `KUBECTL_CONTEXT=kind-kind-cluster`；如果你的集群名字不同，请显式覆盖。
 
-Example `kind-config.yaml`:
+示例 `kind-config.yaml`：
 
 ```yaml
 kind: Cluster
@@ -196,39 +196,39 @@ nodes:
         protocol: TCP
 ```
 
-Then create the cluster:
+然后创建集群：
 
 ```bash
 kind create cluster --name kind-cluster --config kind-config.yaml
 ```
 
-### 3. Prepare overlay-local inputs
+### 3. 准备 overlay 本地输入
 
-The `kind` overlay expects local files under `deploy/kubernetes/overlays/kind/.local`. Generate them with:
+`kind` overlay 依赖 `deploy/kubernetes/overlays/kind/.local` 下面的本地文件。可以执行下面的脚本生成：
 
 ```bash
 bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
 ```
 
-The script uses `podman inspect` to resolve compose container IPs, writes `.local/external-dependencies.env`, `.local/external-dependency-secrets.env`, and issues a self-signed gateway TLS certificate under `.local/access-gateway-tls/`.
+这个脚本会用 `podman inspect` 解析 compose 容器 IP，写出 `.local/external-dependencies.env`、`.local/external-dependency-secrets.env`，并在 `.local/access-gateway-tls/` 下生成一套自签名 gateway TLS 证书。
 
-### 4. Primary minimal verification path
+### 4. 主要的最小验证路径
 
-The currently verified 5.1 entrypoint is:
+当前已经验证过的 5.1 入口是：
 
 ```bash
 bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh
 ```
 
-This script will:
+这个脚本会：
 
-- regenerate `.local` inputs
-- save `localhost/mochat/*:dev` images and load them into `kind` through `kind load image-archive`
-- `kubectl apply -k deploy/kubernetes/overlays/kind`
-- restart the Deployments / StatefulSet and wait for rollout
-- probe Service DNS, Pod DNS, cluster-external ports, and the gateway NodePort
+- 重新生成 `.local` 输入文件
+- 把 `localhost/mochat/*:dev` 镜像保存成归档，并通过 `kind load image-archive` 导入 `kind`
+- 执行 `kubectl apply -k deploy/kubernetes/overlays/kind`
+- 重启 Deployments / StatefulSet，并等待 rollout 完成
+- 探测 Service DNS、Pod DNS、集群外端口，以及 gateway NodePort
 
-The overlay currently expands to these repository-owned objects:
+当前 overlay 展开后包含的仓库自带对象有：
 
 - `Namespace/mochat`
 - `ConfigMap/mochat-runtime-config`
@@ -244,7 +244,7 @@ The overlay currently expands to these repository-owned objects:
 - `Service/access-gateway-headless`
 - `Service/access-gateway-tcp`
 
-### 5. What the minimal script checks
+### 5. 最小脚本会检查什么
 
 ```bash
 kubectl -n mochat rollout status deploy/api-service
@@ -254,7 +254,7 @@ kubectl -n mochat rollout status statefulset/access-gateway
 kubectl -n mochat get pods,svc,endpoints
 ```
 
-### 6. Verify Service DNS and StatefulSet identity
+### 6. 验证 Service DNS 和 StatefulSet 身份
 
 ```bash
 kubectl -n mochat run mochat-kind-minimal-probe \
@@ -266,30 +266,30 @@ kubectl -n mochat run mochat-kind-minimal-probe \
   "
 ```
 
-Verify that the StatefulSet wires runtime pod identity from metadata instead of a handwritten literal:
+确认 StatefulSet 通过元数据注入运行时 Pod 身份，而不是写死一个字面量值：
 
 ```bash
 kubectl get statefulset access-gateway -n mochat \
   -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='MOCHAT_RUNTIME_POD_NAME')].valueFrom.fieldRef.fieldPath}"
 ```
 
-### 7. Verify external TCP exposure
+### 7. 验证对集群外暴露的 TCP 入口
 
-After `access-gateway-tcp` is ready and mapped through `kind`, probe the TLS listener from the host:
+当 `access-gateway-tcp` 就绪，并且已经通过 `kind` 映射到宿主机后，可以从宿主机探测 TLS 监听：
 
 ```bash
 openssl s_client -connect 127.0.0.1:9000 -servername localhost </dev/null
 ```
 
-Expected result:
+预期结果：
 
-- TCP connect succeeds
-- TLS handshake reaches the gateway listener
-- if a custom certificate Secret is mounted, the returned certificate matches that material
+- TCP 连接成功
+- TLS 握手可以到达 gateway 监听器
+- 如果挂载了自定义证书 Secret，返回的证书应与该 Secret 中的材料一致
 
-### 8. Verify cluster-external infrastructure connectivity
+### 8. 验证集群外基础设施连通性
 
-The minimal script checks cluster-external connectivity from a temporary busybox pod with `nc -vz -w 2` against PostgreSQL, Redis, RocketMQ NameServer, and RocketMQ Broker ports. The follow-up signal is application logs without connection failures:
+最小脚本会从一个临时 busybox Pod 中，通过 `nc -vz -w 2` 检查 PostgreSQL、Redis、RocketMQ NameServer 和 RocketMQ Broker 端口的连通性。接着要看的信号是应用日志中没有连接失败：
 
 ```bash
 kubectl -n mochat logs deploy/api-service --tail=50
@@ -298,15 +298,15 @@ kubectl -n mochat logs deploy/persistence-service --tail=50
 kubectl -n mochat logs access-gateway-0 --tail=50
 ```
 
-What should not appear:
+下面这些内容不应该出现：
 
-- PostgreSQL authentication or socket errors
-- Redis connection refused / auth failures
-- RocketMQ name-server lookup or broker connection failures
+- PostgreSQL 认证错误或 socket 错误
+- Redis `connection refused` 或认证失败
+- RocketMQ name-server 查询失败或 broker 连接失败
 
-### 9. Routing / drain verification path
+### 9. 路由 / drain 验证路径
 
-The deeper 5.2 verification path is already scripted separately:
+更深入的 5.2 验证路径已经由单独脚本提供：
 
 ```bash
 GRADLE_USER_HOME="$PWD/.gradle-user-home" \
@@ -314,17 +314,17 @@ SKIP_MINIMAL_TOPOLOGY=1 \
   bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh
 ```
 
-Use the explicit `GRADLE_USER_HOME` override when running inside a filesystem sandbox so Gradle does not write to `~/.gradle`.
+如果是在文件系统沙箱里运行，请显式设置 `GRADLE_USER_HOME`，避免 Gradle 写入 `~/.gradle`。
 
-The script covers:
+这个脚本覆盖的内容包括：
 
-- gateway scale-out
-- preStop + drain behavior
-- readiness transition before termination
-- owner-addressed delivery through Pod DNS
-- offline fallback semantics under rollout or stale route
+- gateway 扩容
+- `preStop` + drain 行为
+- 终止前的 readiness 切换
+- 通过 Pod DNS 的 owner 定向投递
+- rollout 或路由陈旧时的离线兜底语义
 
-It also reruns these focused Gradle tests from repository root:
+它还会在仓库根目录重新运行这些聚焦测试：
 
 - `:message-service-app:test --tests com.github.lystran.mochat.messageservice.MessageServiceCrossGatewayRoutingIntegrationTest`
 - `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.runtime.AccessGatewayOnlineRouteBindingTest.newerBindOnOtherGatewayLeavesOldOwnerAliveUntilHeartbeatThenSelfKills`
@@ -332,35 +332,35 @@ It also reruns these focused Gradle tests from repository root:
 - `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.runtime.GatewayIngressLifecycleTest`
 - `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.AccessGatewayLifecycleEndpointTest`
 
-Do not infer these guarantees from the runbook alone; the scripts and focused tests remain the evidence.
+不要仅凭这份 runbook 就推断这些保证已经成立；真正的证据仍然是脚本和这些聚焦测试。
 
-## Rollback to the Current Static-Address Topology
+## 回滚到当前静态地址拓扑
 
-If the Kubernetes-native path is unstable, roll back at the runtime-entrypoint layer. Do not roll back Redis schema, PostgreSQL schema, or RocketMQ topics.
+如果 Kubernetes 原生路径不稳定，回滚时要从运行时入口层处理。不要回滚 Redis schema、PostgreSQL schema，也不要回滚 RocketMQ topic。
 
-### 1. Stop Kubernetes workloads
+### 1. 停掉 Kubernetes 工作负载
 
 ```bash
 kubectl delete -k deploy/kubernetes/overlays/kind
 kind delete cluster --name kind-cluster
 ```
 
-### 2. Restart shared infrastructure locally
+### 2. 在本地重启共享基础设施
 
 ```bash
 podman compose up -d
 podman compose ps
 ```
 
-### 3. Restore static target-map based service startup
+### 3. 恢复基于静态目标映射的服务启动方式
 
-`api-service`:
+`api-service`：
 
 ```bash
 ./gradlew :api-service-app:run
 ```
 
-`message-service`:
+`message-service`：
 
 ```bash
 JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
@@ -369,13 +369,13 @@ JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
   ./gradlew :message-service-app:run
 ```
 
-`persistence-service`:
+`persistence-service`：
 
 ```bash
 ./gradlew :persistence-service-app:run
 ```
 
-`access-gateway-a`:
+`access-gateway-a`：
 
 ```bash
 MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-a \
@@ -387,7 +387,7 @@ JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-b=127.0.0.
   ./gradlew :access-gateway-app:run
 ```
 
-`access-gateway-b`:
+`access-gateway-b`：
 
 ```bash
 MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-b \
@@ -399,15 +399,15 @@ JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-a=127.0.0.
   ./gradlew :access-gateway-app:run
 ```
 
-Rollback expectations:
+回滚后应满足：
 
-- `message-service` once again relies on `mochat.message-service.route.gateway-targets.*`
-- `access-gateway` peer kick flow once again relies on `mochat.access-gateway.route.peer-targets.*`
-- `gatewayPod` becomes a manual local identifier such as `gateway-a` / `gateway-b`
+- `message-service` 再次依赖 `mochat.message-service.route.gateway-targets.*`
+- `access-gateway` 的 peer kick 流程再次依赖 `mochat.access-gateway.route.peer-targets.*`
+- `gatewayPod` 重新变回手工指定的本地标识，例如 `gateway-a` / `gateway-b`
 
-### 4. Deepest compatibility fallback
+### 4. 最深层兼容兜底
 
-If the dedicated-service split itself must be bypassed, fall back to the legacy shell:
+如果连“按独立服务拆分运行”这条路径也需要绕开，就回退到旧的单体壳层：
 
 ```bash
 MOCHAT_LEGACY_PERSISTENCE_ENABLED=true \
@@ -415,4 +415,4 @@ MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=true \
   ./gradlew :app:run
 ```
 
-That path is not the preferred runtime, but it remains the last-resort rollback posture because it preserves the same PostgreSQL, Redis, and RocketMQ infrastructure.
+这不是首选运行方式，但它仍然是最后一道兜底，因为它沿用的是同一套 PostgreSQL、Redis 和 RocketMQ 基础设施。
