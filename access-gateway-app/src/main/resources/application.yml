@@ -1,8 +1,24 @@
 micronaut:
   application:
     name: access-gateway
+  server:
+    host: ${MOCHAT_ACCESS_GATEWAY_HTTP_HOST:0.0.0.0}
+    port: ${MOCHAT_ACCESS_GATEWAY_HTTP_PORT:18080}
 
 mochat:
+  runtime:
+    pod:
+      name: ${MOCHAT_RUNTIME_POD_NAME:}
+      namespace: ${MOCHAT_RUNTIME_POD_NAMESPACE:default}
+    gateway:
+      identity-mode: ${MOCHAT_GATEWAY_IDENTITY_MODE:POD_METADATA}
+      identity-value: ${MOCHAT_RUNTIME_GATEWAY_IDENTITY_VALUE:access-gateway-local}
+      discovery-mode: ${MOCHAT_GATEWAY_DISCOVERY_MODE:AUTO}
+      static-targets: {}
+      headless-service: ${MOCHAT_GATEWAY_HEADLESS_SERVICE:access-gateway-headless}
+      namespace: ${MOCHAT_GATEWAY_DISCOVERY_NAMESPACE:}
+      cluster-domain: ${MOCHAT_K8S_CLUSTER_DOMAIN:cluster.local}
+      grpc-port: ${MOCHAT_GATEWAY_DISCOVERY_GRPC_PORT:19093}
   redis:
     uri: ${MOCHAT_REDIS_URI:redis://127.0.0.1:6379}
   access-gateway:
@@ -16,6 +32,7 @@ mochat:
     drain:
       enabled: ${MOCHAT_ACCESS_GATEWAY_DRAIN_ENABLED:false}
       grace-period: ${MOCHAT_ACCESS_GATEWAY_DRAIN_GRACE_PERIOD:30s}
+      shutdown-wait-enabled: ${MOCHAT_ACCESS_GATEWAY_DRAIN_SHUTDOWN_WAIT_ENABLED:false}
     tcp:
       enabled: ${MOCHAT_ACCESS_GATEWAY_TCP_ENABLED:true}
       host: ${MOCHAT_ACCESS_GATEWAY_TCP_HOST:0.0.0.0}

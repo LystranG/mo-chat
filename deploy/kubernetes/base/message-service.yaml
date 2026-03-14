@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-service
+  namespace: mochat
+  labels:
+    app.kubernetes.io/name: message-service
+    app.kubernetes.io/part-of: mochat
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: message-service
+  ports:
+    - name: grpc
+      port: 19092
+      targetPort: 19092
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service
+  namespace: mochat
+  labels:
+    app.kubernetes.io/name: message-service
+    app.kubernetes.io/part-of: mochat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: message-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: message-service
+        app.kubernetes.io/part-of: mochat
+    spec:
+      containers:
+        - name: message-service
+          image: mochat/message-service:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+          env:
+            - name: MOCHAT_API_SERVICE_GRPC_ADDRESS
+              value: api-service:19091
+            - name: MOCHAT_RUNTIME_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MOCHAT_RUNTIME_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: grpc
+              containerPort: 19092

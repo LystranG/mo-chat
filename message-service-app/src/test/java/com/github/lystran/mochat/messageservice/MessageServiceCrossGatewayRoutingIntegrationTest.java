@@ -269,10 +269,7 @@ class MessageServiceCrossGatewayRoutingIntegrationTest {
         MessageRecipientDispatcher messageRecipientDispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands(routeStore),
             GatewayStubRegistry::lookup,
-            Map.of(
-                "gateway-a", "gateway-a",
-                "gateway-b", "gateway-b"
-            )
+            gatewayPod -> gatewayPod
         );
         MessageIngestService messageIngestService = new MessageIngestService(
             new JucConversationLock(),

@@ -6,6 +6,7 @@ import com.github.lystran.mochat.common.session.PersistedSessionRoute;
 import com.github.lystran.mochat.common.session.ReplacedSessionRoute;
 import com.github.lystran.mochat.common.session.ResolvedSession;
 import com.github.lystran.mochat.connection.SessionBindingHandler;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,7 @@ class GatewayRouteReplacementHandlerTest {
             "gateway-pod-a",
             directory,
             targetAddress -> request -> KickConnectionResponse.getDefaultInstance(),
-            Map.of()
+            staticResolver(Map.of())
         );
 
         handler.handleReplacement(
@@ -65,7 +66,7 @@ class GatewayRouteReplacementHandlerTest {
             "gateway-pod-a",
             directory,
             targetAddress -> request -> KickConnectionResponse.getDefaultInstance(),
-            Map.of()
+            staticResolver(Map.of())
         );
 
         handler.handleReplacement(
@@ -92,7 +93,7 @@ class GatewayRouteReplacementHandlerTest {
             "gateway-pod-a",
             directory,
             new RecordingAccessGatewayDispatchClientFactory(targetAddress, requestRef),
-            Map.of("gateway-pod-b", "dns:///gateway-pod-b:19093")
+            staticResolver(Map.of("gateway-pod-b", "dns:///gateway-pod-b:19093"))
         );
 
         handler.handleReplacement(
@@ -119,6 +120,10 @@ class GatewayRouteReplacementHandlerTest {
         }
         channel.runPendingTasks();
         channel.runScheduledPendingTasks();
+    }
+
+    private static GatewayAddressResolver staticResolver(Map<String, String> gatewayTargets) {
+        return gatewayTargets::get;
     }
 
     private static final class RecordingAccessGatewayDispatchClientFactory implements AccessGatewayDispatchClientFactory {

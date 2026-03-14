@@ -21,6 +21,11 @@ import com.github.lystran.mochat.infra.redis.RedisConversationSeqGenerator;
 import com.github.lystran.mochat.infra.redis.RedisIdempotencyStore;
 import com.github.lystran.mochat.infra.redis.RedisOfflineQueue;
 import com.github.lystran.mochat.runtime.config.MessageServiceConfiguration;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.GatewayDiscoveryMode;
+import com.github.lystran.mochat.runtime.topology.KubernetesDnsGatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.RuntimeTopologyConfiguration;
+import com.github.lystran.mochat.runtime.topology.StaticGatewayAddressResolver;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
@@ -138,17 +143,48 @@ public final class MessageServiceRuntimeFactory {
     }
 
     @Singleton
+    GatewayAddressResolver gatewayAddressResolver(
+        RuntimeTopologyConfiguration runtimeTopologyConfiguration,
+        MessageServiceConfiguration configuration
+    ) {
+        RuntimeTopologyConfiguration.Gateway gateway = runtimeTopologyConfiguration.getGateway();
+        GatewayDiscoveryMode discoveryMode = gateway.getDiscoveryMode();
+        if (discoveryMode == GatewayDiscoveryMode.AUTO) {
+            String podName = runtimeTopologyConfiguration.getPod().getName();
+            discoveryMode = (podName == null || podName.isBlank())
+                ? GatewayDiscoveryMode.STATIC_MAP
+                : GatewayDiscoveryMode.KUBERNETES_DNS;
+        }
+        if (discoveryMode == GatewayDiscoveryMode.KUBERNETES_DNS) {
+            String namespace = gateway.getNamespace();
+            if (namespace == null || namespace.isBlank()) {
+                namespace = runtimeTopologyConfiguration.getPod().getNamespace();
+            }
+            return new KubernetesDnsGatewayAddressResolver(
+                gateway.getHeadlessService(),
+                namespace,
+                gateway.getClusterDomain(),
+                gateway.getGrpcPort()
+            );
+        }
+        java.util.Map<String, String> staticTargets = gateway.getStaticTargets().isEmpty()
+            ? configuration.getRoute().getGatewayTargets()
+            : gateway.getStaticTargets();
+        return new StaticGatewayAddressResolver(staticTargets);
+    }
+
+    @Singleton
     @Requires(bean = RedisCommands.class)
     @Requires(bean = AccessGatewayDispatchClientFactory.class)
     MessageRecipientDispatcher messageRecipientDispatcher(
         RedisCommands<String, String> redisCommands,
         AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory,
-        MessageServiceConfiguration configuration
+        GatewayAddressResolver gatewayAddressResolver
     ) {
         return new GrpcMessageRecipientDispatcher(
             redisCommands,
             accessGatewayDispatchClientFactory,
-            configuration.getRoute().getGatewayTargets()
+            gatewayAddressResolver
         );
     }
 

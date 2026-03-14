@@ -1,80 +1,366 @@
-# Phase 1 Local Runbook
+# Phase 1 Kubernetes Deployment Runbook
 
-This runbook captures local startup, verification commands, and known issues for the current Phase 1 stack state.
+This runbook now treats Kubernetes-native deployment as the primary deployment contract for the split MoChat topology: `api-service`, `message-service`, `persistence-service`, and `access-gateway`.
 
-## Prerequisites
+Current scope as of 2026-03-14:
 
-- Podman with compose support (`podman compose`)
-- JDK 25 available for Gradle builds
-- OpenSSL (optional, for overriding the default self-signed TLS certificate)
+- The repository already has per-service Dockerfiles, dedicated service runtimes, runtime topology abstractions, and repository-owned Kubernetes assets under `deploy/kubernetes/base` and `deploy/kubernetes/overlays/kind`.
+- The currently shipped local verification entrypoints are `bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh` and `GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh`.
+- This document records the current worktree resource structure, the verified local `kind` path, the ConfigMap/Secret conventions, the cluster-external infrastructure contract, and the rollback path back to the current static-address runtime.
 
-## Dependency startup (Postgres, Redis, RocketMQ)
+## Deployment Goals
+
+- `api-service`, `message-service`, and `persistence-service` run as independently scalable Kubernetes workloads.
+- `access-gateway` runs as a StatefulSet so each gateway replica keeps a stable `gatewayPod` identity.
+- In-cluster synchronous calls resolve through Kubernetes Service DNS or headless-Service Pod DNS.
+- PostgreSQL, Redis, and RocketMQ remain outside the cluster in this phase.
+- Static `gateway-targets` and `peer-targets` remain a compatibility fallback only; they are not the primary production contract in Kubernetes.
+
+## Repository Delivery Format
+
+The current repository-owned Kubernetes packaging format is `kustomize`:
+
+- `deploy/kubernetes/base`
+- `deploy/kubernetes/overlays/kind`
+
+The current worktree does not yet ship a `deploy/kubernetes/overlays/prod` overlay. Do not infer a production overlay from this document alone.
+
+## Current Kubernetes Resource Structure
+
+| Runtime | Workload kind | Service shape | Primary ports | Discovery contract | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `api-service` | `Deployment` | `ClusterIP Service` | HTTP `8080`, gRPC `19091` | `api-service:19091` inside namespace | Session authority, login, social graph, history query |
+| `message-service` | `Deployment` | `ClusterIP Service` | gRPC `19092` | `message-service:19092` inside namespace | Message ingest, ACK orchestration, online delivery, offline fallback |
+| `persistence-service` | `Deployment` | no public Service required yet | none | none today | MQ consumer / persistence worker; add a Service only after it exposes an inbound API or probe-only sidecar |
+| `access-gateway` | `StatefulSet` | headless Service for pod DNS, separate TCP ingress Service | TCP `9000`, gRPC `19093` | `<pod>.access-gateway-headless.<namespace>.svc.cluster.local:19093` | Stable owner identity, targeted delivery, drain-first rollout |
+
+Current repository-owned Kubernetes objects:
+
+- `Namespace`: `mochat`
+- `ConfigMap`: `mochat-runtime-config`
+- `ConfigMap`: `mochat-external-dependencies`
+- `Secret`: `mochat-external-dependency-secrets`
+- `Secret`: `access-gateway-tls`
+- `Deployment`: `api-service`, `message-service`, `persistence-service`
+- `Service`: `api-service`, `message-service`
+- `StatefulSet`: `access-gateway`
+- `Service` with `clusterIP: None`: `access-gateway-headless`
+- `Service` for client TCP ingress: `access-gateway-tcp`
+
+### Access Gateway Naming Contract
+
+`access-gateway` keeps stable identity through StatefulSet pod names:
+
+- `access-gateway-0`
+- `access-gateway-1`
+- `access-gateway-2`
+
+The canonical owner-addressed gRPC target is derived from the pod name and the headless Service:
+
+```text
+<gatewayPod>.access-gateway-headless.mochat.svc.cluster.local:19093
+```
+
+Examples:
+
+- `access-gateway-0.access-gateway-headless.mochat.svc.cluster.local:19093`
+- `access-gateway-1.access-gateway-headless.mochat.svc.cluster.local:19093`
+
+Redis online-route ownership in Kubernetes should therefore persist the pod identity itself, for example `gatewayPod=access-gateway-0`, instead of a handwritten alias such as `gateway-a`.
+
+## Configuration Ownership Rules
+
+Configuration is currently split into five buckets.
+
+### 1. ConfigMap: in-cluster runtime discovery
+
+`mochat-runtime-config` currently carries only non-secret, in-cluster discovery defaults:
+
+| Key | Why it belongs in ConfigMap |
+| --- | --- |
+| `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091` | stable in-cluster Service DNS |
+| `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092` | stable in-cluster Service DNS |
+| `MOCHAT_GATEWAY_HEADLESS_SERVICE=access-gateway-headless` | stable headless Service name for Pod DNS resolution |
+
+### 2. ConfigMap: cluster-external dependency endpoints
+
+`mochat-external-dependencies` carries the non-secret endpoints that are replaced by the `kind` overlay from `.local/external-dependencies.env`:
+
+| Key | Why it belongs in ConfigMap |
+| --- | --- |
+| `MOCHAT_REDIS_URI=redis://<external-host>:6379` | external endpoint without embedded secret |
+| `MOCHAT_POSTGRES_URL=jdbc:postgresql://<external-host>:5432/mochat` | external endpoint, not a credential by itself |
+| `MOCHAT_ROCKETMQ_NAME_SERVER=<external-host>:9876` | external endpoint |
+| `MOCHAT_ROCKETMQ_TOPIC=mochat.messages` | non-secret topic name |
+
+### 3. Secret: credentials and TLS material
+
+Sensitive values are currently split between `mochat-external-dependency-secrets` and `access-gateway-tls`:
+
+| Key / material | Why it belongs in Secret |
+| --- | --- |
+| `MOCHAT_POSTGRES_USERNAME` | credential |
+| `MOCHAT_POSTGRES_PASSWORD` | credential |
+| `MOCHAT_REDIS_URI` when it embeds auth or TLS params | may contain password / auth material |
+| RocketMQ username / password if enabled later | credential |
+| gateway TLS certificate and private key | sensitive key material |
+
+For gateway TLS, the current manifests mount `access-gateway-tls` to `/var/run/mochat/tls` and set:
+
+- mount Secret volume to a fixed path such as `/var/run/mochat/tls`
+- set `MOCHAT_ACCESS_GATEWAY_TLS_CERTIFICATE_PATH=/var/run/mochat/tls/tls.crt`
+- set `MOCHAT_ACCESS_GATEWAY_TLS_PRIVATE_KEY_PATH=/var/run/mochat/tls/tls.key`
+
+### 4. Pod metadata: identity derived from Kubernetes
+
+The Kubernetes-native owner identity currently comes from pod metadata through `MOCHAT_RUNTIME_POD_NAME` / `MOCHAT_RUNTIME_POD_NAMESPACE`, not from a handwritten per-replica `gatewayPod`.
+
+Current env injection:
+
+```yaml
+env:
+  - name: MOCHAT_RUNTIME_POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: MOCHAT_RUNTIME_POD_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+```
+
+`access-gateway-app/src/main/resources/application.yml` still keeps `mochat.access-gateway.route.gateway-pod` backed by `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD` / `${HOSTNAME}` as the local static fallback.
+
+### 5. Compatibility-only static target maps
+
+These keys are fallback-only and should remain empty in Kubernetes manifests:
+
+- `mochat.message-service.route.gateway-targets.*`
+- `mochat.access-gateway.route.peer-targets.*`
+
+They are still required when rolling back to the current local static-address topology.
+
+## Cluster-External Infrastructure Prerequisites
+
+The first Kubernetes version keeps PostgreSQL, Redis, and RocketMQ outside the cluster. Before any `kind` or production rollout, confirm:
+
+- Kubernetes nodes can reach PostgreSQL on `5432`
+- Kubernetes nodes can reach Redis on `6379`
+- Kubernetes nodes can reach RocketMQ NameServer on `9876`
+- Kubernetes nodes can reach RocketMQ Broker on `10909`, `10911`, and `10912`
+- DNS names or fixed IPs for those systems are stable enough to place in ConfigMap / Secret
+- Firewall, security group, or local host networking allows traffic from cluster nodes to those endpoints
+- Any credential or TLS material required by those systems is available as Kubernetes Secrets, not baked into container images
+
+If `MOCHAT_REDIS_URI` contains password, username, or TLS options, treat the whole URI as secret material.
+
+## Local `kind` Verification Path
+
+This section defines the current local verification flow for the repository-owned `deploy/kubernetes/overlays/kind` overlay.
+
+### Tooling Prerequisites
+
+- `kind`
+- `kubectl`
+- `podman`
+- `jq`
+- `rg`
+- `ss`
+- `openssl` for TCP/TLS probe
+
+### 1. Build service images
 
 From repository root:
 
 ```bash
-podman compose up -d
-podman compose ps
-for port in 5432 6379 9876 10909 10911 10912; do
-  ss -ltn | rg -q ":${port}\\b" && echo "ok:${port}" || echo "missing:${port}"
-done
+podman build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+podman build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+podman build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+podman build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
 ```
 
-Expected services:
+### 2. Create the `kind` cluster
 
-- `postgres` on `5432`
-- `redis` on `6379`
-- `rocketmq-namesrv` on `9876`
-- `rocketmq-broker` on `10909/10911/10912`
+Use a config that forwards host port `9000` to the gateway Service `nodePort: 32000`. The verification script defaults to `KIND_CLUSTER_NAME=kind-cluster` and `KUBECTL_CONTEXT=kind-kind-cluster`; override them explicitly if your cluster uses different names.
 
-Stop dependencies:
+Example `kind-config.yaml`:
+
+```yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 32000
+        hostPort: 9000
+        protocol: TCP
+```
+
+Then create the cluster:
 
 ```bash
-podman compose down
+kind create cluster --name kind-cluster --config kind-config.yaml
 ```
 
-## Dedicated service topology (Phase 1)
+### 3. Prepare overlay-local inputs
 
-Phase 1 now treats the split runtime as the default local topology. Four dedicated services share the same PostgreSQL, Redis, and RocketMQ stack.
+The `kind` overlay expects local files under `deploy/kubernetes/overlays/kind/.local`. Generate them with:
 
-| Service | Default listeners | Owns | Depends on |
-| --- | --- | --- | --- |
-| `api-service` | HTTP `8080`, gRPC `19091` | login, session authority, social graph, history query | PostgreSQL, Redis, optional `message-service` gRPC for offline replay trigger |
-| `message-service` | gRPC `19092` | message ingest, idempotency, sender ACK, online delivery orchestration, offline fallback | Redis, RocketMQ, `api-service` gRPC, per-gateway target map |
-| `access-gateway` | TCP `9000`, gRPC `19093` per instance | TCP bind, heartbeat, online route ownership, targeted channel delivery | Redis, `api-service` gRPC, `message-service` gRPC, unique `gateway-pod` identity |
-| `persistence-service` | no public HTTP/TCP listener | MQ consume, durable persistence, conversation advancement, post-commit cache work | PostgreSQL, Redis, RocketMQ |
+```bash
+bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
+```
 
-Shared infrastructure and cross-service addressing:
+The script uses `podman inspect` to resolve compose container IPs, writes `.local/external-dependencies.env`, `.local/external-dependency-secrets.env`, and issues a self-signed gateway TLS certificate under `.local/access-gateway-tls/`.
 
-- PostgreSQL via `MOCHAT_POSTGRES_URL`, `MOCHAT_POSTGRES_USERNAME`, `MOCHAT_POSTGRES_PASSWORD`
-- Redis via `MOCHAT_REDIS_URI`
-- RocketMQ via `MOCHAT_ROCKETMQ_NAME_SERVER`, `MOCHAT_ROCKETMQ_TOPIC`
-- `access-gateway -> api-service`: `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
-- `access-gateway -> message-service`: `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
-- `message-service -> api-service`: `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
-- `api-service -> message-service`: `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
+### 4. Primary minimal verification path
 
-Route-aware delivery and duplicate-login fencing:
+The currently verified 5.1 entrypoint is:
 
-- `message-service` resolves owners through `mochat.message-service.route.gateway-targets.*`
-- each `access-gateway` instance must advertise a unique `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD`
-- cross-gateway replacement kicks require `mochat.access-gateway.route.peer-targets.*`
+```bash
+bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh
+```
 
-### Local multi-process startup
+This script will:
 
-One local verification layout is:
+- regenerate `.local` inputs
+- save `localhost/mochat/*:dev` images and load them into `kind` through `kind load image-archive`
+- `kubectl apply -k deploy/kubernetes/overlays/kind`
+- restart the Deployments / StatefulSet and wait for rollout
+- probe Service DNS, Pod DNS, cluster-external ports, and the gateway NodePort
 
-- `api-service` on `127.0.0.1:8080` + `127.0.0.1:19091`
-- `message-service` on `127.0.0.1:19092`
-- `persistence-service` consuming MQ in the background
-- `access-gateway-a` on TCP `9000`, gRPC `19093`, `gateway-pod=gateway-a`
-- `access-gateway-b` on TCP `9001`, gRPC `19094`, `gateway-pod=gateway-b`
+The overlay currently expands to these repository-owned objects:
 
-Start them from repository root in separate terminals after `podman compose up -d`:
+- `Namespace/mochat`
+- `ConfigMap/mochat-runtime-config`
+- `ConfigMap/mochat-external-dependencies`
+- `Secret/mochat-external-dependency-secrets`
+- `Secret/access-gateway-tls`
+- `Deployment/api-service`
+- `Deployment/message-service`
+- `Deployment/persistence-service`
+- `Service/api-service`
+- `Service/message-service`
+- `StatefulSet/access-gateway`
+- `Service/access-gateway-headless`
+- `Service/access-gateway-tcp`
+
+### 5. What the minimal script checks
+
+```bash
+kubectl -n mochat rollout status deploy/api-service
+kubectl -n mochat rollout status deploy/message-service
+kubectl -n mochat rollout status deploy/persistence-service
+kubectl -n mochat rollout status statefulset/access-gateway
+kubectl -n mochat get pods,svc,endpoints
+```
+
+### 6. Verify Service DNS and StatefulSet identity
+
+```bash
+kubectl -n mochat run mochat-kind-minimal-probe \
+  --image=busybox:1.36 \
+  --restart=Never \
+  --command -- sh -c "
+    nslookup api-service.mochat.svc.cluster.local
+    nslookup access-gateway-0.access-gateway-headless.mochat.svc.cluster.local
+  "
+```
+
+Verify that the StatefulSet wires runtime pod identity from metadata instead of a handwritten literal:
+
+```bash
+kubectl get statefulset access-gateway -n mochat \
+  -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='MOCHAT_RUNTIME_POD_NAME')].valueFrom.fieldRef.fieldPath}"
+```
+
+### 7. Verify external TCP exposure
+
+After `access-gateway-tcp` is ready and mapped through `kind`, probe the TLS listener from the host:
+
+```bash
+openssl s_client -connect 127.0.0.1:9000 -servername localhost </dev/null
+```
+
+Expected result:
+
+- TCP connect succeeds
+- TLS handshake reaches the gateway listener
+- if a custom certificate Secret is mounted, the returned certificate matches that material
+
+### 8. Verify cluster-external infrastructure connectivity
+
+The minimal script checks cluster-external connectivity from a temporary busybox pod with `nc -vz -w 2` against PostgreSQL, Redis, RocketMQ NameServer, and RocketMQ Broker ports. The follow-up signal is application logs without connection failures:
+
+```bash
+kubectl -n mochat logs deploy/api-service --tail=50
+kubectl -n mochat logs deploy/message-service --tail=50
+kubectl -n mochat logs deploy/persistence-service --tail=50
+kubectl -n mochat logs access-gateway-0 --tail=50
+```
+
+What should not appear:
+
+- PostgreSQL authentication or socket errors
+- Redis connection refused / auth failures
+- RocketMQ name-server lookup or broker connection failures
+
+### 9. Routing / drain verification path
+
+The deeper 5.2 verification path is already scripted separately:
+
+```bash
+GRADLE_USER_HOME="$PWD/.gradle-user-home" \
+SKIP_MINIMAL_TOPOLOGY=1 \
+  bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh
+```
+
+Use the explicit `GRADLE_USER_HOME` override when running inside a filesystem sandbox so Gradle does not write to `~/.gradle`.
+
+The script covers:
+
+- gateway scale-out
+- preStop + drain behavior
+- readiness transition before termination
+- owner-addressed delivery through Pod DNS
+- offline fallback semantics under rollout or stale route
+
+It also reruns these focused Gradle tests from repository root:
+
+- `:message-service-app:test --tests com.github.lystran.mochat.messageservice.MessageServiceCrossGatewayRoutingIntegrationTest`
+- `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.runtime.AccessGatewayOnlineRouteBindingTest.newerBindOnOtherGatewayLeavesOldOwnerAliveUntilHeartbeatThenSelfKills`
+- `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.runtime.AccessGatewayOnlineRouteBindingTest.drainingGatewayRejectsNewBindButAllowsReconnectOnOtherGatewayAfterGrace`
+- `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.runtime.GatewayIngressLifecycleTest`
+- `:access-gateway-app:test --tests com.github.lystran.mochat.accessgateway.AccessGatewayLifecycleEndpointTest`
+
+Do not infer these guarantees from the runbook alone; the scripts and focused tests remain the evidence.
+
+## Rollback to the Current Static-Address Topology
+
+If the Kubernetes-native path is unstable, roll back at the runtime-entrypoint layer. Do not roll back Redis schema, PostgreSQL schema, or RocketMQ topics.
+
+### 1. Stop Kubernetes workloads
+
+```bash
+kubectl delete -k deploy/kubernetes/overlays/kind
+kind delete cluster --name kind-cluster
+```
+
+### 2. Restart shared infrastructure locally
+
+```bash
+podman compose up -d
+podman compose ps
+```
+
+### 3. Restore static target-map based service startup
+
+`api-service`:
 
 ```bash
 ./gradlew :api-service-app:run
 ```
+
+`message-service`:
 
 ```bash
 JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
@@ -83,9 +369,13 @@ JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
   ./gradlew :message-service-app:run
 ```
 
+`persistence-service`:
+
 ```bash
 ./gradlew :persistence-service-app:run
 ```
+
+`access-gateway-a`:
 
 ```bash
 MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-a \
@@ -97,6 +387,8 @@ JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-b=127.0.0.
   ./gradlew :access-gateway-app:run
 ```
 
+`access-gateway-b`:
+
 ```bash
 MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-b \
 MOCHAT_ACCESS_GATEWAY_GRPC_PORT=19094 \
@@ -107,189 +399,15 @@ JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-a=127.0.0.
   ./gradlew :access-gateway-app:run
 ```
 
-Quick listener probe:
+Rollback expectations:
 
-```bash
-for port in 8080 19091 19092 19093 19094 9000 9001; do
-  ss -ltn | rg -q ":${port}\\b" && echo "ok:${port}" || echo "missing:${port}"
-done
-```
+- `message-service` once again relies on `mochat.message-service.route.gateway-targets.*`
+- `access-gateway` peer kick flow once again relies on `mochat.access-gateway.route.peer-targets.*`
+- `gatewayPod` becomes a manual local identifier such as `gateway-a` / `gateway-b`
 
-Notes:
+### 4. Deepest compatibility fallback
 
-- `message-service` must know every owning gateway target through `mochat.message-service.route.gateway-targets.*`.
-- Each `access-gateway` instance must use a unique `mochat.access-gateway.route.gateway-pod`.
-- Cross-gateway duplicate-login kick flow requires `mochat.access-gateway.route.peer-targets.*` on each gateway instance.
-- `persistence-service` is intentionally background-only in this phase; no extra HTTP/gRPC port is documented for it yet.
-
-### Dedicated service native and Docker image builds
-
-Repository-root native build commands:
-
-```bash
-./gradlew :access-gateway-app:nativeCompile
-./gradlew :api-service-app:nativeCompile
-./gradlew :message-service-app:nativeCompile
-./gradlew :persistence-service-app:nativeCompile
-```
-
-Expected native outputs:
-
-- `access-gateway-app/build/native/nativeCompile/access-gateway`
-- `api-service-app/build/native/nativeCompile/api-service`
-- `message-service-app/build/native/nativeCompile/message-service`
-- `persistence-service-app/build/native/nativeCompile/persistence-service`
-
-Repository-root Podman image builds:
-
-```bash
-podman build -f access-gateway-app/Dockerfile -t mochat/access-gateway:dev .
-podman build -f api-service-app/Dockerfile -t mochat/api-service:dev .
-podman build -f message-service-app/Dockerfile -t mochat/message-service:dev .
-podman build -f persistence-service-app/Dockerfile -t mochat/persistence-service:dev .
-```
-
-The Dockerfiles must be built from repository root so the build context includes the root Gradle files and sibling shared modules.
-
-Example container runs on a shared bridge network after PostgreSQL, Redis, and RocketMQ are reachable from that network:
-
-```bash
-podman network create mochat-net
-```
-
-```bash
-podman run --rm --network mochat-net --name api-service \
-  -p 8080:8080 -p 19091:19091 \
-  -e MOCHAT_REDIS_URI=redis://redis:6379 \
-  -e MOCHAT_POSTGRES_URL=jdbc:postgresql://postgres:5432/mochat \
-  -e MOCHAT_POSTGRES_USERNAME=mochat \
-  -e MOCHAT_POSTGRES_PASSWORD=mochat \
-  mochat/api-service:dev
-```
-
-```bash
-podman run --rm --network mochat-net --name message-service \
-  -p 19092:19092 \
-  -e MOCHAT_REDIS_URI=redis://redis:6379 \
-  -e MOCHAT_ROCKETMQ_NAME_SERVER=rocketmq-namesrv:9876 \
-  -e MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091 \
-  -e JAVA_TOOL_OPTIONS='-Dmochat.message-service.route.gateway-targets.gateway-a=access-gateway-a:19093' \
-  mochat/message-service:dev
-```
-
-```bash
-podman run --rm --network mochat-net --name access-gateway-a \
-  -p 9000:9000 -p 19093:19093 \
-  -e MOCHAT_REDIS_URI=redis://redis:6379 \
-  -e MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-a \
-  -e MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091 \
-  -e MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092 \
-  -e JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-b=access-gateway-b:19094' \
-  mochat/access-gateway:dev
-```
-
-```bash
-podman run --rm --network mochat-net --name persistence-service \
-  -e MOCHAT_REDIS_URI=redis://redis:6379 \
-  -e MOCHAT_POSTGRES_URL=jdbc:postgresql://postgres:5432/mochat \
-  -e MOCHAT_POSTGRES_USERNAME=mochat \
-  -e MOCHAT_POSTGRES_PASSWORD=mochat \
-  -e MOCHAT_ROCKETMQ_NAME_SERVER=rocketmq-namesrv:9876 \
-  mochat/persistence-service:dev
-```
-
-Containerized runs keep the same runtime contract as the process-based dedicated topology: the same `MOCHAT_*` environment variables still apply, and route-target maps are still passed explicitly through `JAVA_TOOL_OPTIONS` until dynamic service discovery is introduced.
-
-Fresh dedicated-service verification (2026-03-13):
-
-- `command -v native-image && native-image --version` resolved `/home/lystran/.local/share/mise/installs/java/oracle-graalvm-25.0.1/bin/native-image` and reported Oracle GraalVM `25.0.1`.
-- `./gradlew :access-gateway-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `access-gateway-app/build/native/nativeCompile/access-gateway`.
-- `./gradlew :api-service-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `api-service-app/build/native/nativeCompile/api-service`.
-- `./gradlew :message-service-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `message-service-app/build/native/nativeCompile/message-service`.
-- `./gradlew :persistence-service-app:nativeCompile -g .gradle --rerun-tasks --console=plain` completed with `BUILD SUCCESSFUL` and produced `persistence-service-app/build/native/nativeCompile/persistence-service`.
-- Shared GraalVM native support for this verification includes `resources.autodetect()` so `application.yml` is embedded, `service-runtime` native defaults for Netty under native runtime, and shared reflection metadata for Caffeine bounded caches used by `api-service` and `persistence-service`.
-- `podman build -f access-gateway-app/Dockerfile -t mochat/access-gateway:dev .` completed with `Successfully tagged localhost/mochat/access-gateway:dev`.
-- `podman build -f api-service-app/Dockerfile -t mochat/api-service:dev .` completed with `Successfully tagged localhost/mochat/api-service:dev`.
-- `podman build -f message-service-app/Dockerfile -t mochat/message-service:dev .` completed with `Successfully tagged localhost/mochat/message-service:dev`.
-- `podman build -f persistence-service-app/Dockerfile -t mochat/persistence-service:dev .` completed with `Successfully tagged localhost/mochat/persistence-service:dev`.
-- The verified Dockerfile path used `ghcr.1ms.run/graalvm/native-image-community:25` for the builder stage and `gcr.1ms.run/distroless/cc` for the runtime stage across all four dedicated service images.
-- `gradle/wrapper/gradle-wrapper.properties` now points to `https://mirrors.aliyun.com/gradle/distributions/v9.3.1/gradle-9.3.1-bin.zip`; this was required because containerized `./gradlew` still hit `services.gradle.org` before the change and failed with `javax.net.ssl.SSLHandshakeException`.
-- `podman compose up -d` followed by `podman compose ps` brought PostgreSQL, Redis, RocketMQ NameServer, and RocketMQ Broker into `Up` state, and `for port in 5432 6379 9876 10909 10911 10912; do ...; done` reported `ok:<port>` for all six ports.
-- Minimal smoke verification was run against the freshly built host native binaries, using the same native entrypoints that the Dockerfiles copy into the distroless images.
-
-`access-gateway` smoke command:
-
-```bash
-MOCHAT_ACCESS_GATEWAY_RUNTIME_ENABLED=true \
-MOCHAT_ACCESS_GATEWAY_TCP_ENABLED=false \
-MOCHAT_ACCESS_GATEWAY_REDIS_ENABLED=false \
-MOCHAT_ACCESS_GATEWAY_API_GRPC_ENABLED=true \
-MOCHAT_ACCESS_GATEWAY_GRPC_PORT=49093 \
-MOCHAT_API_SERVICE_GRPC_ADDRESS=127.0.0.1:59999 \
-MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=127.0.0.1:59998 \
-  access-gateway-app/build/native/nativeCompile/access-gateway
-```
-
-- Result: `Startup completed in 35ms. Server Running: http://localhost:49093`, and `ss -ltn` reported listener `*:49093`.
-
-`api-service` smoke command:
-
-```bash
-MOCHAT_API_SERVICE_POSTGRES_ENABLED=false \
-MOCHAT_API_SERVICE_HTTP_PORT=48080 \
-MOCHAT_API_SERVICE_GRPC_PORT=49191 \
-MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=127.0.0.1:59997 \
-  api-service-app/build/native/nativeCompile/api-service
-```
-
-- Result: `Startup completed in 131ms. Server Running: http://0.0.0.0:48080`, and `ss -ltn` reported listeners `*:48080` and `*:49191`.
-
-`message-service` smoke command:
-
-```bash
-MOCHAT_REDIS_URI=redis://127.0.0.1:6379 \
-MOCHAT_MESSAGE_SERVICE_GRPC_PORT=49092 \
-MOCHAT_MESSAGE_SERVICE_API_GRPC_ENABLED=true \
-MOCHAT_MESSAGE_SERVICE_GATEWAY_GRPC_ENABLED=false \
-MOCHAT_MESSAGE_SERVICE_REDIS_ENABLED=true \
-MOCHAT_MESSAGE_SERVICE_MQ_ENABLED=true \
-MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=false \
-MOCHAT_API_SERVICE_GRPC_ADDRESS=127.0.0.1:59998 \
-MOCHAT_ROCKETMQ_NAME_SERVER=127.0.0.1:9876 \
-  message-service-app/build/native/nativeCompile/message-service
-```
-
-- Result: `Startup completed in 78ms. Server Running: http://localhost:49092`, and `ss -ltn` reported listener `*:49092`.
-- `message-service-app` now supplies a default `MOCHAT_ROCKETMQ_PRODUCER_GROUP=mochat-message-producer`, so the smoke no longer needs a one-off producer-group override.
-
-`persistence-service` smoke command:
-
-```bash
-MOCHAT_PERSISTENCE_SERVICE_QUEUE_CONSUMER_ENABLED=false \
-MOCHAT_PERSISTENCE_SERVICE_FLYWAY_MIGRATE_ON_START=false \
-MOCHAT_REDIS_URI=redis://127.0.0.1:6379 \
-MOCHAT_POSTGRES_URL=jdbc:postgresql://127.0.0.1:5432/mochat \
-MOCHAT_POSTGRES_USERNAME=mochat \
-MOCHAT_POSTGRES_PASSWORD=mochat \
-MOCHAT_ROCKETMQ_NAME_SERVER=127.0.0.1:9876 \
-  persistence-service-app/build/native/nativeCompile/persistence-service
-```
-
-- Result: process exited `0` and logged `No embedded container found. Running as CLI application`.
-
-Smoke-test constraints confirmed by this run:
-
-- `access-gateway` does not support `MOCHAT_ACCESS_GATEWAY_API_GRPC_ENABLED=false` in production wiring; the minimal valid smoke keeps the API gRPC stub enabled while turning off TCP and Redis.
-- `message-service` does not support disabling Redis, MQ, and API gRPC together in production wiring; the minimal valid smoke still requires Redis, RocketMQ, and an API gRPC stub, while `gateway-grpc` can be turned off.
-- To avoid the earlier TLS handshake failures seen inside containerized Gradle resolution, the repository now prefers `https://maven.aliyun.com/repository/gradle-plugin` for Gradle plugins, `https://maven.aliyun.com/repository/public` for Maven dependencies, and the Aliyun Gradle distribution mirror for the wrapper.
-
-### Rollback posture
-
-Rollback stays at the runtime-entrypoint level rather than the data layer:
-
-- Stop the dedicated `access-gateway-app`, `api-service-app`, `message-service-app`, and `persistence-service-app` processes.
-- Keep PostgreSQL, Redis, and RocketMQ running; the split services and the legacy app use the same shared infrastructure.
-- Restart the legacy shell with persistence compatibility re-enabled:
+If the dedicated-service split itself must be bypassed, fall back to the legacy shell:
 
 ```bash
 MOCHAT_LEGACY_PERSISTENCE_ENABLED=true \
@@ -297,143 +415,4 @@ MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=true \
   ./gradlew :app:run
 ```
 
-- Route HTTP traffic back to the legacy app on `8080` and TCP traffic back to the legacy app on `9000`.
-- Because external TCP/HTTP contracts and shared storage remain unchanged in Phase 1, this rollback does not require schema or payload migration.
-
-### Verified outcome (2026-03-07)
-
-- `podman compose up -d` started Postgres, Redis, RocketMQ NameServer, and RocketMQ Broker.
-- `podman compose ps` showed all four dependency services in `Up` state.
-- `for port in 5432 6379 9876 10909 10911 10912; ...; done` printed `ok:<port>` for all dependency ports.
-- `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
-- Local app defaults were aligned with `docker-compose.yml`: PostgreSQL now defaults to `jdbc:postgresql://localhost:5432/mochat` with `mochat` / `mochat` credentials.
-
-## Build, test, and compatibility-shell commands
-
-From repository root:
-
-```bash
-./gradlew :app:test
-./gradlew :app:build
-./gradlew test
-./gradlew :app:run
-./gradlew :app:nativeCompile
-```
-
-Runtime probes:
-
-```bash
-ss -ltn | rg ':(8080|9000)\b'
-session_id=$(curl -fsS -X POST http://127.0.0.1:8080/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"runbook-probe","publicKey":"runbook-probe-key"}' | jq -r '.sessionId')
-curl -fsS "http://127.0.0.1:8080/friends?sessionId=${session_id}"
-```
-
-### Verified outcome (2026-03-07)
-
-- `./gradlew :app:test --tests com.github.lystran.mochat.AppRuntimeAssemblyTest --rerun-tasks`: `BUILD SUCCESSFUL`
-- `./gradlew :persistence-module:test --tests com.github.lystran.mochat.persistence.RocketMqPersistenceConsumerTest --rerun-tasks`: `BUILD SUCCESSFUL`
-- `./gradlew test --rerun-tasks`: `BUILD SUCCESSFUL`
-- `./gradlew :app:run` with local dependencies running opened both `8080` and `9000` listeners.
-- 好友列表探针应以先调用 `POST /auth/login` 取得 `sessionId`，再请求 `GET /friends?sessionId=...` 为准；旧的无参 `GET /friends` 表述已不适用当前接口签名。
-
-### Fresh native verification (2026-03-09)
-
-- Fresh native verification on 2026-03-09: `command -v native-image` resolved `/home/lystran/.local/share/mise/installs/java/oracle-graalvm-25.0.1/bin/native-image`, and `native-image --version` reported Oracle GraalVM `25.0.1`.
-- Fresh native verification on 2026-03-09: `./gradlew :app:nativeCompile -g .gradle` completed with `BUILD SUCCESSFUL`, emitted native image completion logs including the output directory, and produced `app/build/native/nativeCompile/mo-chat`.
-
-Interpretation:
-
-- `app` is now a compatibility shell rather than the default production topology.
-- Startup still eagerly creates PostgreSQL, Redis, and RocketMQ clients, runs Flyway migrations by default, then starts HTTP and TCP listeners.
-- Persistence-side consumers and inbound compatibility wiring only come back when `MOCHAT_LEGACY_PERSISTENCE_ENABLED=true` and related compatibility toggles are explicitly enabled.
-
-## Config keys overview
-
-Current runtime keys in `app/src/main/resources/application.yml`:
-
-- HTTP server: `micronaut.server.host`, `micronaut.server.port`, `mochat.http.host`, `mochat.http.port`
-- Netty TCP: `mochat.netty.tcp.enabled`, `mochat.netty.tcp.host`, `mochat.netty.tcp.port`, `mochat.netty.tcp.io-uring.preferred`, `mochat.netty.tcp.frame.max-length`, `mochat.netty.tcp.heartbeat.interval`, `mochat.netty.tcp.heartbeat.timeout`
-- Flyway: `mochat.flyway.migrate-on-start`, `mochat.flyway.locations`
-- Redis: `mochat.redis.uri`, `mochat.redis.topic-prefix`
-- PostgreSQL: `mochat.postgres.url`, `mochat.postgres.username`, `mochat.postgres.password`
-- RocketMQ: `mochat.rocketmq.name-server`, `mochat.rocketmq.producer-group`, `mochat.rocketmq.consumer.enabled`, `mochat.rocketmq.consumer-group`, `mochat.rocketmq.topic`
-- TLS and IDs: `mochat.tls.enabled`, `mochat.tls.self-signed`, `mochat.tls.certificate-path`, `mochat.tls.private-key-path`, `mochat.id.worker-id`
-
-Default local values now line up with the compose stack:
-
-- PostgreSQL: `jdbc:postgresql://localhost:5432/mochat`, user `mochat`, password `mochat`
-- Redis: `redis://localhost:6379`
-- RocketMQ NameServer: `localhost:9876`
-- HTTP / TCP listeners: `8080` / `9000`
-- TLS defaults: `mochat.tls.enabled=true`, `mochat.tls.self-signed=true`；当 `mochat.tls.certificate-path` 与 `mochat.tls.private-key-path` 都为空时，会生成自签名证书启动
-- `MOCHAT_TLS_ENABLED=false` is no longer supported; startup fails fast because chat TCP TLS is mandatory
-
-Current exposed service ports:
-
-- PostgreSQL: `5432`
-- Redis: `6379`
-- RocketMQ NameServer: `9876`
-- RocketMQ Broker: `10909`, `10911`, `10912`
-
-## Testcontainers activation
-
-- Gradle `Test` tasks now auto-export `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock` when `DOCKER_HOST` is unset and `/var/run/docker.sock` is absent.
-- Verified in this rootless Podman environment: the following suites now run with `skipped="0"` instead of being skipped:
-  - `infra-redis/src/test/java/com/github/lystran/mochat/infra/redis/RedisSeqGeneratorTest.java`
-  - `logic-module/src/test/java/com/github/lystran/mochat/logic/service/JdbcUserRepositoryIntegrationTest.java`
-  - `persistence-module/src/test/java/com/github/lystran/mochat/persistence/MigrationSmokeTest.java`
-  - `persistence-module/src/test/java/com/github/lystran/mochat/persistence/TransactionalPersistenceTest.java`
-- If neither a standard Docker socket nor a rootless Podman socket is available, those classes still use `@Testcontainers(disabledWithoutDocker = true)` and will be skipped as designed.
-
-## TLS certificate generation
-
-Default bootstrap keeps chat TCP on TLS 1.3 with `mochat.tls.enabled=true`. Setting `MOCHAT_TLS_ENABLED=false` is unsupported and now fails fast with a clear mandatory-TLS error.
-
-TLS override rules are:
-
-- `mochat.tls.certificate-path` 与 `mochat.tls.private-key-path` 必须成对配置；只配一边会在启动阶段直接 fail-fast。
-- 两个路径都留空时，仅当 `mochat.tls.self-signed=true` 才会生成自签名证书启动；若同时关闭自签名，同样会 fail-fast。
-- 显式提供一对有效的证书链与私钥时，运行时优先使用这组材料，而不会回退到自签名证书。
-
-`NettyChatServer.buildTls13Context` expects a certificate chain file and private key file when you want to override the generated self-signed certificate. Generate local PEM files with:
-
-```bash
-mkdir -p certs/dev
-openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365 \
-  -keyout certs/dev/server.key \
-  -out certs/dev/server.crt \
-  -subj "/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
-```
-
-Use `certs/dev/server.crt` and `certs/dev/server.key` together when overriding the default generated self-signed TLS certificate.
-
-## Transport fallback mode
-
-- Default mode keeps `mochat.netty.tcp.io-uring.preferred=true` and lets the server prefer Linux `io_uring` when available.
-- If native transport is unavailable or fails during bootstrap, `NettyChatServer` falls back to Netty system default transport so upper-layer protocol behavior stays unchanged.
-- For deterministic local troubleshooting, set `MOCHAT_TCP_IO_URING_PREFERRED=false` to force the non-native path.
-- Recommended verification commands:
-
-```bash
-./gradlew :connection-module:test --tests com.github.lystran.mochat.connection.NettyChatServerTest --rerun-tasks
-MOCHAT_TCP_IO_URING_PREFERRED=false ./gradlew :app:run
-```
-
-## Native build fallback note
-
-- Preferred command: `./gradlew :app:nativeCompile`
-- Native verification precondition: `native-image --version` must succeed before `:app:nativeCompile` can be treated as evidence that a real native binary was generated.
-- Fresh verified result on 2026-03-09: `command -v native-image` resolved `/home/lystran/.local/share/mise/installs/java/oracle-graalvm-25.0.1/bin/native-image`; `native-image --version` reported Oracle GraalVM `25.0.1`; `./gradlew :app:nativeCompile -g .gradle` actually executed native image generation and produced `app/build/native/nativeCompile/mo-chat`.
-- If `native-image` is unavailable in `javaLauncher`, `GRAALVM_HOME`, `JAVA_HOME`, or `java.home`, the build logic in `app/build.gradle.kts` skips native compilation.
-- When `./gradlew :app:nativeCompile` shows `BUILD SUCCESSFUL` but also `Skipping :app:nativeCompile: native-image is unavailable ...`, or only ends as `UP-TO-DATE`, that is not fresh proof of native binary generation; real verification requires an actual execution that emits the generation logs and output path.
-- Fallback path for local validation:
-
-```bash
-./gradlew :app:build
-./gradlew :app:run
-```
-
-This verifies JVM build and startup path without requiring a GraalVM native toolchain.
+That path is not the preferred runtime, but it remains the last-resort rollback posture because it preserves the same PostgreSQL, Redis, and RocketMQ infrastructure.

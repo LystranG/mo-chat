@@ -5,6 +5,7 @@ import com.github.lystran.mochat.logic.chat.MessageDeliveryStatus;
 import com.github.lystran.mochat.logic.chat.PrivateMessageDelivery;
 import com.github.lystran.mochat.messageservice.grpc.AccessGatewayDispatchClientFactory;
 import com.github.lystran.mochat.messageservice.grpc.GrpcMessageRecipientDispatcher;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
 import com.github.lystran.mochat.protocol.internal.gateway.v1.AccessGatewayDispatchApiGrpc;
 import com.github.lystran.mochat.protocol.internal.gateway.v1.DeliverToConnectionRequest;
 import com.github.lystran.mochat.protocol.internal.gateway.v1.DeliverToConnectionResponse;
@@ -43,7 +44,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-a", "gateway-a:19093")
+            staticResolver(Map.of("gateway-a", "gateway-a:19093"))
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -82,7 +83,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-a", "gateway-a:19093")
+            staticResolver(Map.of("gateway-a", "gateway-a:19093"))
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -114,7 +115,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-a", "gateway-a:19093")
+            staticResolver(Map.of("gateway-a", "gateway-a:19093"))
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -146,7 +147,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-a", "gateway-a:19093")
+            staticResolver(Map.of("gateway-a", "gateway-a:19093"))
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -178,7 +179,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-a", "gateway-a:19093")
+            staticResolver(Map.of("gateway-a", "gateway-a:19093"))
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -204,7 +205,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-b", "gateway-b:19093")
+            staticResolver(Map.of("gateway-b", "gateway-b:19093"))
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -243,10 +244,10 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of(
+            staticResolver(Map.of(
                 "gateway-a", "gateway-a:19093",
                 "gateway-b", "gateway-b:19093"
-            )
+            ))
         );
 
         Map<Long, MessageDeliveryStatus> statuses = dispatcher.dispatchGroup(new GroupMessageDelivery(
@@ -295,7 +296,7 @@ class GrpcMessageRecipientDispatcherTest {
         GrpcMessageRecipientDispatcher dispatcher = new GrpcMessageRecipientDispatcher(
             redisCommands,
             clientFactory,
-            Map.of("gateway-a", "gateway-a:19093")
+            gatewayPod -> "dns:///" + gatewayPod + ".access-gateway-headless.chat.svc.cluster.local:19093"
         );
 
         MessageDeliveryStatus status = dispatcher.dispatchPrivate(new PrivateMessageDelivery(
@@ -309,6 +310,10 @@ class GrpcMessageRecipientDispatcherTest {
         ));
 
         assertEquals(MessageDeliveryStatus.WRITE_FAILED, status);
+    }
+
+    private static GatewayAddressResolver staticResolver(Map<String, String> gatewayTargets) {
+        return gatewayTargets::get;
     }
 
     private static String routeRecord(

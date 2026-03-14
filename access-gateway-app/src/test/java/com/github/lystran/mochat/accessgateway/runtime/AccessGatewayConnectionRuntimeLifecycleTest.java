@@ -15,9 +15,11 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Proxy;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +68,43 @@ class AccessGatewayConnectionRuntimeLifecycleTest {
 
         assertEquals("netty startup failed", exception.getMessage());
         assertEquals(1, eventBus.closedSubscriptionCount());
+        assertEquals(0, eventBus.activeSubscriptionCount());
+    }
+
+    @Test
+    void shutdownWaitEnabledStartsDrainBeforeRuntimeClose() {
+        RecordingEventBus eventBus = new RecordingEventBus();
+        OutboundEventSubscriber outboundEventSubscriber = new OutboundEventSubscriber(
+            eventBus,
+            new InMemoryDirectory(),
+            new NoOpOfflineQueue()
+        );
+        AccessGatewayServiceConfiguration configuration = configuration(true);
+        configuration.getDrain().setShutdownWaitEnabled(true);
+        RecordingLocalGatewayConnectionDirectory localGatewayConnectionDirectory =
+            new RecordingLocalGatewayConnectionDirectory();
+        var scheduler = Executors.newSingleThreadScheduledExecutor();
+        GatewayDrainManager gatewayDrainManager = new GatewayDrainManager(
+            localGatewayConnectionDirectory,
+            scheduler,
+            Duration.ZERO
+        );
+        AccessGatewayConnectionRuntimeLifecycle lifecycle = new AccessGatewayConnectionRuntimeLifecycle(
+            outboundEventSubscriber,
+            recordingNettyChatServer(new AtomicInteger()),
+            configuration,
+            gatewayDrainManager
+        );
+
+        try {
+            lifecycle.start();
+            lifecycle.close();
+        } finally {
+            gatewayDrainManager.close();
+            scheduler.shutdownNow();
+        }
+
+        assertEquals(1, localGatewayConnectionDirectory.closeCalls());
         assertEquals(0, eventBus.activeSubscriptionCount());
     }
 
@@ -226,6 +265,29 @@ class AccessGatewayConnectionRuntimeLifecycleTest {
         @Override
         public boolean unbind(long userId, Channel channelRef) {
             return channels.remove(userId, channelRef);
+        }
+    }
+
+    private static final class RecordingLocalGatewayConnectionDirectory implements LocalGatewayConnectionDirectory {
+        private final AtomicInteger closeCalls = new AtomicInteger();
+
+        @Override
+        public boolean kickConnection(long userId, String connectionId, long sessionVersion, long expectedRouteEpoch, String reason) {
+            return false;
+        }
+
+        @Override
+        public Optional<LocalConnectionStateSnapshot> findLocalConnectionState(long userId, String connectionId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public int closeBoundConnections() {
+            return closeCalls.incrementAndGet();
+        }
+
+        int closeCalls() {
+            return closeCalls.get();
         }
     }
 

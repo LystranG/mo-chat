@@ -2,6 +2,8 @@
 
 MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认本地拓扑已经切换为四个 dedicated services 共享 PostgreSQL、Redis 和 RocketMQ；`app` 只作为 compatibility shell 保留，用于回滚或兼容模式，不再是默认启动入口。
 
+当前 worktree 的 Kubernetes 资产位于 `deploy/kubernetes/base` 与 `deploy/kubernetes/overlays/kind`。Kubernetes-first 的部署契约、本地 `kind` 验证路径、ConfigMap/Secret 约定以及回滚到静态寻址模式的办法见 [docs/runbook.md](docs/runbook.md)。
+
 ## Architecture At A Glance
 
 默认本地拓扑：
@@ -57,7 +59,7 @@ podman compose up -d
 
 3. 如果你要验证默认推荐的双 gateway 本地拓扑，再额外启动第二个 `access-gateway` 实例，并按 runbook 配置不同的 `gateway-pod`、gRPC 端口和 TCP 端口。
 
-精确的多进程启动命令、双 gateway 示例、TLS 覆盖、回滚步骤和排障说明见 [docs/runbook.md](docs/runbook.md)。
+精确的多进程启动命令、Kubernetes 资源结构、`kind` 验证步骤、ConfigMap/Secret 约定、TLS 覆盖、回滚步骤和排障说明见 [docs/runbook.md](docs/runbook.md)。
 
 ## Default Ports
 
@@ -89,7 +91,17 @@ podman compose up -d
 - `MOCHAT_API_SERVICE_GRPC_ADDRESS`
 - `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`
 
-gateway 唯一性与路由：
+Kubernetes 运行时身份与发现：
+
+- `MOCHAT_RUNTIME_POD_NAME`
+- `MOCHAT_RUNTIME_POD_NAMESPACE`
+- `MOCHAT_GATEWAY_IDENTITY_MODE`
+- `MOCHAT_GATEWAY_DISCOVERY_MODE`
+- `MOCHAT_GATEWAY_HEADLESS_SERVICE`
+- `MOCHAT_GATEWAY_DISCOVERY_NAMESPACE`
+- `MOCHAT_GATEWAY_DISCOVERY_GRPC_PORT`
+
+静态寻址回滚兼容项：
 
 - `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD`
 - `MOCHAT_ACCESS_GATEWAY_GRPC_PORT`
@@ -104,8 +116,8 @@ gateway 唯一性与路由：
 
 说明：
 
-- `message-service` 必须知道所有可投递 gateway 的 target map。
-- 每个 `access-gateway` 实例都必须使用不同的 `gateway-pod` / gRPC / TCP 端口。
+- Kubernetes 形态下，`access-gateway` 默认通过 `MOCHAT_RUNTIME_POD_NAME` / `MOCHAT_RUNTIME_POD_NAMESPACE` 取得 Pod 身份，`message-service` 与 `access-gateway` 通过 Service DNS / Pod DNS 寻址，这两组静态 target map 应保持为空。
+- 当前本地静态寻址回滚模式下，`message-service` 仍然需要 `gateway-targets`，每个 `access-gateway` 仍然需要不同的 `gateway-pod` / gRPC / TCP 端口与 `peer-targets`。
 - `app` 仅用于 compatibility shell，不是默认开发路径。
 
 ## Common Commands
@@ -118,13 +130,16 @@ podman compose down
 ./gradlew :message-service-app:run
 ./gradlew :persistence-service-app:run
 ./gradlew :access-gateway-app:run
+bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
+bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh
+GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh
 ./gradlew :app:run
 ```
 
 ## Where To Read Next
 
 - [docs/runbook.md](docs/runbook.md)
-  - 完整启动、双 gateway 示例、TLS、自定义配置、回滚、排障
+  - Kubernetes-first 部署契约、`kind` 验证、ConfigMap/Secret、静态寻址回滚、排障
 - [docs/architecture/decompose-im-into-core-services-skeleton.md](docs/architecture/decompose-im-into-core-services-skeleton.md)
   - dedicated services 架构边界
 - [docs/mochat-technical-documentation.md](docs/mochat-technical-documentation.md)

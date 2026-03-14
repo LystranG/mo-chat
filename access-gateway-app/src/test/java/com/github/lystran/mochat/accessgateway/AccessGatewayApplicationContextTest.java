@@ -7,6 +7,11 @@ import com.github.lystran.mochat.common.session.ResolvedSession;
 import com.github.lystran.mochat.common.session.SessionRouteWriter;
 import com.github.lystran.mochat.common.session.SessionResolver;
 import com.github.lystran.mochat.accessgateway.runtime.AccessGatewayConnectionRuntimeLifecycle;
+import com.github.lystran.mochat.accessgateway.runtime.AccessGatewayRuntimeFactory;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.GatewayDiscoveryMode;
+import com.github.lystran.mochat.runtime.topology.RuntimeTopologyConfiguration;
+import com.github.lystran.mochat.runtime.config.AccessGatewayServiceConfiguration;
 import com.github.lystran.mochat.connection.NettyChatServer;
 import com.github.lystran.mochat.connection.OutboundEventSubscriber;
 import com.github.lystran.mochat.connection.SessionBindingHandler;
@@ -14,15 +19,20 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Replaces;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.context.env.PropertySource;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.ssl.ApplicationProtocolNegotiator;
 import io.netty.handler.ssl.SslContext;
 import jakarta.inject.Singleton;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSessionContext;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +58,36 @@ class AccessGatewayApplicationContextTest {
             assertEquals(19093, context.getRequiredProperty("mochat.access-gateway.grpc.port", Integer.class));
             assertEquals(19000, context.getRequiredProperty("mochat.access-gateway.tcp.port", Integer.class));
             assertFalse(context.getRequiredProperty("mochat.access-gateway.dependencies.api-grpc-enabled", Boolean.class));
+        }
+    }
+
+    @Test
+    void environmentVariableConventionAllowsTlsContextToUseMountedPemFiles(@TempDir Path tempDir) throws Exception {
+        Path certificatePath = tempDir.resolve("tls.crt");
+        Path privateKeyPath = tempDir.resolve("tls.key");
+        generateSelfSignedPem(certificatePath, privateKeyPath);
+
+        PropertySource envPropertySource = PropertySource.of(
+            "k8s-env",
+            Map.of(
+                "MOCHAT_ACCESS_GATEWAY_TLS_CERTIFICATE_PATH", certificatePath.toString(),
+                "MOCHAT_ACCESS_GATEWAY_TLS_PRIVATE_KEY_PATH", privateKeyPath.toString(),
+                "MOCHAT_ACCESS_GATEWAY_TLS_SELF_SIGNED", "false"
+            ),
+            PropertySource.PropertyConvention.ENVIRONMENT_VARIABLE
+        );
+
+        try (ApplicationContext context = ApplicationContext.builder()
+            .propertySources(envPropertySource)
+            .properties(Map.of(
+                "spec.name", "access-gateway-config",
+                "mochat.access-gateway.runtime.enabled", false,
+                "mochat.access-gateway.tcp.enabled", true,
+                "mochat.access-gateway.dependencies.api-grpc-enabled", false,
+                "mochat.access-gateway.dependencies.redis-enabled", false
+            ))
+            .start()) {
+            assertNotNull(context.getBean(SslContext.class));
         }
     }
 
@@ -101,6 +141,50 @@ class AccessGatewayApplicationContextTest {
             OfflineQueue offlineQueue = context.getBean(OfflineQueue.class);
             assertEquals("NoOpOfflineQueue", offlineQueue.getClass().getSimpleName());
         }
+    }
+
+    @Test
+    void gatewayResolverDefaultsToKubernetesDnsWhenPodMetadataIsPresent() {
+        try (ApplicationContext context = ApplicationContext.run(Map.of(
+            "spec.name", "access-gateway-runtime-context",
+            "mochat.access-gateway.runtime.enabled", false,
+            "mochat.access-gateway.tcp.enabled", true,
+            "mochat.access-gateway.dependencies.api-grpc-enabled", false,
+            "mochat.access-gateway.dependencies.redis-enabled", false,
+            "mochat.runtime.pod.name", "access-gateway-0",
+            "mochat.runtime.pod.namespace", "chat"
+        ))) {
+            GatewayAddressResolver resolver = context.getBean(GatewayAddressResolver.class);
+
+            assertEquals(
+                "dns:///access-gateway-1.access-gateway-headless.chat.svc.cluster.local:19093",
+                resolver.resolve("access-gateway-1")
+            );
+        }
+    }
+
+    @Test
+    void gatewayResolverFallsBackToLegacyPeerTargetsWhenPodMetadataIsMissing() throws Exception {
+        AccessGatewayRuntimeFactory factory = new AccessGatewayRuntimeFactory();
+        RuntimeTopologyConfiguration runtimeTopologyConfiguration = new RuntimeTopologyConfiguration();
+        runtimeTopologyConfiguration.getGateway().setDiscoveryMode(GatewayDiscoveryMode.AUTO);
+        runtimeTopologyConfiguration.getPod().setName("");
+        AccessGatewayServiceConfiguration configuration = new AccessGatewayServiceConfiguration();
+        configuration.getRoute().setPeerTargets(Map.of("gateway-b", "gateway-b:19093"));
+
+        var gatewayAddressResolverMethod = AccessGatewayRuntimeFactory.class.getDeclaredMethod(
+            "gatewayAddressResolver",
+            RuntimeTopologyConfiguration.class,
+            AccessGatewayServiceConfiguration.class
+        );
+        gatewayAddressResolverMethod.setAccessible(true);
+        GatewayAddressResolver resolver = (GatewayAddressResolver) gatewayAddressResolverMethod.invoke(
+            factory,
+            runtimeTopologyConfiguration,
+            configuration
+        );
+
+        assertEquals("gateway-b:19093", resolver.resolve("gateway-b"));
     }
 
     @Test
@@ -233,5 +317,28 @@ class AccessGatewayApplicationContextTest {
         public SSLSessionContext sessionContext() {
             return delegate.getServerSessionContext();
         }
+    }
+
+    private static void generateSelfSignedPem(Path certificatePath, Path privateKeyPath) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(
+            "openssl",
+            "req",
+            "-x509",
+            "-nodes",
+            "-newkey",
+            "rsa:2048",
+            "-sha256",
+            "-days",
+            "1",
+            "-keyout",
+            privateKeyPath.toString(),
+            "-out",
+            certificatePath.toString(),
+            "-subj",
+            "/CN=localhost"
+        ).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+        assertEquals(0, exitCode, output);
     }
 }

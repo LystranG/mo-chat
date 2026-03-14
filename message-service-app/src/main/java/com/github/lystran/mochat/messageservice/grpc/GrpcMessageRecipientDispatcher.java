@@ -4,6 +4,7 @@ import com.github.lystran.mochat.logic.chat.GroupMessageDelivery;
 import com.github.lystran.mochat.logic.chat.MessageDeliveryStatus;
 import com.github.lystran.mochat.logic.chat.MessageRecipientDispatcher;
 import com.github.lystran.mochat.logic.chat.PrivateMessageDelivery;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
 import com.github.lystran.mochat.protocol.internal.common.v1.DeliveryEnvelope;
 import com.github.lystran.mochat.protocol.internal.common.v1.GroupDeliveryContent;
 import com.github.lystran.mochat.protocol.internal.common.v1.PrivateDeliveryContent;
@@ -22,17 +23,17 @@ import java.util.Objects;
 public final class GrpcMessageRecipientDispatcher implements MessageRecipientDispatcher {
     private final RedisCommands<String, String> redisCommands;
     private final AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory;
-    private final Map<String, String> gatewayTargets;
+    private final GatewayAddressResolver gatewayAddressResolver;
 
     public GrpcMessageRecipientDispatcher(
         RedisCommands<String, String> redisCommands,
         AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory,
-        Map<String, String> gatewayTargets
+        GatewayAddressResolver gatewayAddressResolver
     ) {
         this.redisCommands = Objects.requireNonNull(redisCommands, "redisCommands");
         this.accessGatewayDispatchClientFactory =
             Objects.requireNonNull(accessGatewayDispatchClientFactory, "accessGatewayDispatchClientFactory");
-        this.gatewayTargets = Map.copyOf(Objects.requireNonNull(gatewayTargets, "gatewayTargets"));
+        this.gatewayAddressResolver = Objects.requireNonNull(gatewayAddressResolver, "gatewayAddressResolver");
     }
 
     @Override
@@ -63,7 +64,7 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         if (route == null) {
             return MessageDeliveryStatus.USER_OFFLINE;
         }
-        String targetAddress = gatewayTargets.get(route.gatewayPod());
+        String targetAddress = gatewayAddressResolver.resolve(route.gatewayPod());
         if (targetAddress == null || targetAddress.isBlank()) {
             return MessageDeliveryStatus.WRITE_FAILED;
         }

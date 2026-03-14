@@ -15,6 +15,6 @@ COPY --from=builder --chown=65532:65532 /workspace/access-gateway-app/build/nati
 
 USER 65532:65532
 
-EXPOSE 9000 19093
+EXPOSE 18080 9000 19093
 
 ENTRYPOINT ["/app/access-gateway"]

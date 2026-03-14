@@ -1,0 +1,1466 @@
+{
+  "reflection": [
+    {
+      "type": "com.alibaba.fastjson.parser.deserializer.FastjsonASMDeserializer_1_RemotingCommand",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "com.alibaba.fastjson.parser.ParserConfig",
+            "com.alibaba.fastjson.util.JavaBeanInfo"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.netty.buffer.AbstractByteBufAllocator"
+    },
+    {
+      "type": "io.netty.buffer.AbstractReferenceCountedByteBuf",
+      "fields": [
+        {
+          "name": "refCnt"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.AbstractChannelHandlerContext"
+    },
+    {
+      "type": "io.netty.channel.ChannelException",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.ChannelOutboundBuffer"
+    },
+    {
+      "type": "io.netty.channel.DefaultChannelConfig"
+    },
+    {
+      "type": "io.netty.channel.DefaultChannelPipeline"
+    },
+    {
+      "type": "io.netty.channel.DefaultChannelPipeline$HeadContext"
+    },
+    {
+      "type": "io.netty.channel.DefaultChannelPipeline$TailContext"
+    },
+    {
+      "type": "io.netty.channel.DefaultFileRegion",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "file"
+        },
+        {
+          "name": "transferred"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.epoll.Epoll"
+    },
+    {
+      "type": "io.netty.channel.epoll.EpollDatagramChannel",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.epoll.EpollSocketChannel",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.epoll.LinuxSocket",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.epoll.Native",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.epoll.NativeDatagramPacketArray$NativeDatagramPacket",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "count"
+        },
+        {
+          "name": "memoryAddress"
+        },
+        {
+          "name": "recipientAddr"
+        },
+        {
+          "name": "recipientAddrLen"
+        },
+        {
+          "name": "recipientPort"
+        },
+        {
+          "name": "recipientScopeId"
+        },
+        {
+          "name": "segmentSize"
+        },
+        {
+          "name": "senderAddr"
+        },
+        {
+          "name": "senderAddrLen"
+        },
+        {
+          "name": "senderPort"
+        },
+        {
+          "name": "senderScopeId"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.epoll.NativeStaticallyReferencedJniMethods",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.kqueue.KQueue"
+    },
+    {
+      "type": "io.netty.channel.socket.nio.NioSocketChannel",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.unix.Buffer",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.unix.DatagramSocketAddress",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "byte[]",
+            "int",
+            "int",
+            "int",
+            "io.netty.channel.unix.DatagramSocketAddress"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.unix.DomainDatagramSocketAddress",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "byte[]",
+            "int",
+            "io.netty.channel.unix.DomainDatagramSocketAddress"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.unix.ErrorsStaticallyReferencedJniMethods",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.unix.FileDescriptor",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.unix.LimitsStaticallyReferencedJniMethods",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.channel.unix.PeerCredentials",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "int",
+            "int",
+            "int[]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.netty.channel.unix.Socket",
+      "jniAccessible": true
+    },
+    {
+      "type": "io.netty.handler.codec.dns.DatagramDnsQueryEncoder"
+    },
+    {
+      "type": "io.netty.handler.timeout.IdleStateHandler"
+    },
+    {
+      "type": "io.netty.incubator.channel.uring.IOUring"
+    },
+    {
+      "type": "io.netty.resolver.dns.Cache$Entries"
+    },
+    {
+      "type": "io.netty.resolver.dns.DnsNameResolver$2"
+    },
+    {
+      "type": "io.netty.resolver.dns.DnsNameResolver$3"
+    },
+    {
+      "type": "io.netty.resolver.dns.DnsNameResolver$DnsResponseHandler"
+    },
+    {
+      "type": "io.netty.util.AbstractReferenceCounted",
+      "fields": [
+        {
+          "name": "refCnt"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.DefaultAttributeMap"
+    },
+    {
+      "type": "io.netty.util.DefaultAttributeMap$DefaultAttribute"
+    },
+    {
+      "type": "io.netty.util.HashedWheelTimer"
+    },
+    {
+      "type": "io.netty.util.HashedWheelTimer$HashedWheelTimeout"
+    },
+    {
+      "type": "io.netty.util.Recycler$DefaultHandle"
+    },
+    {
+      "type": "io.netty.util.ReferenceCountUtil"
+    },
+    {
+      "type": "io.netty.util.ResourceLeakDetector$DefaultResourceLeak"
+    },
+    {
+      "type": "io.netty.util.concurrent.DefaultPromise"
+    },
+    {
+      "type": "io.netty.util.concurrent.SingleThreadEventExecutor"
+    },
+    {
+      "type": "io.netty.util.internal.NativeLibraryUtil",
+      "methods": [
+        {
+          "name": "loadLibrary",
+          "parameterTypes": [
+            "java.lang.String",
+            "boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields",
+      "fields": [
+        {
+          "name": "producerLimit"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields",
+      "fields": [
+        {
+          "name": "consumerIndex"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields",
+      "fields": [
+        {
+          "name": "producerIndex"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField",
+      "fields": [
+        {
+          "name": "consumerIndex"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField",
+      "fields": [
+        {
+          "name": "producerIndex"
+        }
+      ]
+    },
+    {
+      "type": "io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField",
+      "fields": [
+        {
+          "name": "producerLimit"
+        }
+      ]
+    },
+    {
+      "type": "io.github.aliyunmq.logback.extensions.CustomConsoleAppender",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.github.aliyunmq.logback.extensions.ProcessIdConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.common.logging.DefaultJoranConfiguratorExt"
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.AsyncAppender",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.encoder.PatternLayoutEncoder",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.DateConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.LevelConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.LineOfCallerConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.LineSeparatorConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.LoggerConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.MessageConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.MethodOfCallerConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.ThreadConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.pattern.color.HighlightingCompositeConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.classic.spi.LogbackServiceProvider"
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.FileAppender",
+      "methods": [
+        {
+          "name": "setAppend",
+          "parameterTypes": [
+            "boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.OutputStreamAppender",
+      "methods": [
+        {
+          "name": "setEncoder",
+          "parameterTypes": [
+            "org.apache.rocketmq.logging.ch.qos.logback.core.encoder.Encoder"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.encoder.Encoder"
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.encoder.LayoutWrappingEncoder",
+      "methods": [
+        {
+          "name": "setCharset",
+          "parameterTypes": [
+            "java.nio.charset.Charset"
+          ]
+        },
+        {
+          "name": "setParent",
+          "parameterTypes": [
+            "org.apache.rocketmq.logging.ch.qos.logback.core.spi.ContextAware"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.pattern.PatternLayoutEncoderBase",
+      "methods": [
+        {
+          "name": "setPattern",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.pattern.color.BoldGreenCompositeConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.pattern.color.BoldWhiteCompositeConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.pattern.color.MagentaCompositeConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.pattern.color.YellowCompositeConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.FixedWindowRollingPolicy",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setMaxIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMinIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.RollingFileAppender",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setFile",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRollingPolicy",
+          "parameterTypes": [
+            "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.RollingPolicy"
+          ]
+        },
+        {
+          "name": "setTriggeringPolicy",
+          "parameterTypes": [
+            "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.TriggeringPolicy"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.RollingPolicy"
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.RollingPolicyBase",
+      "methods": [
+        {
+          "name": "setFileNamePattern",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setParent",
+          "parameterTypes": [
+            "org.apache.rocketmq.logging.ch.qos.logback.core.FileAppender"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setMaxFileSize",
+          "parameterTypes": [
+            "org.apache.rocketmq.logging.ch.qos.logback.core.util.FileSize"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.TriggeringPolicy"
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.rolling.helper.IntegerTokenConverter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.spi.ContextAware"
+    },
+    {
+      "type": "org.apache.rocketmq.logging.ch.qos.logback.core.util.FileSize",
+      "methods": [
+        {
+          "name": "valueOf",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.netty.NettyDecoder"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.netty.NettyEncoder"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.netty.NettyRemotingClient$2"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.netty.NettyRemotingClient$NettyClientHandler"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.netty.NettyRemotingClient$NettyConnectManageHandler"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.LanguageCode"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.RemotingCommand",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCode",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExtFields",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFlag",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOpaque",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRemark",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSerializeTypeCurrentRPC",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVersion",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.RemotingSysResponseCode",
+      "fields": [
+        {
+          "name": "REQUEST_CODE_NOT_SUPPORTED"
+        },
+        {
+          "name": "SUCCESS"
+        },
+        {
+          "name": "SYSTEM_BUSY"
+        },
+        {
+          "name": "SYSTEM_ERROR"
+        },
+        {
+          "name": "TRANSACTION_FAILED"
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.RequestCode",
+      "fields": [
+        {
+          "name": "ACK_MESSAGE"
+        },
+        {
+          "name": "ADD_BROKER"
+        },
+        {
+          "name": "ADD_WRITE_PERM_OF_BROKER"
+        },
+        {
+          "name": "ADJUST_CONSUMER_THREAD_POOL"
+        },
+        {
+          "name": "AUTH_CREATE_ACL"
+        },
+        {
+          "name": "AUTH_CREATE_USER"
+        },
+        {
+          "name": "AUTH_DELETE_ACL"
+        },
+        {
+          "name": "AUTH_DELETE_USER"
+        },
+        {
+          "name": "AUTH_GET_ACL"
+        },
+        {
+          "name": "AUTH_GET_USER"
+        },
+        {
+          "name": "AUTH_LIST_ACL"
+        },
+        {
+          "name": "AUTH_LIST_USER"
+        },
+        {
+          "name": "AUTH_UPDATE_ACL"
+        },
+        {
+          "name": "AUTH_UPDATE_USER"
+        },
+        {
+          "name": "BATCH_ACK_MESSAGE"
+        },
+        {
+          "name": "BROKER_HEARTBEAT"
+        },
+        {
+          "name": "CHANGE_MESSAGE_INVISIBLETIME"
+        },
+        {
+          "name": "CHECK_CLIENT_CONFIG"
+        },
+        {
+          "name": "CHECK_ROCKSDB_CQ_WRITE_PROGRESS"
+        },
+        {
+          "name": "CHECK_TRANSACTION_STATE"
+        },
+        {
+          "name": "CLEAN_BROKER_DATA"
+        },
+        {
+          "name": "CLEAN_EXPIRED_CONSUMEQUEUE"
+        },
+        {
+          "name": "CLEAN_UNUSED_TOPIC"
+        },
+        {
+          "name": "CLONE_GROUP_OFFSET"
+        },
+        {
+          "name": "CONSUMER_SEND_MSG_BACK"
+        },
+        {
+          "name": "CONSUME_MESSAGE_DIRECTLY"
+        },
+        {
+          "name": "CONTROLLER_ALTER_SYNC_STATE_SET"
+        },
+        {
+          "name": "CONTROLLER_APPLY_BROKER_ID"
+        },
+        {
+          "name": "CONTROLLER_ELECT_MASTER"
+        },
+        {
+          "name": "CONTROLLER_GET_METADATA_INFO"
+        },
+        {
+          "name": "CONTROLLER_GET_NEXT_BROKER_ID"
+        },
+        {
+          "name": "CONTROLLER_GET_REPLICA_INFO"
+        },
+        {
+          "name": "CONTROLLER_GET_SYNC_STATE_DATA"
+        },
+        {
+          "name": "CONTROLLER_REGISTER_BROKER"
+        },
+        {
+          "name": "DELETE_ACL_CONFIG"
+        },
+        {
+          "name": "DELETE_EXPIRED_COMMITLOG"
+        },
+        {
+          "name": "DELETE_KV_CONFIG"
+        },
+        {
+          "name": "DELETE_SUBSCRIPTIONGROUP"
+        },
+        {
+          "name": "DELETE_TOPIC_IN_BROKER"
+        },
+        {
+          "name": "DELETE_TOPIC_IN_NAMESRV"
+        },
+        {
+          "name": "END_TRANSACTION"
+        },
+        {
+          "name": "EXCHANGE_BROKER_HA_INFO"
+        },
+        {
+          "name": "EXPORT_ROCKSDB_CONFIG_TO_JSON"
+        },
+        {
+          "name": "GET_ALL_CONSUMER_OFFSET"
+        },
+        {
+          "name": "GET_ALL_DELAY_OFFSET"
+        },
+        {
+          "name": "GET_ALL_MESSAGE_REQUEST_MODE"
+        },
+        {
+          "name": "GET_ALL_PRODUCER_INFO"
+        },
+        {
+          "name": "GET_ALL_SUBSCRIPTIONGROUP_CONFIG"
+        },
+        {
+          "name": "GET_ALL_TOPIC_CONFIG"
+        },
+        {
+          "name": "GET_ALL_TOPIC_LIST_FROM_NAMESERVER"
+        },
+        {
+          "name": "GET_BROKER_CLUSTER_ACL_CONFIG"
+        },
+        {
+          "name": "GET_BROKER_CLUSTER_ACL_INFO"
+        },
+        {
+          "name": "GET_BROKER_CLUSTER_INFO"
+        },
+        {
+          "name": "GET_BROKER_CONFIG"
+        },
+        {
+          "name": "GET_BROKER_CONSUME_STATS"
+        },
+        {
+          "name": "GET_BROKER_EPOCH_CACHE"
+        },
+        {
+          "name": "GET_BROKER_HA_STATUS"
+        },
+        {
+          "name": "GET_BROKER_MEMBER_GROUP"
+        },
+        {
+          "name": "GET_BROKER_RUNTIME_INFO"
+        },
+        {
+          "name": "GET_CLIENT_CONFIG"
+        },
+        {
+          "name": "GET_COLD_DATA_FLOW_CTR_INFO"
+        },
+        {
+          "name": "GET_CONSUMER_CONNECTION_LIST"
+        },
+        {
+          "name": "GET_CONSUMER_LIST_BY_GROUP"
+        },
+        {
+          "name": "GET_CONSUMER_RUNNING_INFO"
+        },
+        {
+          "name": "GET_CONSUMER_STATUS_FROM_CLIENT"
+        },
+        {
+          "name": "GET_CONSUME_STATS"
+        },
+        {
+          "name": "GET_CONTROLLER_CONFIG"
+        },
+        {
+          "name": "GET_EARLIEST_MSG_STORETIME"
+        },
+        {
+          "name": "GET_HAS_UNIT_SUB_TOPIC_LIST"
+        },
+        {
+          "name": "GET_HAS_UNIT_SUB_UNUNIT_TOPIC_LIST"
+        },
+        {
+          "name": "GET_KVLIST_BY_NAMESPACE"
+        },
+        {
+          "name": "GET_KV_CONFIG"
+        },
+        {
+          "name": "GET_MAX_OFFSET"
+        },
+        {
+          "name": "GET_MIN_OFFSET"
+        },
+        {
+          "name": "GET_NAMESRV_CONFIG"
+        },
+        {
+          "name": "GET_PRODUCER_CONNECTION_LIST"
+        },
+        {
+          "name": "GET_ROUTEINFO_BY_TOPIC"
+        },
+        {
+          "name": "GET_SUBSCRIPTIONGROUP_CONFIG"
+        },
+        {
+          "name": "GET_SYSTEM_TOPIC_LIST_FROM_BROKER"
+        },
+        {
+          "name": "GET_SYSTEM_TOPIC_LIST_FROM_NS"
+        },
+        {
+          "name": "GET_TIMER_CHECK_POINT"
+        },
+        {
+          "name": "GET_TIMER_METRICS"
+        },
+        {
+          "name": "GET_TOPICS_BY_CLUSTER"
+        },
+        {
+          "name": "GET_TOPIC_CONFIG"
+        },
+        {
+          "name": "GET_TOPIC_CONFIG_LIST"
+        },
+        {
+          "name": "GET_TOPIC_NAME_LIST"
+        },
+        {
+          "name": "GET_TOPIC_STATS_INFO"
+        },
+        {
+          "name": "GET_UNIT_TOPIC_LIST"
+        },
+        {
+          "name": "HEART_BEAT"
+        },
+        {
+          "name": "INVOKE_BROKER_TO_GET_CONSUMER_STATUS"
+        },
+        {
+          "name": "INVOKE_BROKER_TO_RESET_OFFSET"
+        },
+        {
+          "name": "LITE_PULL_MESSAGE"
+        },
+        {
+          "name": "LOCK_BATCH_MQ"
+        },
+        {
+          "name": "NOTIFICATION"
+        },
+        {
+          "name": "NOTIFY_BROKER_ROLE_CHANGED"
+        },
+        {
+          "name": "NOTIFY_CONSUMER_IDS_CHANGED"
+        },
+        {
+          "name": "NOTIFY_MIN_BROKER_ID_CHANGE"
+        },
+        {
+          "name": "PEEK_MESSAGE"
+        },
+        {
+          "name": "POLLING_INFO"
+        },
+        {
+          "name": "POP_MESSAGE"
+        },
+        {
+          "name": "POP_ROLLBACK"
+        },
+        {
+          "name": "PULL_MESSAGE"
+        },
+        {
+          "name": "PUSH_REPLY_MESSAGE_TO_CLIENT"
+        },
+        {
+          "name": "PUT_KV_CONFIG"
+        },
+        {
+          "name": "QUERY_ASSIGNMENT"
+        },
+        {
+          "name": "QUERY_BROKER_OFFSET"
+        },
+        {
+          "name": "QUERY_CONSUMER_OFFSET"
+        },
+        {
+          "name": "QUERY_CONSUME_QUEUE"
+        },
+        {
+          "name": "QUERY_CONSUME_TIME_SPAN"
+        },
+        {
+          "name": "QUERY_CORRECTION_OFFSET"
+        },
+        {
+          "name": "QUERY_DATA_VERSION"
+        },
+        {
+          "name": "QUERY_MESSAGE"
+        },
+        {
+          "name": "QUERY_SUBSCRIPTION_BY_CONSUMER"
+        },
+        {
+          "name": "QUERY_TOPICS_BY_CONSUMER"
+        },
+        {
+          "name": "QUERY_TOPIC_CONSUME_BY_WHO"
+        },
+        {
+          "name": "RECALL_MESSAGE"
+        },
+        {
+          "name": "REGISTER_BROKER"
+        },
+        {
+          "name": "REGISTER_FILTER_SERVER"
+        },
+        {
+          "name": "REGISTER_MESSAGE_FILTER_CLASS"
+        },
+        {
+          "name": "REGISTER_TOPIC_IN_NAMESRV"
+        },
+        {
+          "name": "REMOVE_BROKER"
+        },
+        {
+          "name": "REMOVE_COLD_DATA_FLOW_CTR_CONFIG"
+        },
+        {
+          "name": "RESET_CONSUMER_CLIENT_OFFSET"
+        },
+        {
+          "name": "RESET_CONSUMER_OFFSET_IN_BROKER"
+        },
+        {
+          "name": "RESET_CONSUMER_OFFSET_IN_CONSUMER"
+        },
+        {
+          "name": "RESET_MASTER_FLUSH_OFFSET"
+        },
+        {
+          "name": "RESUME_CHECK_HALF_MESSAGE"
+        },
+        {
+          "name": "RESUME_CONSUMER"
+        },
+        {
+          "name": "SEARCH_OFFSET_BY_TIMESTAMP"
+        },
+        {
+          "name": "SEND_BATCH_MESSAGE"
+        },
+        {
+          "name": "SEND_MESSAGE"
+        },
+        {
+          "name": "SEND_MESSAGE_V2"
+        },
+        {
+          "name": "SEND_REPLY_MESSAGE"
+        },
+        {
+          "name": "SEND_REPLY_MESSAGE_V2"
+        },
+        {
+          "name": "SET_COMMITLOG_READ_MODE"
+        },
+        {
+          "name": "SET_MESSAGE_REQUEST_MODE"
+        },
+        {
+          "name": "SUSPEND_CONSUMER"
+        },
+        {
+          "name": "TRIGGER_DELETE_FILES"
+        },
+        {
+          "name": "UNLOCK_BATCH_MQ"
+        },
+        {
+          "name": "UNREGISTER_BROKER"
+        },
+        {
+          "name": "UNREGISTER_CLIENT"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_ACL_CONFIG"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_STATIC_TOPIC"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_SUBSCRIPTIONGROUP"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_SUBSCRIPTIONGROUP_LIST"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_TOPIC"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_TOPIC_LIST"
+        },
+        {
+          "name": "UPDATE_AND_GET_GROUP_FORBIDDEN"
+        },
+        {
+          "name": "UPDATE_BROKER_CONFIG"
+        },
+        {
+          "name": "UPDATE_COLD_DATA_FLOW_CTR_CONFIG"
+        },
+        {
+          "name": "UPDATE_CONSUMER_OFFSET"
+        },
+        {
+          "name": "UPDATE_CONTROLLER_CONFIG"
+        },
+        {
+          "name": "UPDATE_GLOBAL_WHITE_ADDRS_CONFIG"
+        },
+        {
+          "name": "UPDATE_NAMESRV_CONFIG"
+        },
+        {
+          "name": "VIEW_BROKER_STATS_DATA"
+        },
+        {
+          "name": "VIEW_MESSAGE_BY_ID"
+        },
+        {
+          "name": "WHO_CONSUME_THE_MESSAGE"
+        },
+        {
+          "name": "WIPE_WRITE_PERM_OF_BROKER"
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.ResponseCode",
+      "fields": [
+        {
+          "name": "BROADCAST_CONSUMPTION"
+        },
+        {
+          "name": "BROKER_DISPATCH_NOT_COMPLETE"
+        },
+        {
+          "name": "BROKER_NOT_EXIST"
+        },
+        {
+          "name": "CONSUMER_NOT_ONLINE"
+        },
+        {
+          "name": "CONSUME_MSG_TIMEOUT"
+        },
+        {
+          "name": "CONTROLLER_ALTER_SYNC_STATE_SET_FAILED"
+        },
+        {
+          "name": "CONTROLLER_BROKER_ID_INVALID"
+        },
+        {
+          "name": "CONTROLLER_BROKER_LIVE_INFO_NOT_EXISTS"
+        },
+        {
+          "name": "CONTROLLER_BROKER_METADATA_NOT_EXIST"
+        },
+        {
+          "name": "CONTROLLER_BROKER_NEED_TO_BE_REGISTERED"
+        },
+        {
+          "name": "CONTROLLER_BROKER_NOT_ALIVE"
+        },
+        {
+          "name": "CONTROLLER_ELECT_MASTER_FAILED"
+        },
+        {
+          "name": "CONTROLLER_FENCED_MASTER_EPOCH"
+        },
+        {
+          "name": "CONTROLLER_FENCED_SYNC_STATE_SET_EPOCH"
+        },
+        {
+          "name": "CONTROLLER_INVALID_CLEAN_BROKER_METADATA"
+        },
+        {
+          "name": "CONTROLLER_INVALID_MASTER"
+        },
+        {
+          "name": "CONTROLLER_INVALID_REPLICAS"
+        },
+        {
+          "name": "CONTROLLER_INVALID_REQUEST"
+        },
+        {
+          "name": "CONTROLLER_JRAFT_INTERNAL_ERROR"
+        },
+        {
+          "name": "CONTROLLER_MASTER_NOT_AVAILABLE"
+        },
+        {
+          "name": "CONTROLLER_MASTER_STILL_EXIST"
+        },
+        {
+          "name": "CONTROLLER_NOT_LEADER"
+        },
+        {
+          "name": "DELETE_ACL_CONFIG_FAILED"
+        },
+        {
+          "name": "FILTER_DATA_NOT_EXIST"
+        },
+        {
+          "name": "FILTER_DATA_NOT_LATEST"
+        },
+        {
+          "name": "FLOW_CONTROL"
+        },
+        {
+          "name": "FLUSH_DISK_TIMEOUT"
+        },
+        {
+          "name": "FLUSH_SLAVE_TIMEOUT"
+        },
+        {
+          "name": "GO_AWAY"
+        },
+        {
+          "name": "ILLEGAL_OPERATION"
+        },
+        {
+          "name": "INVALID_PARAMETER"
+        },
+        {
+          "name": "MESSAGE_ILLEGAL"
+        },
+        {
+          "name": "NOT_IN_CURRENT_UNIT"
+        },
+        {
+          "name": "NOT_LEADER_FOR_QUEUE"
+        },
+        {
+          "name": "NO_BUYER_ID"
+        },
+        {
+          "name": "NO_MESSAGE"
+        },
+        {
+          "name": "NO_PERMISSION"
+        },
+        {
+          "name": "POLICY_NOT_EXIST"
+        },
+        {
+          "name": "POLLING_FULL"
+        },
+        {
+          "name": "POLLING_TIMEOUT"
+        },
+        {
+          "name": "PULL_NOT_FOUND"
+        },
+        {
+          "name": "PULL_OFFSET_MOVED"
+        },
+        {
+          "name": "PULL_RETRY_IMMEDIATELY"
+        },
+        {
+          "name": "QUERY_NOT_FOUND"
+        },
+        {
+          "name": "RPC_ADDR_IS_NULL"
+        },
+        {
+          "name": "RPC_SEND_TO_CHANNEL_FAILED"
+        },
+        {
+          "name": "RPC_TIME_OUT"
+        },
+        {
+          "name": "RPC_UNKNOWN"
+        },
+        {
+          "name": "SERVICE_NOT_AVAILABLE"
+        },
+        {
+          "name": "SLAVE_NOT_AVAILABLE"
+        },
+        {
+          "name": "SUBSCRIPTION_GROUP_NOT_EXIST"
+        },
+        {
+          "name": "SUBSCRIPTION_NOT_EXIST"
+        },
+        {
+          "name": "SUBSCRIPTION_NOT_LATEST"
+        },
+        {
+          "name": "SUBSCRIPTION_PARSE_FAILED"
+        },
+        {
+          "name": "TOPIC_EXIST_ALREADY"
+        },
+        {
+          "name": "TOPIC_NOT_EXIST"
+        },
+        {
+          "name": "TRANSACTION_SHOULD_COMMIT"
+        },
+        {
+          "name": "TRANSACTION_SHOULD_ROLLBACK"
+        },
+        {
+          "name": "TRANSACTION_STATE_GROUP_WRONG"
+        },
+        {
+          "name": "TRANSACTION_STATE_UNKNOW"
+        },
+        {
+          "name": "UPDATE_AND_CREATE_ACL_CONFIG_FAILED"
+        },
+        {
+          "name": "UPDATE_GLOBAL_WHITE_ADDRS_CONFIG_FAILED"
+        },
+        {
+          "name": "USER_NOT_EXIST"
+        },
+        {
+          "name": "VERSION_NOT_SUPPORTED"
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.SerializeType"
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.protocol.header.namesrv.GetRouteInfoRequestHeader",
+      "fields": [
+        {
+          "name": "acceptStandardJsonOnly"
+        },
+        {
+          "name": "topic"
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.rpc.RpcRequestHeader",
+      "fields": [
+        {
+          "name": "bname"
+        },
+        {
+          "name": "ns"
+        },
+        {
+          "name": "nsd"
+        },
+        {
+          "name": "oway"
+        }
+      ]
+    },
+    {
+      "type": "org.apache.rocketmq.remoting.rpc.TopicRequestHeader",
+      "fields": [
+        {
+          "name": "lo"
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "glob": "META-INF/native/libnetty_transport_native_epoll_x86_64.so"
+    },
+    {
+      "glob": "META-INF/services/com.alibaba.fastjson.parser.deserializer.AutowiredObjectDeserializer"
+    },
+    {
+      "glob": "META-INF/services/com.alibaba.fastjson.serializer.AutowiredObjectSerializer"
+    },
+    {
+      "glob": "META-INF/services/org.apache.rocketmq.common.namesrv.TopAddressing"
+    },
+    {
+      "glob": "META-INF/services/org.apache.rocketmq.logging.ch.qos.logback.classic.spi.Configurator"
+    },
+    {
+      "glob": "META-INF/services/org.apache.rocketmq.logging.org.slf4j.spi.SLF4JServiceProvider"
+    },
+    {
+      "glob": "rmq.client.logback.xml"
+    },
+    {
+      "glob": "fastjson.properties"
+    }
+  ]
+}

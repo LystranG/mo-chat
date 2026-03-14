@@ -6,9 +6,9 @@ import com.github.lystran.mochat.common.session.ReplacedSessionRoute;
 import com.github.lystran.mochat.common.session.ResolvedSession;
 import com.github.lystran.mochat.common.session.SessionReplacementHandler;
 import com.github.lystran.mochat.protocol.internal.gateway.v1.KickConnectionRequest;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
 import io.netty.channel.Channel;
 
-import java.util.Map;
 import java.util.Objects;
 
 final class GatewayRouteReplacementHandler implements SessionReplacementHandler {
@@ -17,18 +17,18 @@ final class GatewayRouteReplacementHandler implements SessionReplacementHandler 
     private final String gatewayPod;
     private final UserChannelDirectory<Channel> userChannelDirectory;
     private final AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory;
-    private final Map<String, String> peerTargets;
+    private final GatewayAddressResolver gatewayAddressResolver;
 
     GatewayRouteReplacementHandler(
         String gatewayPod,
         UserChannelDirectory<Channel> userChannelDirectory,
         AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory,
-        Map<String, String> peerTargets
+        GatewayAddressResolver gatewayAddressResolver
     ) {
         this.gatewayPod = Objects.requireNonNull(gatewayPod, "gatewayPod");
         this.userChannelDirectory = Objects.requireNonNull(userChannelDirectory, "userChannelDirectory");
         this.accessGatewayDispatchClientFactory = Objects.requireNonNull(accessGatewayDispatchClientFactory, "accessGatewayDispatchClientFactory");
-        this.peerTargets = Map.copyOf(Objects.requireNonNull(peerTargets, "peerTargets"));
+        this.gatewayAddressResolver = Objects.requireNonNull(gatewayAddressResolver, "gatewayAddressResolver");
     }
 
     @Override
@@ -58,7 +58,7 @@ final class GatewayRouteReplacementHandler implements SessionReplacementHandler 
     }
 
     private void kickRemotely(ResolvedSession newBinding, ReplacedSessionRoute replacedRoute) {
-        String targetAddress = peerTargets.get(replacedRoute.gatewayPod());
+        String targetAddress = gatewayAddressResolver.resolve(replacedRoute.gatewayPod());
         if (targetAddress == null || targetAddress.isBlank()) {
             return;
         }

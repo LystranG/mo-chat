@@ -235,7 +235,7 @@ class RedisOnlineRouteChannelSessionRegistryTest {
             "gateway-pod-a",
             directory,
             targetAddress -> request -> KickConnectionResponse.getDefaultInstance(),
-            Map.of()
+            gatewayPod -> null
         );
         replacementHandler.handleReplacement(new ResolvedSession("active:42:8", 42L, 8L), confirmedRoute);
         waitForPendingTasks(firstChannel);

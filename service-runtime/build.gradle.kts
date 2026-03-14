@@ -9,6 +9,7 @@ dependencies {
 
     testAnnotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
+    testImplementation("org.yaml:snakeyaml:2.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
 }
 

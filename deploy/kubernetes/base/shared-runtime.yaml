@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mochat
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mochat-runtime-config
+  namespace: mochat
+data:
+  MOCHAT_API_SERVICE_GRPC_ADDRESS: api-service:19091
+  MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS: message-service:19092
+  MOCHAT_GATEWAY_HEADLESS_SERVICE: access-gateway-headless
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mochat-external-dependencies
+  namespace: mochat
+data:
+  MOCHAT_REDIS_URI: redis://redis.external.example:6379
+  MOCHAT_POSTGRES_URL: jdbc:postgresql://postgres.external.example:5432/mochat
+  MOCHAT_ROCKETMQ_NAME_SERVER: rocketmq.external.example:9876
+  MOCHAT_ROCKETMQ_TOPIC: mochat.messages

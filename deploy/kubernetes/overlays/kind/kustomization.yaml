@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mochat
+resources:
+  - ../../base
+images:
+  - name: mochat/access-gateway
+    newName: localhost/mochat/access-gateway
+    newTag: dev
+  - name: mochat/api-service
+    newName: localhost/mochat/api-service
+    newTag: dev
+  - name: mochat/message-service
+    newName: localhost/mochat/message-service
+    newTag: dev
+  - name: mochat/persistence-service
+    newName: localhost/mochat/persistence-service
+    newTag: dev
+configMapGenerator:
+  - name: mochat-external-dependencies
+    namespace: mochat
+    behavior: replace
+    envs:
+      - .local/external-dependencies.env
+secretGenerator:
+  - name: mochat-external-dependency-secrets
+    namespace: mochat
+    behavior: replace
+    envs:
+      - .local/external-dependency-secrets.env
+    type: Opaque
+  - name: access-gateway-tls
+    namespace: mochat
+    behavior: replace
+    files:
+      - tls.crt=.local/access-gateway-tls/tls.crt
+      - tls.key=.local/access-gateway-tls/tls.key
+    type: kubernetes.io/tls
+generatorOptions:
+  disableNameSuffixHash: true

@@ -203,6 +203,7 @@ public class AccessGatewayServiceConfiguration {
     public static class Drain {
         private boolean enabled;
         private Duration gracePeriod = Duration.ofSeconds(30);
+        private boolean shutdownWaitEnabled;
 
         public boolean isEnabled() {
             return enabled;
@@ -218,6 +219,14 @@ public class AccessGatewayServiceConfiguration {
 
         public void setGracePeriod(Duration gracePeriod) {
             this.gracePeriod = gracePeriod;
+        }
+
+        public boolean isShutdownWaitEnabled() {
+            return shutdownWaitEnabled;
+        }
+
+        public void setShutdownWaitEnabled(boolean shutdownWaitEnabled) {
+            this.shutdownWaitEnabled = shutdownWaitEnabled;
         }
     }
 

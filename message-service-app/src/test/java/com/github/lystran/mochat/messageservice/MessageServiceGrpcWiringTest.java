@@ -5,6 +5,11 @@ import com.github.lystran.mochat.infra.redis.RedisOfflineQueue;
 import com.github.lystran.mochat.logic.chat.MessageRecipientDispatcher;
 import com.github.lystran.mochat.messageservice.grpc.AccessGatewayDispatchClientFactory;
 import com.github.lystran.mochat.messageservice.grpc.GrpcMessageRecipientDispatcher;
+import com.github.lystran.mochat.messageservice.runtime.MessageServiceRuntimeFactory;
+import com.github.lystran.mochat.runtime.config.MessageServiceConfiguration;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.GatewayDiscoveryMode;
+import com.github.lystran.mochat.runtime.topology.RuntimeTopologyConfiguration;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.annotation.Factory;
@@ -15,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -132,6 +138,52 @@ class MessageServiceGrpcWiringTest {
             assertTrue(context.containsBean(MessageRecipientDispatcher.class));
             assertSame(GrpcMessageRecipientDispatcher.class, dispatcher.getClass());
         }
+    }
+
+    @Test
+    void gatewayResolverDefaultsToKubernetesDnsWhenPodMetadataIsPresent() {
+        try (ApplicationContext context = ApplicationContext.run(Map.of(
+            "spec.name", DISPATCHER_WIRING_SPEC,
+            "grpc.server.port", 0,
+            "grpc.channels.api-service.address", "localhost:19091",
+            "grpc.channels.api-service.plaintext", true,
+            "mochat.message-service.dependencies.redis-enabled", false,
+            "mochat.message-service.dependencies.mq-enabled", false,
+            "mochat.message-service.dependencies.gateway-grpc-enabled", false,
+            "mochat.runtime.pod.name", "message-service-0",
+            "mochat.runtime.pod.namespace", "chat"
+        ))) {
+            GatewayAddressResolver resolver = context.getBean(GatewayAddressResolver.class);
+
+            assertEquals(
+                "dns:///access-gateway-1.access-gateway-headless.chat.svc.cluster.local:19093",
+                resolver.resolve("access-gateway-1")
+            );
+        }
+    }
+
+    @Test
+    void gatewayResolverFallsBackToStaticTargetsWhenPodMetadataIsMissing() throws Exception {
+        MessageServiceRuntimeFactory factory = new MessageServiceRuntimeFactory();
+        RuntimeTopologyConfiguration runtimeTopologyConfiguration = new RuntimeTopologyConfiguration();
+        runtimeTopologyConfiguration.getGateway().setDiscoveryMode(GatewayDiscoveryMode.AUTO);
+        runtimeTopologyConfiguration.getPod().setName("");
+        MessageServiceConfiguration configuration = new MessageServiceConfiguration();
+        configuration.getRoute().setGatewayTargets(Map.of("gateway-a", "gateway-a:19093"));
+
+        var gatewayAddressResolverMethod = MessageServiceRuntimeFactory.class.getDeclaredMethod(
+            "gatewayAddressResolver",
+            RuntimeTopologyConfiguration.class,
+            MessageServiceConfiguration.class
+        );
+        gatewayAddressResolverMethod.setAccessible(true);
+        GatewayAddressResolver resolver = (GatewayAddressResolver) gatewayAddressResolverMethod.invoke(
+            factory,
+            runtimeTopologyConfiguration,
+            configuration
+        );
+
+        assertEquals("gateway-a:19093", resolver.resolve("gateway-a"));
     }
 
     @Test

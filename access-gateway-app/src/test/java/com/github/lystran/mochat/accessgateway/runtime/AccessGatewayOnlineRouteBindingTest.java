@@ -104,6 +104,34 @@ class AccessGatewayOnlineRouteBindingTest {
     }
 
     @Test
+    void kubernetesPodMetadataBecomesDefaultGatewayIdentityWhenPresent() throws Exception {
+        try (ApplicationContext context = ApplicationContext.run(Map.of(
+            "spec.name", "access-gateway-online-route",
+            "grpc.server.port", 0,
+            "mochat.access-gateway.runtime.enabled", false,
+            "mochat.access-gateway.dependencies.api-grpc-enabled", false,
+            "mochat.access-gateway.dependencies.redis-enabled", false,
+            "mochat.access-gateway.tcp.enabled", true,
+            "mochat.runtime.pod.name", "access-gateway-0",
+            "mochat.runtime.pod.namespace", "chat",
+            "mochat.access-gateway.route.gateway-pod", "access-gateway-local"
+        ))) {
+            SessionBindingHandler sessionBindingHandler = context.getBean(SessionBindingHandler.class);
+            RecordingRedisStore redisStore = context.getBean(RecordingRedisStore.class);
+            EmbeddedChannel channel = new EmbeddedChannel(sessionBindingHandler, new RecordingInboundHandler());
+
+            channel.writeInbound(privateMessage("active:42:7", 200L, 88L));
+            waitForPendingTasks(channel);
+
+            Map<String, String> routeRecord = RedisOnlineRouteChannelSessionRegistry.deserializeRouteRecord(
+                redisStore.value("online:user:42")
+            );
+            assertNotNull(routeRecord);
+            assertEquals("access-gateway-0", routeRecord.get("gatewayPod"));
+        }
+    }
+
+    @Test
     void newerBindTriggersKickFlowForPreviousLocalConnectionAndPersistsNewActiveRoute() throws Exception {
         RecordingRedisStore redisStore = new RecordingRedisStore();
         RecordingKickDirectory userChannelDirectory = new RecordingKickDirectory(new InMemoryUserChannelDirectory());
@@ -113,7 +141,7 @@ class AccessGatewayOnlineRouteBindingTest {
             targetAddress -> request -> {
                 throw new AssertionError("unexpected remote kick");
             },
-            Map.of()
+            gatewayPod -> null
         );
         AtomicInteger replacementCount = new AtomicInteger();
         AtomicReference<PersistedSessionRoute> replacementRoute = new AtomicReference<>();

@@ -16,6 +16,15 @@ import com.github.lystran.mochat.connection.SessionBindingHandler;
 import com.github.lystran.mochat.infra.redis.RedisEventBus;
 import com.github.lystran.mochat.protocol.internal.api.v1.SessionAuthorityApiGrpc;
 import com.github.lystran.mochat.runtime.config.AccessGatewayServiceConfiguration;
+import com.github.lystran.mochat.runtime.topology.GatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.GatewayDiscoveryMode;
+import com.github.lystran.mochat.runtime.topology.GatewayIdentityMode;
+import com.github.lystran.mochat.runtime.topology.GatewayIdentityProvider;
+import com.github.lystran.mochat.runtime.topology.KubernetesDnsGatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.PodMetadataGatewayIdentityProvider;
+import com.github.lystran.mochat.runtime.topology.RuntimeTopologyConfiguration;
+import com.github.lystran.mochat.runtime.topology.StaticGatewayAddressResolver;
+import com.github.lystran.mochat.runtime.topology.StaticGatewayIdentityProvider;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
@@ -32,6 +41,7 @@ import jakarta.inject.Named;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -94,17 +104,68 @@ public final class AccessGatewayRuntimeFactory {
     }
 
     @Singleton
+    @Requires(property = "mochat.access-gateway.tcp.enabled", notEquals = "false", defaultValue = "true")
+    GatewayIdentityProvider gatewayIdentityProvider(
+        RuntimeTopologyConfiguration runtimeTopologyConfiguration,
+        @Property(name = "mochat.access-gateway.route.gateway-pod", defaultValue = "access-gateway-local") String legacyGatewayPod
+    ) {
+        String fallbackGatewayPod = runtimeTopologyConfiguration.getGateway().getIdentityValue();
+        if (fallbackGatewayPod == null || fallbackGatewayPod.isBlank() || "access-gateway-local".equals(fallbackGatewayPod)) {
+            fallbackGatewayPod = legacyGatewayPod;
+        }
+        if (runtimeTopologyConfiguration.getGateway().getIdentityMode() == GatewayIdentityMode.POD_METADATA) {
+            String podName = runtimeTopologyConfiguration.getPod().getName();
+            if (podName != null && !podName.isBlank()) {
+                return new PodMetadataGatewayIdentityProvider(podName);
+            }
+        }
+        return new StaticGatewayIdentityProvider(fallbackGatewayPod);
+    }
+
+    @Singleton
+    @Requires(property = "mochat.access-gateway.tcp.enabled", notEquals = "false", defaultValue = "true")
+    GatewayAddressResolver gatewayAddressResolver(
+        RuntimeTopologyConfiguration runtimeTopologyConfiguration,
+        AccessGatewayServiceConfiguration accessGatewayServiceConfiguration
+    ) {
+        RuntimeTopologyConfiguration.Gateway gateway = runtimeTopologyConfiguration.getGateway();
+        GatewayDiscoveryMode discoveryMode = gateway.getDiscoveryMode();
+        if (discoveryMode == GatewayDiscoveryMode.AUTO) {
+            String podName = runtimeTopologyConfiguration.getPod().getName();
+            discoveryMode = (podName == null || podName.isBlank())
+                ? GatewayDiscoveryMode.STATIC_MAP
+                : GatewayDiscoveryMode.KUBERNETES_DNS;
+        }
+        if (discoveryMode == GatewayDiscoveryMode.KUBERNETES_DNS) {
+            String namespace = gateway.getNamespace();
+            if (namespace == null || namespace.isBlank()) {
+                namespace = runtimeTopologyConfiguration.getPod().getNamespace();
+            }
+            return new KubernetesDnsGatewayAddressResolver(
+                gateway.getHeadlessService(),
+                namespace,
+                gateway.getClusterDomain(),
+                gateway.getGrpcPort()
+            );
+        }
+        Map<String, String> staticTargets = gateway.getStaticTargets().isEmpty()
+            ? accessGatewayServiceConfiguration.getRoute().getPeerTargets()
+            : gateway.getStaticTargets();
+        return new StaticGatewayAddressResolver(staticTargets);
+    }
+
+    @Singleton
     @Requires(bean = RedisCommands.class)
     @Requires(property = "mochat.access-gateway.tcp.enabled", notEquals = "false", defaultValue = "true")
     SessionRouteWriter<Channel> redisOnlineRouteWriter(
         RedisCommands<String, String> redisCommands,
         AccessGatewayServiceConfiguration configuration,
         InMemoryUserChannelDirectory userChannelDirectory,
-        @Property(name = "mochat.access-gateway.route.gateway-pod", defaultValue = "access-gateway-local") String gatewayPod
+        GatewayIdentityProvider gatewayIdentityProvider
     ) {
         return new RedisOnlineRouteChannelSessionRegistry(
             redisCommands,
-            gatewayPod,
+            gatewayIdentityProvider.currentGatewayPod(),
             configuration.getTcp().getHeartbeatTimeout(),
             userChannelDirectory
         );
@@ -125,9 +186,14 @@ public final class AccessGatewayRuntimeFactory {
 
     @Singleton
     @Requires(property = "mochat.access-gateway.tcp.enabled", notEquals = "false", defaultValue = "true")
-    SslContext sslContext(AccessGatewayServiceConfiguration configuration) {
+    SslContext sslContext(
+        @Property(name = "mochat.access-gateway.tls.enabled", defaultValue = "true") boolean tlsEnabled,
+        @Property(name = "mochat.access-gateway.tls.certificate-path", defaultValue = "") String certificatePath,
+        @Property(name = "mochat.access-gateway.tls.private-key-path", defaultValue = "") String privateKeyPath,
+        @Property(name = "mochat.access-gateway.tls.self-signed", defaultValue = "true") boolean selfSigned
+    ) {
         try {
-            return buildMandatorySslContext(configuration.getTls());
+            return buildMandatorySslContext(tlsEnabled, certificatePath, privateKeyPath, selfSigned);
         } catch (IllegalStateException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -189,14 +255,14 @@ public final class AccessGatewayRuntimeFactory {
     SessionReplacementHandler sessionReplacementHandler(
         InMemoryUserChannelDirectory userChannelDirectory,
         AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory,
-        AccessGatewayServiceConfiguration configuration,
-        @Property(name = "mochat.access-gateway.route.gateway-pod", defaultValue = "access-gateway-local") String gatewayPod
+        GatewayIdentityProvider gatewayIdentityProvider,
+        GatewayAddressResolver gatewayAddressResolver
     ) {
         return new GatewayRouteReplacementHandler(
-            gatewayPod,
+            gatewayIdentityProvider.currentGatewayPod(),
             userChannelDirectory,
             accessGatewayDispatchClientFactory,
-            configuration.getRoute().getPeerTargets()
+            gatewayAddressResolver
         );
     }
 
@@ -265,11 +331,18 @@ public final class AccessGatewayRuntimeFactory {
         return new OutboundEventSubscriber(eventBus, userChannelDirectory, offlineQueue);
     }
 
-    static SslContext buildMandatorySslContext(AccessGatewayServiceConfiguration.Tls tls) throws Exception {
-        if (!tls.isEnabled()) {
-            throw new IllegalStateException("TLS is mandatory for chat TCP connections; mochat.access-gateway.tls.enabled=false is not supported");
+    static SslContext buildMandatorySslContext(
+        boolean tlsEnabled,
+        String certificatePath,
+        String privateKeyPath,
+        boolean selfSigned
+    ) throws Exception {
+        if (!tlsEnabled) {
+            throw new IllegalStateException(
+                "TLS is mandatory for chat TCP connections; mochat.access-gateway.tls.enabled=false is not supported"
+            );
         }
-        return buildSslContext(tls.getCertificatePath(), tls.getPrivateKeyPath(), tls.isSelfSigned());
+        return buildSslContext(certificatePath, privateKeyPath, selfSigned);
     }
 
     static SslContext buildSslContext(String certificatePath, String privateKeyPath, boolean selfSigned) throws Exception {

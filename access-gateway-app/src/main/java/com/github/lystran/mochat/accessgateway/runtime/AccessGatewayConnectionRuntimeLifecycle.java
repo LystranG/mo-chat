@@ -7,6 +7,7 @@ import io.micronaut.context.annotation.Context;
 import io.micronaut.context.annotation.Requires;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 @Singleton
@@ -18,6 +19,7 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
     private final OutboundEventSubscriber outboundEventSubscriber;
     private final NettyChatServer nettyChatServer;
     private final AccessGatewayServiceConfiguration configuration;
+    private final GatewayDrainManager gatewayDrainManager;
 
     private boolean outboundSubscriberStarted;
     private boolean outboundSubscriberClosed;
@@ -28,9 +30,20 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         NettyChatServer nettyChatServer,
         AccessGatewayServiceConfiguration configuration
     ) {
+        this(outboundEventSubscriber, nettyChatServer, configuration, null);
+    }
+
+    @Inject
+    public AccessGatewayConnectionRuntimeLifecycle(
+        OutboundEventSubscriber outboundEventSubscriber,
+        NettyChatServer nettyChatServer,
+        AccessGatewayServiceConfiguration configuration,
+        GatewayDrainManager gatewayDrainManager
+    ) {
         this.outboundEventSubscriber = outboundEventSubscriber;
         this.nettyChatServer = nettyChatServer;
         this.configuration = configuration;
+        this.gatewayDrainManager = gatewayDrainManager;
     }
 
     @PostConstruct
@@ -60,10 +73,22 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         RuntimeException failure = null;
 
         if (nettyServerStarted) {
+            if (gatewayDrainManager != null && configuration.getDrain().isShutdownWaitEnabled()) {
+                try {
+                    gatewayDrainManager.startDrain();
+                    gatewayDrainManager.awaitDrainCompletion();
+                } catch (RuntimeException runtimeException) {
+                    failure = runtimeException;
+                }
+            }
             try {
                 nettyChatServer.stop();
             } catch (RuntimeException runtimeException) {
-                failure = runtimeException;
+                if (failure != null) {
+                    failure.addSuppressed(runtimeException);
+                } else {
+                    failure = runtimeException;
+                }
             }
         }
 

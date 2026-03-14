@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - shared-runtime.yaml
+  - runtime-secrets.yaml
+  - api-service.yaml
+  - message-service.yaml
+  - persistence-service.yaml
+  - access-gateway.yaml
