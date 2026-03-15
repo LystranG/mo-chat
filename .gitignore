@@ -49,5 +49,6 @@ docker/
 .opencode
 .claude
 .serena/
+.codex
 
 tmp.txt
