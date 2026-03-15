@@ -12,15 +12,25 @@ import com.github.lystran.mochat.protocol.internal.api.v1.SessionAuthorityApiGrp
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 通过 gRPC 调用 api-service，查询消息发送规则。
+ */
 public final class GrpcMessageSendPolicyGateway implements MessageSendPolicyGateway {
     private final SessionAuthorityApiGrpc.SessionAuthorityApiBlockingStub stub;
 
+    /**
+     * 创建一个基于 gRPC 的发送规则网关。
+     */
     public GrpcMessageSendPolicyGateway(SessionAuthorityApiGrpc.SessionAuthorityApiBlockingStub stub) {
         this.stub = Objects.requireNonNull(stub, "stub");
     }
 
+    /**
+     * 远程查询这条私聊是否允许发送。
+     */
     @Override
     public void validatePrivateMessage(long conversationId, long senderUid, long recipientUid) {
+        // 这里走的是一次同步 gRPC 请求，请 api-service 直接告诉我们这条私聊能不能发。
         PrivateMessagingPolicy policy = stub.checkPrivateMessagingPolicy(CheckPrivateMessagingPolicyRequest.newBuilder()
             .setConversationId(conversationId)
             .setSenderUid(senderUid)
@@ -36,6 +46,9 @@ public final class GrpcMessageSendPolicyGateway implements MessageSendPolicyGate
         throw new MessageRejectException(ErrorCode.NOT_FRIEND, "private message requires active friendship");
     }
 
+    /**
+     * 远程查询群消息允许发送时的成员列表。
+     */
     @Override
     public List<Long> resolveGroupRecipientUids(long groupId, long senderUid) {
         var response = stub.getGroupSendContext(GetGroupSendContextRequest.newBuilder()

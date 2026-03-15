@@ -30,10 +30,16 @@ import java.util.Optional;
 
 @Singleton
 @Requires(property = "micronaut.application.name", value = "access-gateway")
+/**
+ * access-gateway 对外暴露的内部 gRPC 服务，供别的服务把消息发到真正持有连接的网关实例。
+ */
 public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatchApiGrpc.AccessGatewayDispatchApiImplBase {
     private final UserChannelDirectory<Channel> userChannelDirectory;
     private final Provider<SessionResolver> sessionResolverProvider;
 
+    /**
+     * 组装本地连接目录和会话权威查询入口。
+     */
     public AccessGatewayInternalGrpcService(
         UserChannelDirectory<Channel> userChannelDirectory,
         Provider<SessionResolver> sessionResolverProvider
@@ -43,6 +49,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
     }
 
     @Override
+    /**
+     * 把消息投给当前网关真正持有的那条连接；如果发现路由已经过期，就明确返回 stale。
+     */
     public void deliverToConnection(
         DeliverToConnectionRequest request,
         StreamObserver<DeliverToConnectionResponse> responseObserver
@@ -73,6 +82,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
     }
 
     @Override
+    /**
+     * 按用户、连接、会话版本和路由版本精确关闭一条旧连接。
+     */
     public void kickConnection(KickConnectionRequest request, StreamObserver<KickConnectionResponse> responseObserver) {
         boolean kicked = localConnectionDirectory()
             .map(directory -> directory.kickConnection(
@@ -91,6 +103,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
     }
 
     @Override
+    /**
+     * 返回当前网关里这条连接的实时状态，供跨网关投递前做更细的判断。
+     */
     public void getLocalConnectionState(
         GetLocalConnectionStateRequest request,
         StreamObserver<GetLocalConnectionStateResponse> responseObserver
@@ -106,6 +121,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         responseObserver.onCompleted();
     }
 
+    /**
+     * 只有连接目录支持本地精确查询和踢连接时，才返回本地目录能力。
+     */
     private Optional<LocalGatewayConnectionDirectory> localConnectionDirectory() {
         if (userChannelDirectory instanceof LocalGatewayConnectionDirectory localGatewayConnectionDirectory) {
             return Optional.of(localGatewayConnectionDirectory);
@@ -113,6 +131,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         return Optional.empty();
     }
 
+    /**
+     * 检查本机这条连接的会话和路由版本，确认请求说的就是当前这条有效连接。
+     */
     private boolean matchesLocalConnectionState(
         LocalConnectionStateSnapshot localConnectionState,
         DeliverToConnectionRequest request
@@ -123,6 +144,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
             && localConnectionState.routeEpoch() == request.getExpectedRouteEpoch();
     }
 
+    /**
+     * 再向会话权威确认一次，避免已经失效的 session 还被继续投递。
+     */
     private boolean matchesAuthoritativeSession(DeliverToConnectionRequest request) {
         try {
             var authoritativeSession = sessionResolverProvider.get().resolveAuthority(request.getSessionId());
@@ -134,6 +158,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         }
     }
 
+    /**
+     * 把本地连接快照写进 gRPC 响应。
+     */
     private void applyLocalState(GetLocalConnectionStateResponse.Builder response, LocalConnectionStateSnapshot state) {
         response.setState(state.activeRouteOwner()
                 ? LocalConnectionState.LOCAL_CONNECTION_STATE_BOUND
@@ -143,6 +170,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
             .setRouteEpoch(state.routeEpoch());
     }
 
+    /**
+     * 在本机再次确认目标连接还开着，随后把消息写进对应 Channel。
+     */
     private DeliveryStatus deliverToLocalChannel(DeliverToConnectionRequest request) {
         Optional<Channel> targetChannel = userChannelDirectory.find(request.getUserId())
             .filter(Channel::isOpen)
@@ -167,6 +197,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         }
     }
 
+    /**
+     * 把内部投递请求编码成客户端能直接收到的聊天协议帧。
+     */
     private static ByteBuf encodeDeliveryFrame(Channel channel, DeliverToConnectionRequest request) {
         EncodedDelivery encodedDelivery = encodeDelivery(request);
         ByteBuf frame = channel.alloc().buffer(FrameConstants.HEADER_LENGTH + encodedDelivery.body().length);
@@ -179,6 +212,9 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         return frame;
     }
 
+    /**
+     * 按投递内容是私聊还是群聊，构造对应的客户端消息体。
+     */
     private static EncodedDelivery encodeDelivery(DeliverToConnectionRequest request) {
         var envelope = request.getEnvelope();
         Mochat.ChatMessageDelivery.Builder delivery = Mochat.ChatMessageDelivery.newBuilder()
@@ -210,6 +246,12 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
         throw new IllegalArgumentException("delivery envelope payload missing");
     }
 
+    /**
+     * 一次已经编码好的本地投递结果。
+     *
+     * @param msgType 要发给客户端的消息类型
+     * @param body 编码后的消息体
+     */
     private record EncodedDelivery(MsgType msgType, byte[] body) {
     }
 }

@@ -1,5 +1,8 @@
 package com.github.lystran.mochat.protocol;
 
+/**
+ * 定义协议里支持的消息类型。
+ */
 public enum MsgType {
     CLIENT_HEARTBEAT(1),
     SERVER_HEARTBEAT(2),
@@ -12,10 +15,16 @@ public enum MsgType {
 
     private final int code;
 
+    /**
+     * 绑定这个消息类型在协议里的编号。
+     */
     MsgType(int code) {
         this.code = code;
     }
 
+    /**
+     * 返回要写进协议包头的消息类型编号。
+     */
     public int code() {
         return code;
     }

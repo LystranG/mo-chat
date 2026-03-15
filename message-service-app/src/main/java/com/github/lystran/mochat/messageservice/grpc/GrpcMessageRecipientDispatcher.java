@@ -20,11 +20,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * 根据 Redis 在线路由找到真正持有连接的网关，再通过 gRPC 把消息送过去。
+ */
 public final class GrpcMessageRecipientDispatcher implements MessageRecipientDispatcher {
     private final RedisCommands<String, String> redisCommands;
     private final AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory;
     private final GatewayAddressResolver gatewayAddressResolver;
 
+    /**
+     * 创建一个基于 Redis 路由和 gRPC 的在线投递器。
+     */
     public GrpcMessageRecipientDispatcher(
         RedisCommands<String, String> redisCommands,
         AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory,
@@ -36,6 +42,9 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         this.gatewayAddressResolver = Objects.requireNonNull(gatewayAddressResolver, "gatewayAddressResolver");
     }
 
+    /**
+     * 把一条私聊消息发给接收方当前在线的连接。
+     */
     @Override
     public MessageDeliveryStatus dispatchPrivate(PrivateMessageDelivery delivery) {
         Objects.requireNonNull(delivery, "delivery");
@@ -45,9 +54,13 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         );
     }
 
+    /**
+     * 把一条群消息分别发给每个群成员当前在线的连接。
+     */
     @Override
     public Map<Long, MessageDeliveryStatus> dispatchGroup(GroupMessageDelivery delivery) {
         Objects.requireNonNull(delivery, "delivery");
+        // 同一条群消息先整理成统一内部格式，再复用给每个接收人。
         DeliveryEnvelope envelope = buildGroupEnvelope(delivery);
         Map<Long, MessageDeliveryStatus> statuses = new LinkedHashMap<>();
         for (Long recipientUid : delivery.recipientUids()) {
@@ -59,11 +72,15 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         return statuses;
     }
 
+    /**
+     * 查询接收方当前归哪个网关管，再发起一次定向 gRPC 投递。
+     */
     private MessageDeliveryStatus dispatchToRecipient(long recipientUid, DeliveryEnvelope envelope) {
         OnlineRoute route = resolveRoute(recipientUid);
         if (route == null) {
             return MessageDeliveryStatus.USER_OFFLINE;
         }
+        // 先把 Redis 里记的网关身份换成真正可访问的 gRPC 地址。
         String targetAddress = gatewayAddressResolver.resolve(route.gatewayPod());
         if (targetAddress == null || targetAddress.isBlank()) {
             return MessageDeliveryStatus.WRITE_FAILED;
@@ -74,6 +91,7 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
             status = accessGatewayDispatchClientFactory.createBlockingStub(targetAddress)
                 .deliverToConnection(DeliverToConnectionRequest.newBuilder()
                     .setUserId(recipientUid)
+                    // 这些字段一起用来确认“这条消息是不是发给当前仍然有效的那条连接”。
                     .setConnectionId(route.connectionId())
                     .setSessionId(route.sessionId())
                     .setSessionVersion(route.sessionVersion())
@@ -93,11 +111,15 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         };
     }
 
+    /**
+     * 从 Redis 里读出现在是谁在持有这个用户的连接。
+     */
     private OnlineRoute resolveRoute(long userId) {
         String payload = redisCommands.get("online:user:" + userId);
         if (payload == null || payload.isBlank()) {
             return null;
         }
+        // Redis 里存的是一串字符串，这里先拆成键值对再取出关键字段。
         Map<String, String> values = deserializeRouteRecord(payload);
         String gatewayPod = values.get("gatewayPod");
         String connectionId = values.get("connectionId");
@@ -120,6 +142,9 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         }
     }
 
+    /**
+     * 把 Redis 路由记录那串“分号 + 等号”字符串拆成键值表。
+     */
     private static Map<String, String> deserializeRouteRecord(String payload) {
         Map<String, String> values = new LinkedHashMap<>();
         for (String entry : payload.split(";")) {
@@ -130,6 +155,7 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
             String key = entry.substring(0, separatorIndex);
             String value = entry.substring(separatorIndex + 1);
             if ("gatewayPod".equals(key) || "connectionId".equals(key) || "sessionId".equals(key)) {
+                // 这几个字段在 Redis 里做了 Base64 URL 编码，这里要先还原成人能读的字符串。
                 values.put(key, decodeString(value));
             } else {
                 values.put(key, value);
@@ -138,9 +164,13 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         return values;
     }
 
+    /**
+     * 把私聊业务消息正文整理成发给 gateway 的内部投递消息。
+     */
     private static DeliveryEnvelope buildPrivateEnvelope(PrivateMessageDelivery delivery) {
         try {
             var request = Mochat.PrivateMessageReq.parseFrom(Base64.getDecoder().decode(delivery.payloadBase64()));
+            // 这里不是原样透传客户端请求，而是只保留 gateway 真正要写给对方的内容。
             return DeliveryEnvelope.newBuilder()
                 .setConversationId(delivery.conversationId())
                 .setMsgId(delivery.msgId())
@@ -158,6 +188,9 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         }
     }
 
+    /**
+     * 把群聊业务消息正文整理成发给 gateway 的内部投递消息。
+     */
     private static DeliveryEnvelope buildGroupEnvelope(GroupMessageDelivery delivery) {
         try {
             var request = Mochat.GroupMessageReq.parseFrom(Base64.getDecoder().decode(delivery.payloadBase64()));
@@ -177,10 +210,16 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
         }
     }
 
+    /**
+     * 还原 Redis 路由记录里被编码过的字符串字段。
+     */
     private static String decodeString(String value) {
         return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 表示 Redis 里记录的一条在线路由。
+     */
     private record OnlineRoute(
         String gatewayPod,
         String connectionId,

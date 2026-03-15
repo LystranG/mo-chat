@@ -5,6 +5,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Objects;
 
+/**
+ * 负责更新会话表里“最新消息到哪了”和“对方已经收到哪了”这些进度字段。
+ */
 public final class ConversationRepository {
     private static final String UPDATE_LATEST_SQL = """
         UPDATE conversations
@@ -24,6 +27,9 @@ public final class ConversationRepository {
         RETURNING uid_2_seq
         """;
 
+    /**
+     * 把会话最新消息位置往前推，但绝不允许往回退。
+     */
     public void updateLatestState(Connection connection, long conversationId, long seq, long latestMessageTime)
         throws SQLException {
         Objects.requireNonNull(connection, "connection");
@@ -37,6 +43,9 @@ public final class ConversationRepository {
         }
     }
 
+    /**
+     * 记录私聊某一侧“已经收到哪条消息”，并返回更新后的确认进度。
+     */
     public long updatePrivateReceiptSeq(
         Connection connection,
         long conversationId,
@@ -48,6 +57,7 @@ public final class ConversationRepository {
         Objects.requireNonNull(connection, "connection");
 
         String sql;
+        // conversations 表把私聊双方固定存在 uid_1 / uid_2 两列里，所以这里先判断这次是谁在回确认。
         if (receiverUid == peerUidLow) {
             sql = UPDATE_UID_1_RECEIPT_SQL;
         } else if (receiverUid == peerUidHigh) {

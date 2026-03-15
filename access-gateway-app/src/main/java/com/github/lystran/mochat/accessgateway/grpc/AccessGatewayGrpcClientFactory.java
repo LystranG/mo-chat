@@ -10,9 +10,15 @@ import jakarta.inject.Singleton;
 
 @Factory
 @Requires(property = "micronaut.application.name", value = "access-gateway")
+/**
+ * 组装 access-gateway 依赖的内部 gRPC 阻塞客户端。
+ */
 public final class AccessGatewayGrpcClientFactory {
     @Singleton
     @Requires(property = "mochat.access-gateway.dependencies.api-grpc-enabled", notEquals = "false", defaultValue = "true")
+    /**
+     * 创建访问 api-service 的会话校验客户端。
+     */
     SessionAuthorityApiGrpc.SessionAuthorityApiBlockingStub sessionAuthorityApiBlockingStub(
         @GrpcChannel("api-service") Channel channel
     ) {
@@ -21,6 +27,9 @@ public final class AccessGatewayGrpcClientFactory {
 
     @Singleton
     @Requires(property = "grpc.channels.message-service.address")
+    /**
+     * 创建访问 message-service 的命令客户端。
+     */
     MessageCommandApiGrpc.MessageCommandApiBlockingStub messageCommandApiBlockingStub(
         @GrpcChannel("message-service") Channel channel
     ) {

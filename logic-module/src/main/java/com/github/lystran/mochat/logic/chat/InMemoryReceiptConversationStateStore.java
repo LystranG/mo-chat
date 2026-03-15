@@ -7,6 +7,9 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * 用内存保存私聊回执进度，主要用于本地运行或兜底场景。
+ */
 @Singleton
 @Requires(missingBeans = ReceiptConversationStateStore.class)
 @Requires(property = "micronaut.application.name", notEquals = "message-service", defaultValue = "")
@@ -15,6 +18,9 @@ import java.util.concurrent.ConcurrentMap;
 public final class InMemoryReceiptConversationStateStore implements ReceiptConversationStateStore {
     private final ConcurrentMap<Long, MutableState> states = new ConcurrentHashMap<>();
 
+    /**
+     * 查询某条私聊会话当前保存的回执状态。
+     */
     @Override
     public Optional<PrivateConversationState> findPrivateConversation(long conversationId) {
         MutableState state = states.get(conversationId);
@@ -27,6 +33,9 @@ public final class InMemoryReceiptConversationStateStore implements ReceiptConve
         }
     }
 
+    /**
+     * 新建或更新一条私聊会话的基础信息。
+     */
     @Override
     public void upsertPrivateConversation(long conversationId, long uidLow, long uidHigh, long latestSeq) {
         if (uidLow <= 0 || uidHigh <= 0 || uidLow >= uidHigh) {
@@ -45,12 +54,16 @@ public final class InMemoryReceiptConversationStateStore implements ReceiptConve
                 if (current.uidLow != uidLow || current.uidHigh != uidHigh) {
                     throw new IllegalStateException("conversation participants mismatch");
                 }
+                // 只保留更大的顺序号，避免旧数据把会话进度覆盖回去。
                 current.latestSeq = Math.max(current.latestSeq, latestSeq);
             }
             return current;
         });
     }
 
+    /**
+     * 更新某个接收方已经确认收到的最大顺序号。
+     */
     @Override
     public long updateLatestReceivedSeq(long conversationId, long receiverUid, long latestReceivedSeq) {
         if (latestReceivedSeq < 0) {
@@ -76,6 +89,9 @@ public final class InMemoryReceiptConversationStateStore implements ReceiptConve
         throw new IllegalArgumentException("receiver is not a conversation participant");
     }
 
+    /**
+     * 方便在内存里原地更新的可变状态。
+     */
     private static final class MutableState {
         private final long conversationId;
         private final long uidLow;
@@ -84,6 +100,9 @@ public final class InMemoryReceiptConversationStateStore implements ReceiptConve
         private long uidLowSeq;
         private long uidHighSeq;
 
+        /**
+         * 创建一条可变的会话进度记录。
+         */
         private MutableState(
             long conversationId,
             long uidLow,
@@ -100,6 +119,9 @@ public final class InMemoryReceiptConversationStateStore implements ReceiptConve
             this.uidHighSeq = uidHighSeq;
         }
 
+        /**
+         * 复制成对外暴露的只读快照。
+         */
         private PrivateConversationState snapshot() {
             return new PrivateConversationState(conversationId, uidLow, uidHigh, latestSeq, uidLowSeq, uidHighSeq);
         }

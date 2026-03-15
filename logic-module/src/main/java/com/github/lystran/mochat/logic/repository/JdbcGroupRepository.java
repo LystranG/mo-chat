@@ -14,6 +14,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 基于 JDBC 的群管理实现。
+ * 建群、入群审批、退群、踢人和解散群都在这里落库。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcGroupRepository implements GroupRepository {
@@ -25,6 +29,7 @@ public final class JdbcGroupRepository implements GroupRepository {
         INSERT INTO group_memberships (id, group_id, user_id, role, status)
         VALUES (?, ?, ?, 'owner', 'active')
         """;
+    // 群会话 id 直接复用 groupId，历史消息和群成员关系共用同一个 conversationId。
     private static final String INSERT_GROUP_CONVERSATION_SQL = """
         INSERT INTO conversations (id, type, latest_seq, latest_message_time, uid_1_seq, uid_2_seq)
         VALUES (?, 1, 0, 0, 0, 0)
@@ -113,6 +118,7 @@ public final class JdbcGroupRepository implements GroupRepository {
           AND status = 'pending'
           AND id <> ?
         """;
+    // 同一个人再次进群时，直接把原有成员关系恢复成 active，而不是额外造一条新关系。
     private static final String UPSERT_MEMBER_MEMBERSHIP_SQL = """
         INSERT INTO group_memberships (id, group_id, user_id, role, status)
         VALUES (?, ?, ?, 'member', 'active')
@@ -123,11 +129,17 @@ public final class JdbcGroupRepository implements GroupRepository {
     private final DataSource dataSource;
     private final IdGenerator idGenerator;
 
+    /**
+     * 创建 JDBC 群仓储。
+     */
     public JdbcGroupRepository(DataSource dataSource, IdGenerator idGenerator) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
     }
 
+    /**
+     * 创建一个新群，并在同一事务里补齐群主成员关系和群会话。
+     */
     @Override
     public GroupRow createGroup(long ownerUserId, String name) {
         long groupId = idGenerator.nextId();
@@ -143,12 +155,14 @@ public final class JdbcGroupRepository implements GroupRepository {
                     groupStatement.executeUpdate();
                 }
                 try (PreparedStatement membershipStatement = connection.prepareStatement(INSERT_GROUP_MEMBERSHIP_SQL)) {
+                    // 建群人会被立即写成 owner + active，避免“群建好了但群主不在群里”的中间状态。
                     membershipStatement.setLong(1, membershipId);
                     membershipStatement.setLong(2, groupId);
                     membershipStatement.setLong(3, ownerUserId);
                     membershipStatement.executeUpdate();
                 }
                 try (PreparedStatement conversationStatement = connection.prepareStatement(INSERT_GROUP_CONVERSATION_SQL)) {
+                    // 群会话和群本身共用 groupId，后续查历史时直接按这个 id 查。
                     conversationStatement.setLong(1, groupId);
                     conversationStatement.executeUpdate();
                 }
@@ -165,6 +179,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 查询用户当前仍在其中的群。
+     */
     @Override
     public List<GroupRow> listGroups(long userId) {
         try (Connection connection = dataSource.getConnection();
@@ -182,11 +199,15 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 让普通成员退出群聊。
+     */
     @Override
     public void leaveGroup(long userId, long groupId) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
+                // 事务里读出来的当前成员关系，能避免读到旧状态后再被别人并发改掉。
                 MembershipSnapshot membership = loadMembership(connection, userId, groupId);
                 if (!"active".equals(membership.status())) {
                     throw new IllegalArgumentException("group membership is not active");
@@ -213,12 +234,16 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 由群主把某个成员移出群聊。
+     */
     @Override
     public void kickMember(long ownerUserId, long groupId, long memberUserId) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
                 requireOwner(connection, ownerUserId, groupId);
+                // 先锁住成员关系，再判断当前是不是还在群里、是不是群主本人。
                 MembershipSnapshot membership = loadMembership(connection, memberUserId, groupId);
                 if (!"active".equals(membership.status())) {
                     throw new IllegalArgumentException("group membership is not active");
@@ -245,6 +270,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 解散一个群，并把当前还活跃的成员关系一并收口。
+     */
     @Override
     public void dissolveGroup(long ownerUserId, long groupId) {
         try (Connection connection = dataSource.getConnection()) {
@@ -252,6 +280,7 @@ public final class JdbcGroupRepository implements GroupRepository {
             try {
                 requireOwner(connection, ownerUserId, groupId);
                 try (PreparedStatement memberships = connection.prepareStatement(DISSOLVE_ACTIVE_MEMBERSHIPS_SQL)) {
+                    // 先把还在群里的成员统一改成 left，再删掉群本身。
                     memberships.setLong(1, groupId);
                     memberships.executeUpdate();
                 }
@@ -273,6 +302,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 创建一条入群申请。
+     */
     @Override
     public GroupJoinRequestRow createJoinRequest(long requesterUserId, long groupId, String sign) {
         try (Connection connection = dataSource.getConnection()) {
@@ -300,6 +332,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 列出某个群当前待处理的入群申请。
+     */
     @Override
     public List<GroupJoinRequestRow> listJoinRequests(long ownerUserId, long groupId) {
         try (Connection connection = dataSource.getConnection()) {
@@ -319,6 +354,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 由群主处理入群申请。
+     */
     @Override
     public GroupJoinRequestRow handleJoinRequest(long ownerUserId, long groupId, long requestId, GroupJoinRequestDecision decision) {
         try (Connection connection = dataSource.getConnection()) {
@@ -331,6 +369,7 @@ public final class JdbcGroupRepository implements GroupRepository {
                 }
                 if (decision == GroupJoinRequestDecision.ACCEPT) {
                     if (hasActiveMembership(connection, groupId, current.fromUserId())) {
+                        // 这个人已经在群里了，当前申请和同组其他 pending 申请都直接收口成取消。
                         GroupJoinRequestRow cancelled = updateJoinRequest(connection, requestId, ownerUserId, "cancelled");
                         cancelSiblingPendingJoinRequests(connection, groupId, current.fromUserId(), requestId, ownerUserId);
                         connection.commit();
@@ -344,7 +383,9 @@ public final class JdbcGroupRepository implements GroupRepository {
                     decision == GroupJoinRequestDecision.ACCEPT ? "accepted" : "rejected"
                 );
                 if (decision == GroupJoinRequestDecision.ACCEPT) {
+                    // 接受申请后，把这名用户恢复或写成 active member。
                     upsertMemberMembership(connection, groupId, current.fromUserId());
+                    // 同一个人在同一群里不该留下多条待处理申请，这里顺手把兄弟 pending 申请一并取消。
                     cancelSiblingPendingJoinRequests(connection, groupId, current.fromUserId(), requestId, ownerUserId);
                 }
                 connection.commit();
@@ -360,6 +401,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 读取并锁住一条成员关系，返回它当前的角色和状态。
+     */
     private MembershipSnapshot loadMembership(Connection connection, long userId, long groupId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(LOAD_MEMBERSHIP_SQL)) {
             statement.setLong(1, groupId);
@@ -373,6 +417,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 要求群必须存在。
+     */
     private void requireGroupExists(Connection connection, long groupId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(LOAD_GROUP_SQL)) {
             statement.setLong(1, groupId);
@@ -384,6 +431,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 要求当前操作者必须是群主。
+     */
     private void requireOwner(Connection connection, long ownerUserId, long groupId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(LOAD_GROUP_SQL)) {
             statement.setLong(1, groupId);
@@ -398,6 +448,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 判断某个用户当前是不是群里的活跃成员。
+     */
     private boolean hasActiveMembership(Connection connection, long groupId, long userId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(HAS_ACTIVE_MEMBERSHIP_SQL)) {
             statement.setLong(1, groupId);
@@ -409,6 +462,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 读取并锁住一条入群申请。
+     */
     private GroupJoinRequestRow loadJoinRequest(Connection connection, long groupId, long requestId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(LOAD_JOIN_REQUEST_SQL)) {
             statement.setLong(1, requestId);
@@ -422,6 +478,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 把入群申请状态更新成 accepted、rejected 或 cancelled。
+     */
     private GroupJoinRequestRow updateJoinRequest(Connection connection, long requestId, long ownerUserId, String targetStatus)
         throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(UPDATE_JOIN_REQUEST_SQL)) {
@@ -437,6 +496,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 取消同一个用户在同一个群里的其他待处理申请。
+     */
     private void cancelSiblingPendingJoinRequests(
         Connection connection,
         long groupId,
@@ -453,6 +515,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 把成员关系写成 active member；如果以前离开过，会在这里恢复。
+     */
     private void upsertMemberMembership(Connection connection, long groupId, long userId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(UPSERT_MEMBER_MEMBERSHIP_SQL)) {
             statement.setLong(1, idGenerator.nextId());
@@ -462,6 +527,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         }
     }
 
+    /**
+     * 把数据库结果整理成入群申请对象。
+     */
     private static GroupJoinRequestRow mapJoinRequest(ResultSet resultSet) throws SQLException {
         return new GroupJoinRequestRow(
             resultSet.getLong(1),
@@ -475,6 +543,9 @@ public final class JdbcGroupRepository implements GroupRepository {
         );
     }
 
+    /**
+     * 把可能为空的数据库数字值安全转成 Long。
+     */
     private static Long nullableLong(Object value) {
         if (value == null) {
             return null;
@@ -485,14 +556,23 @@ public final class JdbcGroupRepository implements GroupRepository {
         throw new IllegalStateException("unexpected numeric value: " + value);
     }
 
+    /**
+     * 把数据库时间戳转换成毫秒时间。
+     */
     private static long toEpochMillis(Timestamp timestamp) {
         return Objects.requireNonNull(timestamp, "timestamp").getTime();
     }
 
+    /**
+     * 判断是否命中了“同一人对同一群已有待处理申请”的唯一约束。
+     */
     private static boolean isDuplicatePendingJoinRequest(SQLException sqlException) {
         return "23505".equals(sqlException.getSQLState());
     }
 
+    /**
+     * 事务里读出来的当前这条成员关系的角色和状态。
+     */
     private record MembershipSnapshot(String role, String status) {
     }
 }

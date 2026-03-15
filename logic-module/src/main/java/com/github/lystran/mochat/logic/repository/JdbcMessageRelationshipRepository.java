@@ -12,9 +12,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 基于 JDBC 的消息发送关系校验实现。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcMessageRelationshipRepository implements MessageRelationshipRepository {
+    // 私聊会话 id 直接复用 friendship id，所以这里同时校验会话 id 和两端用户。
     private static final String FIND_PRIVATE_RELATIONSHIP_SQL = """
         SELECT status
         FROM user_friendships
@@ -48,10 +52,16 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
 
     private final DataSource dataSource;
 
+    /**
+     * 创建 JDBC 消息关系仓储。
+     */
     public JdbcMessageRelationshipRepository(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 
+    /**
+     * 查询私聊关系当前是否允许发消息。
+     */
     @Override
     public PrivateMessageState privateMessageState(long conversationId, long peerUidLow, long peerUidHigh) {
         try (Connection connection = dataSource.getConnection();
@@ -63,6 +73,7 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
                 if (!resultSet.next()) {
                     return PrivateMessageState.NOT_FRIEND;
                 }
+                // user_friendships.status 目前只关心 ok 和 blocked，其他值统一按不可发处理。
                 return switch (resultSet.getString(1)) {
                     case "ok" -> PrivateMessageState.ACTIVE;
                     case "blocked" -> PrivateMessageState.BLOCKED;
@@ -74,6 +85,9 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
         }
     }
 
+    /**
+     * 判断群是否存在。
+     */
     @Override
     public boolean groupExists(long groupId) {
         try (Connection connection = dataSource.getConnection();
@@ -90,6 +104,9 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
         }
     }
 
+    /**
+     * 判断用户是不是群里的活跃成员。
+     */
     @Override
     public boolean isActiveGroupMember(long groupId, long userId) {
         try (Connection connection = dataSource.getConnection();
@@ -107,6 +124,9 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
         }
     }
 
+    /**
+     * 列出群里当前所有活跃成员 id。
+     */
     @Override
     public List<Long> listActiveGroupMemberIds(long groupId) {
         try (Connection connection = dataSource.getConnection();
@@ -117,6 +137,7 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
                 while (resultSet.next()) {
                     memberIds.add(resultSet.getLong(1));
                 }
+                // 按 user_id 排序返回，方便上层拿到稳定顺序的成员列表。
                 return memberIds;
             }
         } catch (SQLException sqlException) {

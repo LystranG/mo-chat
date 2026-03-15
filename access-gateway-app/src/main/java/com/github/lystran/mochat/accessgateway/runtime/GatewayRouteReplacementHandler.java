@@ -11,14 +11,23 @@ import io.netty.channel.Channel;
 
 import java.util.Objects;
 
+/**
+ * 新连接接手这个用户后，负责通知旧连接所在的网关把旧连接关掉。
+ */
 final class GatewayRouteReplacementHandler implements SessionReplacementHandler {
     private static final String REPLACED_BY_NEW_BIND = "replaced_by_new_bind";
 
+    /**
+     * 当前网关实例名字，用来判断旧连接是不是就在本机。
+     */
     private final String gatewayPod;
     private final UserChannelDirectory<Channel> userChannelDirectory;
     private final AccessGatewayDispatchClientFactory accessGatewayDispatchClientFactory;
     private final GatewayAddressResolver gatewayAddressResolver;
 
+    /**
+     * 组装本地踢连接和跨网关踢连接所需依赖。
+     */
     GatewayRouteReplacementHandler(
         String gatewayPod,
         UserChannelDirectory<Channel> userChannelDirectory,
@@ -32,6 +41,9 @@ final class GatewayRouteReplacementHandler implements SessionReplacementHandler 
     }
 
     @Override
+    /**
+     * 根据旧路由所属网关，决定是本地关连接还是远程通知别的网关关连接。
+     */
     public void handleReplacement(ResolvedSession newBinding, PersistedSessionRoute persistedRoute) {
         ReplacedSessionRoute replacedRoute = persistedRoute.replacedRoute();
         if (replacedRoute == null) {
@@ -44,6 +56,9 @@ final class GatewayRouteReplacementHandler implements SessionReplacementHandler 
         kickRemotely(newBinding, replacedRoute);
     }
 
+    /**
+     * 旧连接就在当前网关时，直接按连接目录把它关掉。
+     */
     private void kickLocally(ResolvedSession newBinding, ReplacedSessionRoute replacedRoute) {
         if (!(userChannelDirectory instanceof LocalGatewayConnectionDirectory localGatewayConnectionDirectory)) {
             return;
@@ -57,6 +72,9 @@ final class GatewayRouteReplacementHandler implements SessionReplacementHandler 
         );
     }
 
+    /**
+     * 旧连接在别的网关时，按网关名字算出地址，再发内部 gRPC 请求让对方关连接。
+     */
     private void kickRemotely(ResolvedSession newBinding, ReplacedSessionRoute replacedRoute) {
         String targetAddress = gatewayAddressResolver.resolve(replacedRoute.gatewayPod());
         if (targetAddress == null || targetAddress.isBlank()) {

@@ -14,8 +14,14 @@ import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Singleton;
 
+/**
+ * 按配置创建 `api-service` 运行时要用到的 Redis 相关组件。
+ */
 @Factory
 public final class ApiServiceRuntimeFactory {
+    /**
+     * 在启用 Redis 依赖时创建 Redis 客户端。
+     */
     @Singleton
     @Bean(preDestroy = "shutdown")
     @Requires(property = "mochat.api-service.dependencies.redis-enabled", notEquals = "false", defaultValue = "true")
@@ -23,6 +29,9 @@ public final class ApiServiceRuntimeFactory {
         return RedisClient.create(redisUri);
     }
 
+    /**
+     * 创建普通的 Redis 读写连接。
+     */
     @Singleton
     @Bean(preDestroy = "close")
     @Requires(bean = RedisClient.class)
@@ -30,6 +39,9 @@ public final class ApiServiceRuntimeFactory {
         return redisClient.connect();
     }
 
+    /**
+     * 创建 Redis 的发布订阅连接，给事件总线收发消息用。
+     */
     @Singleton
     @Bean(preDestroy = "close")
     @Requires(bean = RedisClient.class)
@@ -37,12 +49,18 @@ public final class ApiServiceRuntimeFactory {
         return redisClient.connectPubSub();
     }
 
+    /**
+     * 暴露同步 Redis 命令接口，给上层业务直接读写 Redis。
+     */
     @Singleton
     @Requires(bean = StatefulRedisConnection.class)
     RedisCommands<String, String> redisCommands(StatefulRedisConnection<String, String> redisConnection) {
         return redisConnection.sync();
     }
 
+    /**
+     * 如果当前还没有事件总线实现，就创建一个基于 Redis 的实现。
+     */
     @Singleton
     @Requires(bean = RedisCommands.class)
     @Requires(bean = StatefulRedisPubSubConnection.class)
@@ -54,6 +72,9 @@ public final class ApiServiceRuntimeFactory {
         return new RedisEventBus(redisCommands, redisPubSubConnection);
     }
 
+    /**
+     * 如果当前还没有离线队列实现，就创建一个基于 Redis 的实现。
+     */
     @Singleton
     @Requires(bean = RedisCommands.class)
     @Requires(missingBeans = OfflineQueue.class)

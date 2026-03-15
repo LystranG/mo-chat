@@ -15,6 +15,9 @@ import jakarta.inject.Singleton;
 @Requires(property = "micronaut.application.name", value = "access-gateway")
 @Requires(property = "mochat.access-gateway.runtime.enabled", notEquals = "false", defaultValue = "true")
 @Requires(property = "mochat.access-gateway.tcp.enabled", notEquals = "false", defaultValue = "true")
+/**
+ * 管理接入网关里 Netty 服务和“给客户端发消息”的监听器的整体启停顺序。
+ */
 public final class AccessGatewayConnectionRuntimeLifecycle implements AutoCloseable {
     private final OutboundEventSubscriber outboundEventSubscriber;
     private final NettyChatServer nettyChatServer;
@@ -25,6 +28,9 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
     private boolean outboundSubscriberClosed;
     private boolean nettyServerStarted;
 
+    /**
+     * 兼容不带 drain 管理器的创建方式。
+     */
     public AccessGatewayConnectionRuntimeLifecycle(
         OutboundEventSubscriber outboundEventSubscriber,
         NettyChatServer nettyChatServer,
@@ -33,6 +39,9 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         this(outboundEventSubscriber, nettyChatServer, configuration, null);
     }
 
+    /**
+     * 组装接入网关连接运行时需要的核心组件。
+     */
     @Inject
     public AccessGatewayConnectionRuntimeLifecycle(
         OutboundEventSubscriber outboundEventSubscriber,
@@ -47,6 +56,9 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
     }
 
     @PostConstruct
+    /**
+     * 按“先开始监听要发给客户端的消息，再启动 TCP 服务”的顺序拉起运行时。
+     */
     void start() {
         if (!configuration.getTcp().isEnabled()) {
             return;
@@ -69,6 +81,9 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
 
     @PreDestroy
     @Override
+    /**
+     * 关闭时先执行 drain，再停 Netty，最后停消息监听器。
+     */
     public void close() {
         RuntimeException failure = null;
 
@@ -106,6 +121,9 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         }
     }
 
+    /**
+     * 启动失败时回滚已经启动的消息监听器。
+     */
     private void rollbackOutboundSubscriber(Throwable startupFailure) {
         RuntimeException closeFailure = closeOutboundSubscriber();
         if (closeFailure != null) {
@@ -113,6 +131,9 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         }
     }
 
+    /**
+     * 关闭消息监听器，并把异常统一折叠成运行时异常返回。
+     */
     private RuntimeException closeOutboundSubscriber() {
         if (!outboundSubscriberStarted || outboundSubscriberClosed) {
             return null;

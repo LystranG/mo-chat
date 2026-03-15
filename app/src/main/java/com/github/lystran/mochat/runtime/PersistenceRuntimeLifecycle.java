@@ -8,15 +8,21 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
 
+/**
+ * 兼容旧持久化流程时，负责管理消息入库消费者的启停。
+ */
 @Singleton
 @Context
 @Requires(property = "mochat.legacy.persistence.enabled", value = "true", defaultValue = "false")
 public final class PersistenceRuntimeLifecycle implements AutoCloseable {
-    private final RocketMqPersistenceConsumer persistenceConsumer;
-    private final boolean consumerEnabled;
+    private final RocketMqPersistenceConsumer persistenceConsumer; // 把消息队列里的数据拉出来，交给旧入库流程处理。
+    private final boolean consumerEnabled; // 允许部署时只保留 Bean，但先不真正启动消费。
 
-    private boolean started;
+    private boolean started; // 记录是否已启动，避免重复关闭。
 
+    /**
+     * 组装旧持久化消费者的生命周期管理器。
+     */
     public PersistenceRuntimeLifecycle(
         RocketMqPersistenceConsumer persistenceConsumer,
         @Property(name = "mochat.rocketmq.consumer.enabled", defaultValue = "true") boolean consumerEnabled
@@ -25,6 +31,9 @@ public final class PersistenceRuntimeLifecycle implements AutoCloseable {
         this.consumerEnabled = consumerEnabled;
     }
 
+    /**
+     * 按开关决定是否启动旧持久化消费者。
+     */
     @PostConstruct
     void start() {
         if (!consumerEnabled) {
@@ -35,6 +44,9 @@ public final class PersistenceRuntimeLifecycle implements AutoCloseable {
         started = true;
     }
 
+    /**
+     * 在进程退出前关闭旧持久化消费者。
+     */
     @PreDestroy
     @Override
     public void close() {

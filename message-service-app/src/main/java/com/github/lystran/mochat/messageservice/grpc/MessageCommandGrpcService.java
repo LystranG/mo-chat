@@ -20,11 +20,17 @@ import jakarta.inject.Singleton;
 import java.util.Base64;
 import java.util.Objects;
 
+/**
+ * message-service 对内暴露的 gRPC 命令入口。
+ */
 @Singleton
 public final class MessageCommandGrpcService extends MessageCommandApiGrpc.MessageCommandApiImplBase {
     private final MessageIngestService messageIngestService;
     private final MessageServiceOfflineReplayService messageServiceOfflineReplayService;
 
+    /**
+     * 创建 gRPC 命令服务。
+     */
     public MessageCommandGrpcService(
         MessageIngestService messageIngestService,
         MessageServiceOfflineReplayService messageServiceOfflineReplayService
@@ -34,12 +40,16 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
             Objects.requireNonNull(messageServiceOfflineReplayService, "messageServiceOfflineReplayService");
     }
 
+    /**
+     * 处理内部私聊发送命令。
+     */
     @Override
     public void sendPrivateMessage(
         SendPrivateMessageCommand request,
         StreamObserver<SendPrivateMessageAck> responseObserver
     ) {
         try {
+            // 这里会先把 gRPC 请求重新打包成 protobuf 消息正文，再做 Base64，方便复用现有入站处理链路。
             MessageIngestResult result = messageIngestService.ingest(MessageIngestRequest.privateMessage(
                 request.getSenderUid(),
                 request.getConversationId(),
@@ -64,6 +74,7 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
                 .setDetail("accepted")
                 .build());
         } catch (IllegalArgumentException rejection) {
+            // message-service 明确拒绝时，直接把原因放进应答，不抛 gRPC 错误。
             responseObserver.onNext(SendPrivateMessageAck.newBuilder()
                 .setAccepted(false)
                 .setClientMsgId(request.getClientMsgId())
@@ -73,12 +84,16 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
         responseObserver.onCompleted();
     }
 
+    /**
+     * 处理内部群聊发送命令。
+     */
     @Override
     public void sendGroupMessage(
         SendGroupMessageCommand request,
         StreamObserver<SendGroupMessageAck> responseObserver
     ) {
         try {
+            // 群聊也会先整理成 protobuf 消息正文，再做 Base64，后面统一交给消息接收链路处理。
             MessageIngestResult result = messageIngestService.ingest(MessageIngestRequest.groupMessage(
                 request.getSenderUid(),
                 request.getConversationId(),
@@ -110,6 +125,9 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
         responseObserver.onCompleted();
     }
 
+    /**
+     * 处理“登录后把没收到的消息补发”命令。
+     */
     @Override
     public void replayOfflineMessages(
         ReplayOfflineMessagesCommand request,
@@ -131,11 +149,15 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
         responseObserver.onCompleted();
     }
 
+    /**
+     * 处理“我已经收到消息了”的内部回执命令。
+     */
     @Override
     public void acknowledgeReceipt(
         AcknowledgeReceiptCommand request,
         StreamObserver<AcknowledgeReceiptAck> responseObserver
     ) {
+        // 这里目前还是占位实现，只把请求内容原样确认回去。
         responseObserver.onNext(AcknowledgeReceiptAck.newBuilder()
             .setAccepted(true)
             .setConversationId(request.getConversationId())

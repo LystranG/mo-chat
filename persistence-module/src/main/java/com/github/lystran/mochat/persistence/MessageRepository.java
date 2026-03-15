@@ -8,6 +8,9 @@ import java.sql.Savepoint;
 import java.sql.Types;
 import java.util.Objects;
 
+/**
+ * 负责把消息正文写进 messages 表，并区分“新消息”和“重复重试”。
+ */
 public final class MessageRepository {
     private static final String INSERT_SQL = """
         INSERT INTO messages (
@@ -41,10 +44,14 @@ public final class MessageRepository {
         WHERE msg_id = ?
         """;
 
+    /**
+     * 尝试写入一条消息；如果数据库里已经有同一个 msgId，就判断是不是同一条重试。
+     */
     public InsertResult insert(Connection connection, PersistedMessage message) throws SQLException {
         Objects.requireNonNull(connection, "connection");
         Objects.requireNonNull(message, "message");
 
+        // 先在当前事务里做一次可回退的插入尝试，失败后还能继续查库里已有内容。
         Savepoint insertAttempt = connection.setSavepoint();
         try {
             try (PreparedStatement statement = connection.prepareStatement(INSERT_SQL)) {
@@ -64,6 +71,7 @@ public final class MessageRepository {
             return InsertResult.INSERTED;
         } catch (SQLException exception) {
             rollbackToSavepoint(connection, insertAttempt, exception);
+            // msgId 已存在时，再把旧记录读出来看看：如果内容完全一样，就把它当成“重复重试”。
             PersistedMessage existing = loadByMsgId(connection, message.msgId(), exception);
             if (message.equals(existing)) {
                 return InsertResult.DURABLE_DUPLICATE;
@@ -75,6 +83,9 @@ public final class MessageRepository {
         }
     }
 
+    /**
+     * 按 msgId 读出数据库里已经存在的那条消息。
+     */
     private static PersistedMessage loadByMsgId(Connection connection, long msgId, SQLException failure) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(SELECT_BY_MSG_ID_SQL)) {
             statement.setLong(1, msgId);
@@ -102,6 +113,9 @@ public final class MessageRepository {
         }
     }
 
+    /**
+     * 把事务回退到本次插入前的保存点，避免整个外层事务被直接打断。
+     */
     private static void rollbackToSavepoint(Connection connection, Savepoint savepoint, SQLException failure) throws SQLException {
         try {
             connection.rollback(savepoint);
@@ -111,11 +125,17 @@ public final class MessageRepository {
         }
     }
 
+    /**
+     * 表示本次写库是新插入，还是碰到了数据库里已经存在的同一条消息。
+     */
     public enum InsertResult {
         INSERTED,
         DURABLE_DUPLICATE
     }
 
+    /**
+     * 表示已经整理好、准备写进 messages 表的一条消息。
+     */
     public record PersistedMessage(
         long msgId,
         long conversationId,
@@ -129,6 +149,9 @@ public final class MessageRepository {
         long serverTsMs,
         String payloadBase64
     ) {
+        /**
+         * 在构造时拦住最基本的坏数据。
+         */
         public PersistedMessage {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(payloadBase64, "payloadBase64");

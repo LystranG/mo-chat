@@ -9,6 +9,9 @@ import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
 import org.flywaydb.core.Flyway;
 
+/**
+ * 在应用启动和关闭时管理 RocketMQ 持久化消费线程。
+ */
 @Singleton
 @Context
 @Requires(bean = RocketMqPersistenceConsumer.class)
@@ -18,6 +21,9 @@ public final class PersistenceServiceRuntimeLifecycle implements AutoCloseable {
 
     private boolean started;
 
+    /**
+     * 收下持久化消费组件和开关配置。
+     */
     public PersistenceServiceRuntimeLifecycle(
         RocketMqPersistenceConsumer persistenceConsumer,
         @Property(name = "mochat.persistence-service.queue.consumer-enabled", defaultValue = "true") boolean consumerEnabled
@@ -26,6 +32,9 @@ public final class PersistenceServiceRuntimeLifecycle implements AutoCloseable {
         this.consumerEnabled = consumerEnabled;
     }
 
+    /**
+     * 应用启动后按配置决定是否开始从 RocketMQ 拉消息。
+     */
     @PostConstruct
     void start() {
         if (!consumerEnabled) {
@@ -36,6 +45,9 @@ public final class PersistenceServiceRuntimeLifecycle implements AutoCloseable {
         started = true;
     }
 
+    /**
+     * 应用关闭时停掉消费线程，避免服务退出后还继续拉消息。
+     */
     @PreDestroy
     @Override
     public void close() {
@@ -48,6 +60,9 @@ public final class PersistenceServiceRuntimeLifecycle implements AutoCloseable {
     }
 }
 
+/**
+ * 在持久化服务启动时执行 Flyway 数据库迁移。
+ */
 @Singleton
 @Context
 @Requires(bean = Flyway.class)
@@ -55,10 +70,16 @@ public final class PersistenceServiceRuntimeLifecycle implements AutoCloseable {
 final class PersistenceServiceFlywayMigrationBootstrap {
     private final Flyway flyway;
 
+    /**
+     * 收下已经创建好的 Flyway 实例。
+     */
     PersistenceServiceFlywayMigrationBootstrap(Flyway flyway) {
         this.flyway = flyway;
     }
 
+    /**
+     * 执行数据库迁移，把表结构推进到当前版本。
+     */
     @PostConstruct
     void migrate() {
         flyway.migrate();

@@ -12,6 +12,9 @@ import io.netty.channel.Channel;
 import java.util.Base64;
 import java.util.Objects;
 
+/**
+ * 订阅准备发给客户端的事件，优先写到本地连接，失败时再转离线队列。
+ */
 public final class OutboundEventSubscriber implements AutoCloseable {
     public static final String DEFAULT_OUTBOUND_TOPIC = "connection.outbound";
     public static final int OFFLINE_QUEUE_MAX_SIZE = 50;
@@ -26,6 +29,9 @@ public final class OutboundEventSubscriber implements AutoCloseable {
     private AutoCloseable subscription = () -> {
     };
 
+    /**
+     * 使用默认主题订阅发往客户端的事件。
+     */
     public OutboundEventSubscriber(
         EventBus eventBus,
         UserChannelDirectory<Channel> userChannelDirectory,
@@ -34,6 +40,9 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         this(eventBus, userChannelDirectory, offlineQueue, DEFAULT_OUTBOUND_TOPIC);
     }
 
+    /**
+     * 指定事件主题，方便在测试或特殊部署里替换默认通道。
+     */
     public OutboundEventSubscriber(
         EventBus eventBus,
         UserChannelDirectory<Channel> userChannelDirectory,
@@ -46,15 +55,24 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         this.topic = Objects.requireNonNull(topic, "topic");
     }
 
+    /**
+     * 开始监听要发给客户端的消息。
+     */
     public void start() {
         subscription = eventBus.subscribe(topic, this::handleOutboundEvent);
     }
 
     @Override
+    /**
+     * 取消事件订阅。
+     */
     public void close() throws Exception {
         subscription.close();
     }
 
+    /**
+     * 解析事件里的目标用户和消息内容，然后决定发在线连接还是走离线队列。
+     */
     private void handleOutboundEvent(String event) {
         int separator = event.indexOf('|');
         if (separator <= 0) {
@@ -75,8 +93,12 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         );
     }
 
+    /**
+     * 只有当前网关还真正持有这条连接时才直接写回；否则再尝试一次或转离线。
+     */
     private void attemptDelivery(Channel channel, long userId, String payload, boolean allowRetry) {
         if (!SessionBindingHandler.hasActiveRouteOwnership(channel)) {
+            // 这条连接可能刚被新连接替换，给事件循环一次机会让最新状态生效。
             if (allowRetry) {
                 scheduleRetry(channel, userId, payload);
                 return;
@@ -101,6 +123,9 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         }
     }
 
+    /**
+     * 把一次立即失败的在线投递延后到该连接自己的事件循环里再试一遍。
+     */
     private void scheduleRetry(Channel channel, long userId, String payload) {
         try {
             channel.eventLoop().execute(() -> attemptDelivery(channel, userId, payload, false));
@@ -109,6 +134,9 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         }
     }
 
+    /**
+     * 把字符串事件重新编码成 TCP 协议帧。
+     */
     private static ByteBuf encodeFrame(Channel channel, String payload) {
         String[] segments = payload.split("\\|", 3);
         if (segments.length != 3) {
@@ -129,6 +157,9 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         return frame;
     }
 
+    /**
+     * 在线投递走不通时，把消息放进离线队列，等待用户下次上线补发。
+     */
     private void queueOffline(long userId, String payload) {
         if (isDeliveredAckPayload(payload)) {
             return;
@@ -136,6 +167,9 @@ public final class OutboundEventSubscriber implements AutoCloseable {
         offlineQueue.enqueue(userId, payload, OFFLINE_QUEUE_MAX_SIZE);
     }
 
+    /**
+     * 已送达回执不需要再走离线补发，避免重复噪音。
+     */
     private boolean isDeliveredAckPayload(String payload) {
         return payload.equals(DELIVERED_ACK) || payload.startsWith(DELIVERED_ACK_PREFIX);
     }

@@ -1,5 +1,8 @@
 package com.github.lystran.mochat.protocol;
 
+/**
+ * 定义连接层和业务层统一使用的错误码。
+ */
 public enum ErrorCode {
     SESSION_INVALID(1000),
     SESSION_EXPIRED(1001),
@@ -16,10 +19,16 @@ public enum ErrorCode {
 
     private final int code;
 
+    /**
+     * 绑定这个错误对应的数字编码。
+     */
     ErrorCode(int code) {
         this.code = code;
     }
 
+    /**
+     * 返回要写进协议里的数字错误码。
+     */
     public int code() {
         return code;
     }

@@ -4,9 +4,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * 从一张固定地址表里查目标网关地址。
+ */
 public final class StaticGatewayAddressResolver implements GatewayAddressResolver {
     private final Map<String, String> staticTargets;
 
+    /**
+     * 收下固定地址表，并顺手清理空键空值。
+     */
     public StaticGatewayAddressResolver(Map<String, String> staticTargets) {
         Objects.requireNonNull(staticTargets, "staticTargets");
         Map<String, String> normalizedTargets = new LinkedHashMap<>();
@@ -18,6 +24,9 @@ public final class StaticGatewayAddressResolver implements GatewayAddressResolve
         this.staticTargets = Map.copyOf(normalizedTargets);
     }
 
+    /**
+     * 从固定表里查这个网关身份名对应的地址。
+     */
     @Override
     public String resolve(String gatewayPod) {
         if (gatewayPod == null || gatewayPod.isBlank()) {

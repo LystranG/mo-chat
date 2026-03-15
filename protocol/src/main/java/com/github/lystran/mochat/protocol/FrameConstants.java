@@ -1,5 +1,8 @@
 package com.github.lystran.mochat.protocol;
 
+/**
+ * 集中定义聊天二进制包头的长度和偏移量。
+ */
 public final class FrameConstants {
     public static final int MAGIC_BYTES = 4;
     public static final int VERSION_BYTES = 1;
@@ -17,6 +20,9 @@ public final class FrameConstants {
     public static final int PROTOCOL_VERSION = 1;
     public static final int DEFAULT_MAX_FRAME_LENGTH = 64 * 1024;
 
+    /**
+     * 防止被当成普通工具类实例化。
+     */
     private FrameConstants() {
     }
 }

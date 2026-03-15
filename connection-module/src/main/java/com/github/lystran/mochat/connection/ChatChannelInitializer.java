@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
+/**
+ * 负责把一条新 TCP 连接装配成完整的聊天处理链。
+ */
 public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
     private static final int PROTOCOL_MAGIC = 0x4D4F4348;
     private static final int DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 10;
@@ -34,6 +37,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
     private final int heartbeatIntervalSeconds;
     private final int heartbeatIdleTimeoutSeconds;
 
+    /**
+     * 使用默认帧长和心跳参数创建处理链。
+     */
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext) {
         this(
             eventBus,
@@ -45,6 +51,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         );
     }
 
+    /**
+     * 指定最大帧长，其他参数走默认值。
+     */
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext, int maxFrameLength) {
         this(
             eventBus,
@@ -56,6 +65,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         );
     }
 
+    /**
+     * 指定最大帧长和心跳超时，适合测试或特殊环境。
+     */
     public ChatChannelInitializer(EventBus eventBus, SslContext sslContext, int maxFrameLength, int heartbeatIdleTimeoutSeconds) {
         this(
             eventBus,
@@ -67,6 +79,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         );
     }
 
+    /**
+     * 指定完整的基础传输参数，但不注入显式绑定处理器。
+     */
     public ChatChannelInitializer(
         EventBus eventBus,
         SslContext sslContext,
@@ -84,6 +99,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         );
     }
 
+    /**
+     * 根据会话解析器和连接目录，现场拼一个默认的绑定处理器。
+     */
     public ChatChannelInitializer(
         EventBus eventBus,
         SslContext sslContext,
@@ -105,6 +123,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         );
     }
 
+    /**
+     * 根据给定依赖创建带异步会话解析能力的默认绑定处理器。
+     */
     public ChatChannelInitializer(
         EventBus eventBus,
         SslContext sslContext,
@@ -131,6 +152,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         );
     }
 
+    /**
+     * 直接使用外部传入的绑定处理器，组装完整处理链。
+     */
     public ChatChannelInitializer(
         EventBus eventBus,
         SslContext sslContext,
@@ -148,12 +172,17 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
     }
 
     @Override
+    /**
+     * 按固定顺序组装管线：先 TLS、再拆包、再基础保护，最后才进入绑定和业务路由。
+     */
     protected void initChannel(Channel channel) {
         var pipeline = channel.pipeline();
         if (sslContext != null) {
+            // 先做 TLS 握手，后面的拆包和业务处理只看解密后的数据。
             pipeline.addLast("tls", sslContext.newHandler(channel.alloc()));
         }
 
+        // 先按长度拆完整帧，再做协议解码，避免后续处理器拿到半包。
         pipeline.addLast("frameDecoder", new LengthFieldBasedFrameDecoder(
             maxFrameLength,
             FrameConstants.BODY_LENGTH_OFFSET,
@@ -162,6 +191,7 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
             0
         ));
         pipeline.addLast("protocolCodec", new ProtocolMessageCodec());
+        // 基础保护放在业务前面：先限流，再心跳保活，最后才允许绑定和业务消息进入。
         pipeline.addLast("rateLimit", new RateLimitHandler());
         pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIntervalSeconds, heartbeatIdleTimeoutSeconds));
         if (sessionBindingHandler != null) {
@@ -172,8 +202,14 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
 
 
     @ChannelHandler.Sharable
+    /**
+     * 把二进制协议帧解成统一的“客户端消息对象”。
+     */
     private static final class ProtocolMessageCodec extends MessageToMessageDecoder<ByteBuf> {
         @Override
+        /**
+         * 校验固定头，再把消息类型、序列化方式和消息体拆出来。
+         */
         protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
             if (msg.readableBytes() < FrameConstants.HEADER_LENGTH) {
                 throw new DecoderException("frame shorter than protocol header");
@@ -207,6 +243,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
             ));
         }
 
+        /**
+         * 按协议里的数字编码还原消息类型。
+         */
         private static MsgType msgTypeFromCode(int code) {
             for (var value : MsgType.values()) {
                 if (value.code() == code) {
@@ -216,6 +255,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
             throw new DecoderException("unknown msgType code: " + code);
         }
 
+        /**
+         * 按协议里的数字编码还原序列化方式。
+         */
         private static SerializerType serializerFromCode(int code) {
             for (var value : SerializerType.values()) {
                 if (value.code() == code) {
@@ -226,6 +268,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         }
     }
 
+    /**
+     * 把消息类型和消息体重新编码成网关 TCP 协议帧。
+     */
     static ByteBuf encodeFrame(Channel channel, MsgType msgType, byte[] body) {
         ByteBuf frame = channel.alloc().buffer(FrameConstants.HEADER_LENGTH + body.length);
         frame.writeInt(PROTOCOL_MAGIC);
@@ -237,6 +282,9 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         return frame;
     }
 
+    /**
+     * 构造服务端心跳消息体，让客户端知道服务端仍然在线。
+     */
     static byte[] serverHeartbeatBody(long serverTimeMs) {
         return Mochat.Heartbeat.newBuilder()
             .setServerTimeMs(serverTimeMs)

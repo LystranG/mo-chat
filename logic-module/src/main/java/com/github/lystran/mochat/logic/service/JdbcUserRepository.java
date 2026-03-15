@@ -12,6 +12,9 @@ import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 基于 JDBC 的用户仓储，负责按用户名读取或落库用户资料。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcUserRepository implements UserRepository {
@@ -30,11 +33,17 @@ public final class JdbcUserRepository implements UserRepository {
     private final DataSource dataSource;
     private final IdGenerator idGenerator;
 
+    /**
+     * 创建 JDBC 用户仓储。
+     */
     public JdbcUserRepository(DataSource dataSource, IdGenerator idGenerator) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
     }
 
+    /**
+     * 按用户名查找用户资料。
+     */
     @Override
     public Optional<UserProfile> findByUsername(String username) {
         try (Connection connection = dataSource.getConnection()) {
@@ -44,6 +53,9 @@ public final class JdbcUserRepository implements UserRepository {
         }
     }
 
+    /**
+     * 创建用户；如果并发下已有同名用户落库，就回头把已有记录读出来。
+     */
     @Override
     public UserProfile create(String username, byte[] identityPublicKey) {
         try (Connection connection = dataSource.getConnection();
@@ -57,6 +69,7 @@ public final class JdbcUserRepository implements UserRepository {
                 }
             }
 
+            // ON CONFLICT DO NOTHING 说明有人并发创建了同名用户，这里回查现有记录即可。
             return findByUsername(connection, username)
                 .orElseThrow(() -> new IllegalStateException("failed to persist user: " + username));
         } catch (SQLException sqlException) {
@@ -64,6 +77,9 @@ public final class JdbcUserRepository implements UserRepository {
         }
     }
 
+    /**
+     * 在同一条数据库连接里按用户名查询用户，方便复用到并发创建回查场景。
+     */
     private Optional<UserProfile> findByUsername(Connection connection, String username) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(FIND_BY_USERNAME_SQL)) {
             statement.setString(1, username);
@@ -76,6 +92,9 @@ public final class JdbcUserRepository implements UserRepository {
         }
     }
 
+    /**
+     * 把数据库结果整理成用户资料对象。
+     */
     private static UserProfile mapUserProfile(ResultSet resultSet) throws SQLException {
         return new UserProfile(
             resultSet.getLong(1),
