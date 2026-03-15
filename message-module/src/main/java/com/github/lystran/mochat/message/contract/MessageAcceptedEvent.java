@@ -2,6 +2,9 @@ package com.github.lystran.mochat.message.contract;
 
 import java.util.Objects;
 
+/**
+ * 表示逻辑层已经收下并排好顺序的一条消息，后面会沿着 MQ 和落库流程继续往下传。
+ */
 public record MessageAcceptedEvent(
     long msgId,
     long conversationId,
@@ -18,6 +21,7 @@ public record MessageAcceptedEvent(
     private static final String PRIVATE_KIND = "private";
     private static final String GROUP_KIND = "group";
 
+    // 检查这条消息带的字段是不是成套的，避免把私聊和群聊需要的信息混着往下传。
     public MessageAcceptedEvent {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(payloadBase64, "payloadBase64");
@@ -29,6 +33,7 @@ public record MessageAcceptedEvent(
         }
     }
 
+    // 组装一条私聊消息，顺手把私聊双方的 uid 范围一起带上。
     public static MessageAcceptedEvent privateMessage(
         long msgId,
         long conversationId,
@@ -55,6 +60,7 @@ public record MessageAcceptedEvent(
         );
     }
 
+    // 组装一条群消息，群消息只认 groupId，不再占用私聊对端那几个字段。
     public static MessageAcceptedEvent groupMessage(
         long msgId,
         long conversationId,
@@ -80,6 +86,7 @@ public record MessageAcceptedEvent(
         );
     }
 
+    // 返回会话维度的分组键，让同一会话的消息始终落到同一条顺序处理链路上。
     public String shardingKey() {
         return Long.toString(conversationId);
     }

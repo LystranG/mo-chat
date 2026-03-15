@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 基于 JDBC 处理好友申请、好友关系和私聊会话初始化。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcFriendshipRepository implements FriendshipRepository {
@@ -83,12 +86,14 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
     private final DataSource dataSource;
     private final IdGenerator idGenerator;
 
+    // 注入 JDBC 数据源与 ID 生成器。
     public JdbcFriendshipRepository(DataSource dataSource, IdGenerator idGenerator) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
     }
 
     @Override
+    // 创建新的好友申请；如果库里已经有待处理申请，就改成更好懂的业务报错。
     public FriendRequestRow createFriendRequest(long fromUserId, long toUserId, String sign) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(INSERT_FRIEND_REQUEST_SQL)) {
@@ -111,16 +116,19 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
     }
 
     @Override
+    // 查询当前用户发出的好友申请列表。
     public List<FriendRequestRow> listSentFriendRequests(long userId) {
         return listFriendRequests(userId, LIST_SENT_REQUESTS_SQL, "failed to list sent friend requests");
     }
 
     @Override
+    // 查询当前用户收到的好友申请列表。
     public List<FriendRequestRow> listReceivedFriendRequests(long userId) {
         return listFriendRequests(userId, LIST_RECEIVED_REQUESTS_SQL, "failed to list received friend requests");
     }
 
     @Override
+    // 处理好友申请；如果同意，就把好友关系和对应私聊会话一起建好。
     public FriendRequestRow handleFriendRequest(long requestId, long handlerUserId, FriendRequestDecision decision) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
@@ -131,6 +139,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
                     throw new IllegalArgumentException("friend request is not pending");
                 }
 
+                // 数据库里直接写 accepted / rejected 这类状态字串，上层再整理成对外使用的结果。
                 String targetStatus = switch (decision) {
                     case ACCEPT -> "accepted";
                     case REJECT -> "rejected";
@@ -153,6 +162,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
     }
 
     @Override
+    // 删除一条好友关系。
     public void deleteFriendship(long userId, long friendUserId) {
         long uid1 = Math.min(userId, friendUserId);
         long uid2 = Math.max(userId, friendUserId);
@@ -169,9 +179,11 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
     }
 
     @Override
+    // 把好友关系改成“已拉黑”，并记下到底是哪一侧动的手。
     public void blockFriendship(long userId, long friendUserId) {
         long uid1 = Math.min(userId, friendUserId);
         long uid2 = Math.max(userId, friendUserId);
+        // blocked_by 用 0/1 表示是 uid_1 还是 uid_2 把对方拉黑，省掉再存一整列用户 ID。
         int blockedBy = userId == uid1 ? 0 : 1;
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(BLOCK_FRIENDSHIP_SQL)) {
@@ -187,6 +199,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
     }
 
     @Override
+    // 仅允许真正拉黑的一方执行解除拉黑。
     public void unblockFriend(long userId, long friendUserId) {
         long uid1 = Math.min(userId, friendUserId);
         long uid2 = Math.max(userId, friendUserId);
@@ -204,6 +217,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
         }
     }
 
+    // 用传进来的 SQL 查好友申请列表。
     private List<FriendRequestRow> listFriendRequests(long userId, String sql, String errorMessage) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -220,6 +234,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
         }
     }
 
+    // 在事务里把这条申请锁住，避免两个人同时处理同一条。
     private Optional<FriendRequestRow> loadFriendRequestForHandle(Connection connection, long requestId, long handlerUserId)
         throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(LOAD_FRIEND_REQUEST_FOR_HANDLE_SQL)) {
@@ -234,6 +249,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
         }
     }
 
+    // 更新好友申请状态，并把更新后的结果读出来返回。
     private FriendRequestRow updateFriendRequestStatus(Connection connection, long requestId, String targetStatus) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(UPDATE_FRIEND_REQUEST_STATUS_SQL)) {
             statement.setString(1, targetStatus);
@@ -247,6 +263,7 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
         }
     }
 
+    // 同意好友申请时，确保好友关系和私聊会话都已经准备好。
     private void ensurePrivateConversation(Connection connection, long userIdA, long userIdB) throws SQLException {
         long uid1 = Math.min(userIdA, userIdB);
         long uid2 = Math.max(userIdA, userIdB);
@@ -263,12 +280,14 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
             }
         }
 
+        // 私聊会话直接复用 friendship id，这样“好友关系”和“私聊会话”就能一一对上。
         try (PreparedStatement statement = connection.prepareStatement(INSERT_PRIVATE_CONVERSATION_SQL)) {
             statement.setLong(1, friendshipId);
             statement.executeUpdate();
         }
     }
 
+    // 把数据库查出来的一行组装成代码里的好友申请对象。
     private static FriendRequestRow mapFriendRequest(ResultSet resultSet) throws SQLException {
         return new FriendRequestRow(
             resultSet.getLong(1),
@@ -281,10 +300,12 @@ public final class JdbcFriendshipRepository implements FriendshipRepository {
         );
     }
 
+    // 识别“同一对用户仍有 pending 申请”导致的唯一约束冲突。
     private static boolean isDuplicatePendingFriendRequest(SQLException sqlException) {
         return "23505".equals(sqlException.getSQLState());
     }
 
+    // 将数据库时间戳转换为毫秒时间戳。
     private static long toEpochMillis(Timestamp timestamp) {
         if (timestamp == null) {
             throw new IllegalStateException("timestamp must not be null");

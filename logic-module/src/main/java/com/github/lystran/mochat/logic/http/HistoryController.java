@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * 提供会话历史查询入口，既能从某条消息之前继续查，也能按一段消息编号去查。
+ */
 @Controller("/history")
 @Requires(beans = HistoryService.class)
 public final class HistoryController {
@@ -21,6 +24,7 @@ public final class HistoryController {
     private final ConversationStateService conversationStateService;
     private final SessionService sessionService;
 
+    // 注入历史查询、会话访问控制和 session 鉴权依赖。
     public HistoryController(
         HistoryService historyService,
         ConversationStateService conversationStateService,
@@ -31,11 +35,13 @@ public final class HistoryController {
         this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
     }
 
+    // 兼容老调用方：只传“从哪条消息之前继续查”这一种查法。
     public HttpResponse<?> history(@QueryValue String sessionId, long conversationId, @Nullable Long cursorSeq, @Nullable @QueryValue Integer limit) {
         return history(sessionId, conversationId, cursorSeq, null, null, limit);
     }
 
     @Get
+    // 执行历史查询，并在进入 service 前先校验 session 和查法是否合法。
     public HttpResponse<?> history(
         @QueryValue String sessionId,
         long conversationId,
@@ -52,7 +58,7 @@ public final class HistoryController {
             return HttpResponse.notFound();
         }
 
-        // /history 只允许“游标翻页”或“seq 范围查询”二选一，避免同一请求出现冲突语义。
+        // /history 只允许二选一：要么表示“从某条消息之前继续查”，要么表示“查 startSeq 到 endSeq 这一段”。
         if (cursorSeq != null && (startSeq != null || endSeq != null)) {
             return HttpResponse.badRequest(Map.of("error", "cursorSeq is mutually exclusive with startSeq/endSeq"));
         }
@@ -71,9 +77,11 @@ public final class HistoryController {
         return HttpResponse.ok(new HistoryResponse(items));
     }
 
+    /** 历史查询响应体。 */
     public record HistoryResponse(List<HistoryItem> items) {
     }
 
+    /** 单条历史消息响应体。 */
     public record HistoryItem(long seq, long msgId, long serverTimeMs, String payloadBase64) {
     }
 }

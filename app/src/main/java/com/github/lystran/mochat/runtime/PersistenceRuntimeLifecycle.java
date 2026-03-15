@@ -7,6 +7,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
 
+/**
+ * 负责在应用启动和关闭时拉起或停掉 RocketMQ 持久化消费者。
+ */
 @Singleton
 @Context
 public final class PersistenceRuntimeLifecycle implements AutoCloseable {
@@ -15,6 +18,9 @@ public final class PersistenceRuntimeLifecycle implements AutoCloseable {
 
     private boolean started;
 
+    /**
+     * 收下持久化消费者和对应的开关配置。
+     */
     public PersistenceRuntimeLifecycle(
         RocketMqPersistenceConsumer persistenceConsumer,
         @Property(name = "mochat.rocketmq.consumer.enabled", defaultValue = "true") boolean consumerEnabled
@@ -23,6 +29,9 @@ public final class PersistenceRuntimeLifecycle implements AutoCloseable {
         this.consumerEnabled = consumerEnabled;
     }
 
+    /**
+     * 应用启动时按配置决定要不要开始消费持久化消息。
+     */
     @PostConstruct
     void start() {
         if (!consumerEnabled) {
@@ -33,6 +42,9 @@ public final class PersistenceRuntimeLifecycle implements AutoCloseable {
         started = true;
     }
 
+    /**
+     * 应用关闭时停掉已经启动的持久化消费者。
+     */
     @PreDestroy
     @Override
     public void close() {

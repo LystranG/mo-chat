@@ -13,6 +13,9 @@ import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 用数据库保存私聊的最新消息序号，以及双方各自确认到哪条消息。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcReceiptConversationStateStore implements ReceiptConversationStateStore {
@@ -37,12 +40,19 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         """;
 
     private final DataSource dataSource;
+    // 这份缓存先记住服务端刚分配出去、但数据库可能还没追上的最新 seq，补上发送和异步落库之间的时间差。
     private final Cache<Long, ServerKnownPrivateConversation> serverKnownPrivateConversations;
 
+    /**
+     * 使用默认缓存大小构造数据库版私聊确认状态仓储。
+     */
     public JdbcReceiptConversationStateStore(DataSource dataSource) {
         this(dataSource, DEFAULT_SERVER_KNOWN_CACHE_MAX_SIZE);
     }
 
+    /**
+     * 使用指定缓存大小构造数据库版私聊确认状态仓储。
+     */
     JdbcReceiptConversationStateStore(DataSource dataSource, long serverKnownCacheMaxSize) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         if (serverKnownCacheMaxSize <= 0) {
@@ -53,6 +63,9 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
             .build();
     }
 
+    /**
+     * 读取私聊状态；如果内存里记着更新的最新 seq，就优先用那份。
+     */
     @Override
     public Optional<PrivateConversationState> findPrivateConversation(long conversationId) {
         try (Connection connection = dataSource.getConnection()) {
@@ -69,6 +82,7 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
             if (serverKnown.uidLow() != state.uidLow() || serverKnown.uidHigh() != state.uidHigh()) {
                 throw new IllegalStateException("conversation participants mismatch");
             }
+            // 发消息时服务端可能先知道最新 seq，数据库稍后才追上，所以这里优先保留内存里那份更新的值。
             if (serverKnown.latestSeq() <= state.latestSeq()) {
                 return persistedState;
             }
@@ -88,6 +102,9 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         }
     }
 
+    /**
+     * 刷新服务端内存里记住的私聊最新消息序号。
+     */
     @Override
     public void upsertPrivateConversation(long conversationId, long uidLow, long uidHigh, long latestSeq) {
         if (uidLow <= 0 || uidHigh <= 0 || uidLow >= uidHigh) {
@@ -100,21 +117,28 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
             if (current == null) {
                 return new ServerKnownPrivateConversation(uidLow, uidHigh, latestSeq);
             }
-            if (current.uidLow() != uidLow || current.uidHigh() != uidHigh) {
-                throw new IllegalStateException("conversation participants mismatch");
-            }
-            if (latestSeq <= current.latestSeq()) {
-                return current;
-            }
+                if (current.uidLow() != uidLow || current.uidHigh() != uidHigh) {
+                    throw new IllegalStateException("conversation participants mismatch");
+                }
+                // 只接受更大的 latestSeq，避免旧值把新值盖回去。
+                if (latestSeq <= current.latestSeq()) {
+                    return current;
+                }
             return new ServerKnownPrivateConversation(uidLow, uidHigh, latestSeq);
         });
     }
 
+    /**
+     * 返回当前缓存里大概记了多少条私聊状态，主要给测试观察用。
+     */
     long estimatedServerKnownPrivateConversationCount() {
         serverKnownPrivateConversations.cleanUp();
         return serverKnownPrivateConversations.estimatedSize();
     }
 
+    /**
+     * 把接收方“已经确认收到哪条消息”写回 conversations 表。
+     */
     @Override
     public long updateLatestReceivedSeq(long conversationId, long receiverUid, long latestReceivedSeq) {
         if (latestReceivedSeq < 0) {
@@ -135,6 +159,7 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
             }
 
             try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
+                // 这里用 GREATEST 只保留更大的值，重复确认或乱序确认都不会把进度写回去。
                 statement.setLong(1, latestReceivedSeq);
                 statement.setLong(2, conversationId);
                 try (ResultSet resultSet = statement.executeQuery()) {
@@ -149,6 +174,9 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         }
     }
 
+    /**
+     * 在给定连接上查询私聊会话的当前持久化状态。
+     */
     private Optional<PrivateConversationState> findPrivateConversation(Connection connection, long conversationId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(FIND_PRIVATE_CONVERSATION_SQL)) {
             statement.setLong(1, conversationId);
@@ -171,6 +199,9 @@ public final class JdbcReceiptConversationStateStore implements ReceiptConversat
         }
     }
 
+    /**
+     * 保存服务端内存里记住的私聊参与者和最新消息序号。
+     */
     private record ServerKnownPrivateConversation(long uidLow, long uidHigh, long latestSeq) {
     }
 }

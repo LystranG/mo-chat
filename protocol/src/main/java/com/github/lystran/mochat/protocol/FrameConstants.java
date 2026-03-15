@@ -1,5 +1,8 @@
 package com.github.lystran.mochat.protocol;
 
+/**
+ * 放聊天 TCP 固定头的长度、偏移位置等常量。
+ */
 public final class FrameConstants {
     public static final int MAGIC_BYTES = 4;
     public static final int VERSION_BYTES = 1;
@@ -17,6 +20,9 @@ public final class FrameConstants {
     public static final int PROTOCOL_VERSION = 1;
     public static final int DEFAULT_MAX_FRAME_LENGTH = 64 * 1024;
 
+    /**
+     * 这个类只放常量，不需要实例。
+     */
     private FrameConstants() {
     }
 }

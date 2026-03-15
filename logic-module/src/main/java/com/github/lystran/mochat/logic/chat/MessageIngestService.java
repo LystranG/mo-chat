@@ -22,6 +22,9 @@ import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 
+/**
+ * 处理消息发送主流程：校验内容、分配序号、写入 MQ，再把确认和消息发给对应用户。
+ */
 @Singleton
 public class MessageIngestService {
     public static final String DEFAULT_OUTBOUND_TOPIC = "connection.outbound";
@@ -37,6 +40,9 @@ public class MessageIngestService {
     private final MessageRelationshipRepository messageRelationshipRepository;
     private final String outboundTopic;
 
+    /**
+     * 使用默认时钟和默认发送事件通道构造消息发送服务。
+     */
     @Inject
     public MessageIngestService(
         ConversationLock conversationLock,
@@ -62,6 +68,9 @@ public class MessageIngestService {
         );
     }
 
+    /**
+     * 使用内存版确认状态仓储和默认关系校验构造消息发送服务。
+     */
     public MessageIngestService(
         ConversationLock conversationLock,
         IdempotencyStore idempotencyStore,
@@ -84,6 +93,9 @@ public class MessageIngestService {
         );
     }
 
+    /**
+     * 使用完整依赖构造消息发送服务。
+     */
     public MessageIngestService(
         ConversationLock conversationLock,
         IdempotencyStore idempotencyStore,
@@ -108,6 +120,9 @@ public class MessageIngestService {
         this.outboundTopic = Objects.requireNonNull(outboundTopic, "outboundTopic");
     }
 
+    /**
+     * 使用默认关系校验构造消息发送服务。
+     */
     public MessageIngestService(
         ConversationLock conversationLock,
         IdempotencyStore idempotencyStore,
@@ -133,19 +148,26 @@ public class MessageIngestService {
         );
     }
 
+    /**
+     * 执行消息发送主流程，并返回最终的消息编号与序号。
+     */
     public MessageIngestResult ingest(MessageIngestRequest request) {
         Objects.requireNonNull(request, "request");
 
+        // 同一 conversation 的发送流程在锁里串行执行，确保“查重 -> 分配 seq -> 有序发 MQ”看到的是同一条顺序视图，
+        // 否则并发重试可能拿到两个 seq，或者让后到消息先进入持久化链路。
         AutoCloseable lockHandle = conversationLock.acquire(request.conversationId());
         try {
             var storedResult = idempotencyStore.find(request.senderUid(), request.clientMsgId());
             if (storedResult.isPresent()) {
                 var existing = storedResult.get();
                 long serverTimeMs = clock.millis();
+                // 客户端重试时如果命中幂等记录，服务端只把上次的确认再回一遍，不会重新生成 msgId / seq。
                 emitSendAck(request.senderUid(), request.clientMsgId(), existing.msgId(), existing.seq(), serverTimeMs);
                 return new MessageIngestResult(request.clientMsgId(), existing.msgId(), existing.seq(), serverTimeMs);
             }
 
+            // 先做业务合法性校验，再分配 seq 和 msgId，避免无效请求消耗顺序号。
             validatePrivateConversationParticipants(request);
             validateRelationship(request);
             validatePrivatePayload(request);
@@ -155,6 +177,7 @@ public class MessageIngestService {
             long serverTimeMs = clock.millis();
             MessageAcceptedEvent acceptedEvent = toAcceptedEvent(request, msgId, seq, serverTimeMs);
 
+            // 给发送方的确认只能在 RocketMQ 明确写成功后再回；失败时宁可让客户端重试，也不能先回确认再丢消息。
             boolean published;
             try {
                 published = rocketMqProducer.publishOrdered(acceptedEvent);
@@ -185,6 +208,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 把统一请求改成发给持久化链路的消息记录。
+     */
     private static MessageAcceptedEvent toAcceptedEvent(MessageIngestRequest request, long msgId, long seq, long serverTimeMs) {
         if (MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
             return MessageAcceptedEvent.privateMessage(
@@ -214,6 +240,9 @@ public class MessageIngestService {
         throw new IllegalArgumentException("unsupported message kind: " + request.kind());
     }
 
+    /**
+     * 在私聊场景下刷新服务端已知的最新会话状态。
+     */
     private void trackPrivateConversation(MessageIngestRequest request, long seq) {
         if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
             return;
@@ -227,6 +256,9 @@ public class MessageIngestService {
         );
     }
 
+    /**
+     * 校验私聊消息与已知会话参与者信息是否一致。
+     */
     private void validatePrivateConversationParticipants(MessageIngestRequest request) {
         if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
             return;
@@ -246,11 +278,15 @@ public class MessageIngestService {
 
         var conversationState = receiptConversationStateStore.findPrivateConversation(request.conversationId())
             .orElseThrow(() -> new IllegalArgumentException("private conversation not found: " + request.conversationId()));
+        // 私聊会话一旦建立，后续发送必须继续使用同一对有序参与者，防止伪造 conversationId 串线。
         if (conversationState.uidLow() != request.peerUidLow() || conversationState.uidHigh() != request.peerUidHigh()) {
             throw new IllegalArgumentException("private conversation participants mismatch");
         }
     }
 
+    /**
+     * 校验私聊消息内容是否满足协议要求。
+     */
     private void validatePrivatePayload(MessageIngestRequest request) {
         if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
             return;
@@ -272,6 +308,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 校验私聊好友关系或群成员关系是否允许发送消息。
+     */
     private void validateRelationship(MessageIngestRequest request) {
         if (MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
             MessageRelationshipRepository.PrivateMessageState state = messageRelationshipRepository.privateMessageState(
@@ -279,6 +318,7 @@ public class MessageIngestService {
                 request.peerUidLow(),
                 request.peerUidHigh()
             );
+            // 先把好友关系查清楚，再给发送方回确认；这样被拉黑或根本不是好友的消息不会进后面的顺序发送链路。
             if (state == MessageRelationshipRepository.PrivateMessageState.NOT_FRIEND) {
                 throw new MessageRejectException(ErrorCode.NOT_FRIEND, "private message requires active friendship");
             }
@@ -301,6 +341,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 校验群聊消息内容和请求里的群信息是否一致。
+     */
     private void validateGroupPayload(MessageIngestRequest request) {
         if (!MessageIngestRequest.KIND_GROUP.equals(request.kind())) {
             return;
@@ -322,6 +365,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 给发送方回发送成功确认。
+     */
     private void emitSendAck(long senderUid, long clientMsgId, long msgId, long seq, long serverTimeMs) {
         var sendAck = Mochat.SendAck.newBuilder()
             .setClientMsgId(clientMsgId)
@@ -333,6 +379,9 @@ public class MessageIngestService {
         emitOutboundEvent(senderUid, MsgType.SEND_ACK, sendAck.toByteArray());
     }
 
+    /**
+     * 在私聊场景下把消息发给接收方。
+     */
     private void emitPrivateDelivery(MessageIngestRequest request, long msgId, long seq, long serverTimeMs) {
         if (!MessageIngestRequest.KIND_PRIVATE.equals(request.kind())) {
             return;
@@ -351,6 +400,9 @@ public class MessageIngestService {
         emitOutboundEvent(recipientUid, MsgType.PRIVATE_MESSAGE, delivery.toByteArray());
     }
 
+    /**
+     * 在群聊场景下把消息发给群里其他成员。
+     */
     private void emitGroupDelivery(MessageIngestRequest request, long msgId, long seq, long serverTimeMs) {
         if (!MessageIngestRequest.KIND_GROUP.equals(request.kind())) {
             return;
@@ -358,6 +410,7 @@ public class MessageIngestService {
 
         long groupId = Objects.requireNonNull(request.groupId(), "groupId");
         Mochat.GroupPayload groupPayload = buildGroupPayload(request.payloadBase64(), groupId);
+        // 这里先去重，再固定一份当前成员名单，避免仓储返回重复成员，或遍历时名单发生变化。
         for (Long recipientUid : new LinkedHashSet<>(messageRelationshipRepository.listActiveGroupMemberIds(groupId))) {
             if (recipientUid == null || recipientUid <= 0 || recipientUid == request.senderUid()) {
                 continue;
@@ -375,6 +428,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 从原始私聊请求里拆出接收方真正需要的消息内容。
+     */
     private Mochat.PrivatePayload buildPrivatePayload(String requestPayloadBase64, long recipientUid) {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
@@ -389,6 +445,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 从原始群聊请求里拆出后面转发要用的群消息内容。
+     */
     private Mochat.GroupPayload buildGroupPayload(String requestPayloadBase64, long groupId) {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
@@ -402,6 +461,9 @@ public class MessageIngestService {
         }
     }
 
+    /**
+     * 根据发送方和有序参与者信息解析私聊接收方 ID。
+     */
     private long resolvePrivateRecipientUid(long senderUid, Long peerUidLow, Long peerUidHigh) {
         if (peerUidLow == null || peerUidHigh == null) {
             throw new IllegalStateException("private message requires both peer uids");
@@ -417,6 +479,9 @@ public class MessageIngestService {
         throw new IllegalStateException("sender must be one of private conversation peers");
     }
 
+    /**
+     * 把协议消息编码成事件总线使用的字符串，再发到连接层。
+     */
     private void emitOutboundEvent(long userId, MsgType msgType, byte[] payloadBytes) {
         String encodedPayload = Base64.getEncoder().encodeToString(payloadBytes);
         String outboundEvent = userId
@@ -429,6 +494,9 @@ public class MessageIngestService {
         eventBus.publish(outboundTopic, outboundEvent);
     }
 
+    /**
+     * 关闭会话锁句柄，并把受检异常包装成运行时异常。
+     */
     private static void closeLock(AutoCloseable lockHandle) {
         try {
             lockHandle.close();

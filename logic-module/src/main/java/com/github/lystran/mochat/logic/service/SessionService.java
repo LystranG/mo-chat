@@ -10,14 +10,21 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * 负责签发、解析和撤销登录 session，并让 Redis 与本地缓存保持一致。
+ */
 @Singleton
 public final class SessionService implements SessionResolver {
     private static final String DEFAULT_SESSION_KEY_PREFIX = "mochat:session:";
 
     private final RedisCommands<String, String> redisCommands;
+    // 这份本地缓存只负责加速，真正决定 session 是否有效的还是 Redis。
     private final Cache<String, Long> l2Cache;
     private final String sessionKeyPrefix;
 
+    /**
+     * 使用默认本地缓存配置构造 session 服务。
+     */
     public SessionService(RedisCommands<String, String> redisCommands) {
         this(
             redisCommands,
@@ -26,10 +33,16 @@ public final class SessionService implements SessionResolver {
         );
     }
 
+    /**
+     * 使用指定本地缓存和默认 key 前缀构造 session 服务。
+     */
     public SessionService(RedisCommands<String, String> redisCommands, Cache<String, Long> l2Cache) {
         this(redisCommands, l2Cache, DEFAULT_SESSION_KEY_PREFIX);
     }
 
+    /**
+     * 使用完整依赖构造 session 服务。
+     */
     public SessionService(
         RedisCommands<String, String> redisCommands,
         Cache<String, Long> l2Cache,
@@ -40,6 +53,9 @@ public final class SessionService implements SessionResolver {
         this.sessionKeyPrefix = Objects.requireNonNull(sessionKeyPrefix, "sessionKeyPrefix");
     }
 
+    /**
+     * 为指定用户签发新的 session，并同步写入 Redis 和本地缓存。
+     */
     public String issueSession(long userId) {
         String sessionId = UUID.randomUUID().toString();
         redisCommands.set(redisKey(sessionId), Long.toString(userId));
@@ -47,12 +63,16 @@ public final class SessionService implements SessionResolver {
         return sessionId;
     }
 
+    /**
+     * 解析 session 对应的用户 ID。
+     */
     @Override
     public Optional<Long> resolveUserId(String sessionId) {
         if (!hasText(sessionId)) {
             return Optional.empty();
         }
 
+        // Redis 是 session 真相源，进程内 Caffeine 只做读加速；先查 Redis 才能让 revoke 和异常值修正立即生效。
         String redisValue = redisCommands.get(redisKey(sessionId));
         if (redisValue == null) {
             l2Cache.invalidate(sessionId);
@@ -72,6 +92,9 @@ public final class SessionService implements SessionResolver {
         }
     }
 
+    /**
+     * 撤销指定 session，并清理 Redis 与本地缓存中的对应条目。
+     */
     public void revoke(String sessionId) {
         if (!hasText(sessionId)) {
             return;
@@ -81,10 +104,16 @@ public final class SessionService implements SessionResolver {
         l2Cache.invalidate(sessionId);
     }
 
+    /**
+     * 生成 Redis 中存放 session 的完整 key。
+     */
     private String redisKey(String sessionId) {
         return sessionKeyPrefix + sessionId;
     }
 
+    /**
+     * 判断字符串是否包含有效文本内容。
+     */
     private static boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }

@@ -21,6 +21,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Objects;
 
+/**
+ * 负责挑一个当前机器能用的底层网络实现，并启动或关闭聊天 TCP 服务。
+ */
 public final class NettyChatServer {
     private final int port;
     private final ChatChannelInitializer channelInitializer;
@@ -31,6 +34,9 @@ public final class NettyChatServer {
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
 
+    /**
+     * 用默认的底层网络选择规则，以及带 TLS 的连接处理顺序创建聊天服务。
+     */
     public NettyChatServer(int port, EventBus eventBus, SslContext sslContext) {
         this(
             port,
@@ -41,10 +47,16 @@ public final class NettyChatServer {
         );
     }
 
+    /**
+     * 用默认的底层网络选择规则创建聊天服务。
+     */
     public NettyChatServer(int port, ChatChannelInitializer channelInitializer) {
         this(port, channelInitializer, NettyChatServer::selectTransport, NettyChatServer::bindServerChannel);
     }
 
+    /**
+     * 把“选哪种底层网络实现”和“怎么绑定端口”抽出来，方便测试替换。
+     */
     NettyChatServer(
         int port,
         ChatChannelInitializer channelInitializer,
@@ -57,11 +69,15 @@ public final class NettyChatServer {
         this.serverBinder = Objects.requireNonNull(serverBinder, "serverBinder");
     }
 
+    /**
+     * 启动聊天 TCP 服务；如果最先尝试的 io_uring 起不来，就改用 epoll 或 NIO。
+     */
     public synchronized void start() throws InterruptedException {
         if (serverChannel != null) {
             return;
         }
 
+        // 固定做法是先试 io_uring，起不来就改用 epoll/NIO；换哪种底层实现，不会改变上层收发协议。
         var preferredTransport = transportSelector.select(true);
         try {
             startWithTransport(preferredTransport);
@@ -90,6 +106,9 @@ public final class NettyChatServer {
         }
     }
 
+    /**
+     * 关闭监听端口和底层线程组。
+     */
     public synchronized void stop() {
         if (serverChannel != null) {
             serverChannel.close().syncUninterruptibly();
@@ -98,6 +117,9 @@ public final class NettyChatServer {
         shutdownGroups();
     }
 
+    /**
+     * 构造仅允许 TLS 1.3 的服务端 SSL 上下文。
+     */
     public static SslContext buildTls13Context(File certificateChain, File privateKey) throws SSLException {
         var provider = OpenSsl.isAvailable() ? SslProvider.OPENSSL : SslProvider.JDK;
         return SslContextBuilder
@@ -107,6 +129,9 @@ public final class NettyChatServer {
             .build();
     }
 
+    /**
+     * 选出当前环境里能用的底层网络实现。
+     */
     private static TransportSelection selectTransport(boolean allowIoUring) {
         if (allowIoUring) {
             var ioUringSelection = tryIoUringSelection();
@@ -132,8 +157,12 @@ public final class NettyChatServer {
         );
     }
 
+    /**
+     * 用反射试探并初始化 io_uring 这一套底层网络实现。
+     */
     private static TransportSelection tryIoUringSelection() {
         try {
+            // 这里不用写死依赖，而是运行时试一下：机器不支持 io_uring 也还能正常启动。
             Class<?> ioUringClass = Class.forName("io.netty.incubator.channel.uring.IOUring");
             Method isAvailableMethod = ioUringClass.getMethod("isAvailable");
             boolean available = (boolean) isAvailableMethod.invoke(null);
@@ -156,6 +185,7 @@ public final class NettyChatServer {
                 boss = (EventLoopGroup) bossConstructor.newInstance(1);
                 worker = (EventLoopGroup) workerConstructor.newInstance();
             } catch (ReflectiveOperationException | RuntimeException innerException) {
+                // 只要任意一组线程没建好，就把已经建出来的先收掉，再改用普通实现。
                 shutdownQuietly(worker);
                 shutdownQuietly(boss);
                 return null;
@@ -170,12 +200,18 @@ public final class NettyChatServer {
         }
     }
 
+    /**
+     * 用选中的底层网络实现创建线程组并绑定监听端口。
+     */
     private void startWithTransport(TransportSelection transport) throws InterruptedException {
         this.bossGroup = transport.bossGroup();
         this.workerGroup = transport.workerGroup();
         this.serverChannel = serverBinder.bind(port, channelInitializer, transport);
     }
 
+    /**
+     * 按给定的底层网络实现配置并绑定 Netty 服务端连接。
+     */
     private static Channel bindServerChannel(
         int port,
         ChatChannelInitializer channelInitializer,
@@ -190,6 +226,9 @@ public final class NettyChatServer {
             .channel();
     }
 
+    /**
+     * 关闭当前持有的 boss/worker 事件循环组。
+     */
     private void shutdownGroups() {
         if (workerGroup != null) {
             workerGroup.shutdownGracefully().syncUninterruptibly();
@@ -201,23 +240,35 @@ public final class NettyChatServer {
         }
     }
 
+    /**
+     * 在试探或改用别的实现时，静默收掉临时创建的线程组。
+     */
     private static void shutdownQuietly(EventLoopGroup eventLoopGroup) {
         if (eventLoopGroup != null) {
             eventLoopGroup.shutdownGracefully().syncUninterruptibly();
         }
     }
 
+    /**
+     * 把“挑底层网络实现”这件事抽出来，测试时好替换。
+     */
     @FunctionalInterface
     interface TransportSelector {
         TransportSelection select(boolean allowIoUring);
     }
 
+    /**
+     * 把“真正去绑定端口”这件事抽出来，测试时好替换。
+     */
     @FunctionalInterface
     interface ServerBinder {
         Channel bind(int port, ChatChannelInitializer channelInitializer, TransportSelection transport)
             throws InterruptedException;
     }
 
+    /**
+     * 描述一次底层网络选择的结果，以及跟它一起创建出来的资源。
+     */
     record TransportSelection(
         EventLoopGroup bossGroup,
         EventLoopGroup workerGroup,

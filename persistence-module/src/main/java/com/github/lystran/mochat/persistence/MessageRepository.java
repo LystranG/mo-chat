@@ -6,6 +6,9 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Objects;
 
+/**
+ * 负责把单条消息原样写进 messages 表。
+ */
 public final class MessageRepository {
     private static final String INSERT_SQL = """
         INSERT INTO messages (
@@ -23,6 +26,7 @@ public final class MessageRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
+    // 插入一整行消息数据，写进去的列和 messages 表里的列是一一对应的。
     public void insert(Connection connection, PersistedMessage message) throws SQLException {
         Objects.requireNonNull(connection, "connection");
         Objects.requireNonNull(message, "message");
@@ -43,6 +47,9 @@ public final class MessageRepository {
         }
     }
 
+    /**
+     * 表示已经整理成“可以直接写数据库”的消息数据。
+     */
     public record PersistedMessage(
         long msgId,
         long conversationId,
@@ -56,6 +63,7 @@ public final class MessageRepository {
         long serverTsMs,
         String payloadBase64
     ) {
+        // 先拦住最基本的空字段，避免把半截消息直接交给 JDBC 去写。
         public PersistedMessage {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(payloadBase64, "payloadBase64");

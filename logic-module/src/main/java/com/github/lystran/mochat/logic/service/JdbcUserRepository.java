@@ -12,6 +12,9 @@ import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 基于 JDBC 的用户资料仓储，实现登录注册所需的用户查询与创建。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcUserRepository implements UserRepository {
@@ -30,11 +33,17 @@ public final class JdbcUserRepository implements UserRepository {
     private final DataSource dataSource;
     private final IdGenerator idGenerator;
 
+    /**
+     * 使用数据源和 ID 生成器构造 JDBC 用户仓储。
+     */
     public JdbcUserRepository(DataSource dataSource, IdGenerator idGenerator) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
     }
 
+    /**
+     * 通过用户名查询已存在的用户资料。
+     */
     @Override
     public Optional<UserProfile> findByUsername(String username) {
         try (Connection connection = dataSource.getConnection()) {
@@ -44,6 +53,9 @@ public final class JdbcUserRepository implements UserRepository {
         }
     }
 
+    /**
+     * 尝试创建用户，若并发下已被其他请求创建则回查既有记录。
+     */
     @Override
     public UserProfile create(String username, byte[] identityPublicKey) {
         try (Connection connection = dataSource.getConnection();
@@ -64,6 +76,9 @@ public final class JdbcUserRepository implements UserRepository {
         }
     }
 
+    /**
+     * 在复用连接的场景下执行用户名查询。
+     */
     private Optional<UserProfile> findByUsername(Connection connection, String username) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(FIND_BY_USERNAME_SQL)) {
             statement.setString(1, username);
@@ -76,6 +91,9 @@ public final class JdbcUserRepository implements UserRepository {
         }
     }
 
+    /**
+     * 将 JDBC 查询结果映射为领域层用户资料对象。
+     */
     private static UserProfile mapUserProfile(ResultSet resultSet) throws SQLException {
         return new UserProfile(
             resultSet.getLong(1),

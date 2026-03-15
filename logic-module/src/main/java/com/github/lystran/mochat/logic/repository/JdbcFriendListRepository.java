@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 基于 JDBC 读取好友列表。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcFriendListRepository implements FriendListRepository {
@@ -29,11 +32,13 @@ public final class JdbcFriendListRepository implements FriendListRepository {
 
     private final DataSource dataSource;
 
+    // 注入 JDBC 数据源。
     public JdbcFriendListRepository(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 
     @Override
+    // 查询用户当前处于 ok 状态的好友列表。
     public List<FriendRow> listActiveFriends(long userId) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(LIST_ACTIVE_FRIENDS_SQL)) {

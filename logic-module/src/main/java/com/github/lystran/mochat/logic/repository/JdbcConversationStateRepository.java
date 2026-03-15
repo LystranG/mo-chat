@@ -11,6 +11,9 @@ import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 基于 JDBC 查询“用户能不能看这个会话”、对方收到哪条，以及最后一条消息状态。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcConversationStateRepository implements ConversationStateRepository {
@@ -57,11 +60,13 @@ public final class JdbcConversationStateRepository implements ConversationStateR
 
     private final DataSource dataSource;
 
+    // 注入 JDBC 数据源。
     public JdbcConversationStateRepository(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 
     @Override
+    // 判断请求方是否属于私聊参与者或群活跃成员。
     public boolean hasConversationAccess(long conversationId, long requesterUid) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(HAS_CONVERSATION_ACCESS_SQL)) {
@@ -81,6 +86,7 @@ public final class JdbcConversationStateRepository implements ConversationStateR
     }
 
     @Override
+    // 查询私聊里“对方已经收到”的消息编号；如果不是这场私聊的参与者，就返回空。
     public Optional<Long> findPrivatePeerLatestReceivedSeq(long conversationId, long requesterUid) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(FIND_PRIVATE_RECEIPT_STATE_SQL)) {
@@ -94,6 +100,7 @@ public final class JdbcConversationStateRepository implements ConversationStateR
                 long uidHigh = resultSet.getLong(2);
                 long uidLowSeq = resultSet.getLong(3);
                 long uidHighSeq = resultSet.getLong(4);
+                // conversations 表把双方各自收到哪条分开存着，这里要换算成“当前这个人看到的对方收到哪条”。
                 if (requesterUid == uidLow) {
                     return Optional.of(uidHighSeq);
                 }
@@ -108,6 +115,7 @@ public final class JdbcConversationStateRepository implements ConversationStateR
     }
 
     @Override
+    // 查询会话最后一条消息的状态。
     public Optional<ConversationLatestState> findConversationLatestState(long conversationId) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(FIND_CONVERSATION_LATEST_STATE_SQL)) {

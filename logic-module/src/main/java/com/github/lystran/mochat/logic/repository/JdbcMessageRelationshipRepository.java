@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 基于 JDBC 查询私聊关系状态和群成员资格。
+ */
 @Singleton
 @Requires(beans = DataSource.class)
 public final class JdbcMessageRelationshipRepository implements MessageRelationshipRepository {
@@ -41,11 +44,13 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
 
     private final DataSource dataSource;
 
+    // 注入 JDBC 数据源。
     public JdbcMessageRelationshipRepository(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
     }
 
     @Override
+    // 读取这场私聊现在到底是好友、已拉黑，还是根本不是好友。
     public PrivateMessageState privateMessageState(long conversationId, long peerUidLow, long peerUidHigh) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(FIND_PRIVATE_RELATIONSHIP_SQL)) {
@@ -54,6 +59,7 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
             statement.setLong(3, peerUidHigh);
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (!resultSet.next()) {
+                    // 私聊会话在关系表里不存在时，统一按“不是好友”处理。
                     return PrivateMessageState.NOT_FRIEND;
                 }
                 return switch (resultSet.getString(1)) {
@@ -68,6 +74,7 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
     }
 
     @Override
+    // 判断用户是否仍是群的活跃成员。
     public boolean isActiveGroupMember(long groupId, long userId) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(HAS_ACTIVE_GROUP_MEMBER_SQL)) {
@@ -85,6 +92,7 @@ public final class JdbcMessageRelationshipRepository implements MessageRelations
     }
 
     @Override
+    // 查出群里所有还在群里的成员 ID，群发时就按这份名单往外发。
     public List<Long> listActiveGroupMemberIds(long groupId) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(LIST_ACTIVE_GROUP_MEMBERS_SQL)) {
