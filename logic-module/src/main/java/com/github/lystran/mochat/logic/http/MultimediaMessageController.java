@@ -36,39 +36,40 @@ public class MultimediaMessageController {
         if (senderUidOpt.isEmpty()) {
             return HttpResponse.unauthorized().body(Map.of("error", "invalid session"));
         }
-        
+
         long senderUid = senderUidOpt.get();
         long clientMsgId = idGenerator.nextId();
         long conversationId = calculateConversationId(senderUid, request.toUid());
 
         var multimediaMetadata = new MessageIngestRequest.MultimediaMetadata(
-            request.messageType(),
-            request.mediaUrl(),
-            request.thumbnailUrl(),
-            request.fileSize(),
-            request.mimeType(),
-            request.fileName(),
-            request.duration(),
-            request.width(),
-            request.height()
+                request.messageType(),
+                request.mediaUrl(),
+                request.thumbnailUrl(),
+                request.fileSize(),
+                request.mimeType(),
+                request.fileName(),
+                request.duration(),
+                request.width(),
+                request.height(),
+                request.waveformData()
         );
 
         var ingestRequest = MessageIngestRequest.privateMultimediaMessage(
-            senderUid,
-            conversationId,
-            clientMsgId,
-            Math.min(senderUid, request.toUid()),
-            Math.max(senderUid, request.toUid()),
-            request.payloadBase64(),
-            multimediaMetadata
+                senderUid,
+                conversationId,
+                clientMsgId,
+                Math.min(senderUid, request.toUid()),
+                Math.max(senderUid, request.toUid()),
+                request.payloadBase64(),
+                multimediaMetadata
         );
 
         messageIngestService.ingest(ingestRequest);
 
         return HttpResponse.ok(Map.of(
-            "success", true,
-            "clientMsgId", clientMsgId,
-            "conversationId", conversationId
+                "success", true,
+                "clientMsgId", clientMsgId,
+                "conversationId", conversationId
         ));
     }
 
@@ -78,37 +79,38 @@ public class MultimediaMessageController {
         if (senderUidOpt.isEmpty()) {
             return HttpResponse.unauthorized().body(Map.of("error", "invalid session"));
         }
-        
+
         long senderUid = senderUidOpt.get();
         long clientMsgId = idGenerator.nextId();
 
         var multimediaMetadata = new MessageIngestRequest.MultimediaMetadata(
-            request.messageType(),
-            request.mediaUrl(),
-            request.thumbnailUrl(),
-            request.fileSize(),
-            request.mimeType(),
-            request.fileName(),
-            request.duration(),
-            request.width(),
-            request.height()
+                request.messageType(),
+                request.mediaUrl(),
+                request.thumbnailUrl(),
+                request.fileSize(),
+                request.mimeType(),
+                request.fileName(),
+                request.duration(),
+                request.width(),
+                request.height(),
+                request.waveformData()
         );
 
         var ingestRequest = MessageIngestRequest.groupMultimediaMessage(
-            senderUid,
-            request.conversationId(),
-            clientMsgId,
-            request.groupId(),
-            request.payloadBase64(),
-            multimediaMetadata
+                senderUid,
+                request.conversationId(),
+                clientMsgId,
+                request.groupId(),
+                request.payloadBase64(),
+                multimediaMetadata
         );
 
         messageIngestService.ingest(ingestRequest);
 
         return HttpResponse.ok(Map.of(
-            "success", true,
-            "clientMsgId", clientMsgId,
-            "conversationId", request.conversationId()
+                "success", true,
+                "clientMsgId", clientMsgId,
+                "conversationId", request.conversationId()
         ));
     }
 
@@ -117,20 +119,21 @@ public class MultimediaMessageController {
     }
 
     public record SendMultimediaRequest(
-        String sessionId,
-        long toUid,
-        Long groupId,
-        long conversationId,
-        String messageType,
-        String mediaUrl,
-        String thumbnailUrl,
-        long fileSize,
-        String mimeType,
-        String fileName,
-        Integer duration,
-        Integer width,
-        Integer height,
-        String payloadBase64
+            String sessionId,
+            long toUid,
+            Long groupId,
+            long conversationId,
+            String messageType,
+            String mediaUrl,
+            String thumbnailUrl,
+            long fileSize,
+            String mimeType,
+            String fileName,
+            Integer duration,
+            Integer width,
+            Integer height,
+            String payloadBase64,
+            @Nullable String waveformData
     ) {
         public SendMultimediaRequest {
             if (sessionId == null || sessionId.isBlank()) {
@@ -160,8 +163,8 @@ public class MultimediaMessageController {
         }
 
         private static boolean isValidMessageType(String type) {
-            return "image".equals(type) || "video".equals(type) || 
-                   "audio".equals(type) || "file".equals(type);
+            return "image".equals(type) || "video".equals(type) ||
+                    "audio".equals(type) || "file".equals(type);
         }
     }
 }

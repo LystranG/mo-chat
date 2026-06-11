@@ -1,17 +1,15 @@
 package com.github.lystran.mochat.logic.service;
 
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -24,19 +22,25 @@ import java.util.UUID;
 
 @Singleton
 public class MediaStorageService {
-    
+
+    private static final Logger log = LoggerFactory.getLogger(MediaStorageService.class);
+
     private final S3Client s3Client;
     private final S3Presigner presigner;
     private final String bucketName;
     private final long maxFileSize;
     private final ThumbnailService thumbnailService;
+    private final AudioProcessingService audioProcessingService;
 
-    public MediaStorageService(MediaStorageConfig config, ThumbnailService thumbnailService) {
+    public MediaStorageService(MediaStorageConfig config, ThumbnailService thumbnailService, AudioProcessingService audioProcessingService) {
         Objects.requireNonNull(config, "config");
         this.thumbnailService = Objects.requireNonNull(thumbnailService, "thumbnailService");
+        this.audioProcessingService = Objects.requireNonNull(audioProcessingService, "audioProcessingService");
 
         RustfsConfig rustfsConfig = config.rustfs();
         String endpoint = rustfsConfig.endpoint();
+
+        log.info("Initializing MediaStorageService with RustFS endpoint={}", endpoint);
 
         this.s3Client = S3Client.builder()
                 .endpointOverride(URI.create(endpoint))
@@ -64,6 +68,7 @@ public class MediaStorageService {
         this.maxFileSize = config.maxFileSize();
 
         initializeBucket();
+        log.info("MediaStorageService initialized successfully, bucket={}", bucketName);
     }
 
     private void initializeBucket() {
@@ -72,9 +77,9 @@ public class MediaStorageService {
                 .bucket(bucketName)
                 .build()
             );
-            
+
             // 如果 headBucket 成功，说明桶已存在，无需创建
-            
+
         } catch (software.amazon.awssdk.services.s3.model.NoSuchBucketException e) {
             // 桶不存在，创建它
             try {
@@ -90,54 +95,92 @@ public class MediaStorageService {
             System.err.println("Warning: Failed to check/create RustFS bucket: " + e.getMessage());
         }
     }
-    
+
     public MediaUploadResult upload(byte[] data, String originalFilename, String mimeType) {
         validateFile(data.length, mimeType);
-        
+
+        log.info("Uploading media file, filename={}, mimeType={}, size={} bytes", 
+                originalFilename, mimeType, data.length);
+
         String objectName = generateObjectName(originalFilename);
-        
+
         try {
-            s3Client.putObject(PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectName)
-                .contentType(mimeType)
-                .contentLength((long) data.length)
-                .build(), RequestBody.fromBytes(data)
-            );
-            
+            byte[] processedData = data;
             String mediaUrl = buildMediaUrl(objectName);
             String thumbnailUrl = null;
-            
+            String waveformData = null;
+
             if (isImageType(mimeType)) {
+                log.info("Processing image file, generating thumbnail");
                 try {
                     byte[] thumbnailData = thumbnailService.generateThumbnail(data, mimeType);
                     String thumbnailObjectName = generateThumbnailObjectName(objectName);
-                    
+
                     s3Client.putObject(PutObjectRequest.builder()
-                        .bucket(bucketName)
-                        .key(thumbnailObjectName)
-                        .contentType(mimeType)
-                        .contentLength((long) thumbnailData.length)
-                        .build(), RequestBody.fromBytes(thumbnailData)
+                            .bucket(bucketName)
+                            .key(thumbnailObjectName)
+                            .contentType(mimeType)
+                            .contentLength((long) thumbnailData.length)
+                            .build(), RequestBody.fromBytes(thumbnailData)
                     );
-                    
+
                     thumbnailUrl = buildMediaUrl(thumbnailObjectName);
+                    log.info("Thumbnail generated and uploaded, thumbnailUrl={}", thumbnailUrl);
                 } catch (IOException e) {
+                    log.error("Failed to generate thumbnail", e);
                     throw new RuntimeException("Failed to generate thumbnail", e);
                 }
+            } else if (isAudioType(mimeType)) {
+                log.info("Processing audio file, transcoding and generating waveform");
+                try {
+                    byte[] transcodedData = audioProcessingService.transcodeAudio(data, mimeType);
+                    if (transcodedData.length != data.length) {
+                        processedData = transcodedData;
+                        s3Client.putObject(PutObjectRequest.builder()
+                                .bucket(bucketName)
+                                .key(objectName)
+                                .contentType("audio/mpeg")
+                                .contentLength((long) processedData.length)
+                                .build(), RequestBody.fromBytes(processedData)
+                        );
+                        log.info("Audio transcoded and uploaded, newSize={} bytes", processedData.length);
+                    }
+                    
+                    waveformData = audioProcessingService.generateWaveformData(processedData, "audio/mpeg");
+                    log.info("Audio waveform generated, waveformDataSize={} bytes", waveformData.length());
+                } catch (IOException e) {
+                    log.error("Failed to process audio", e);
+                    throw new RuntimeException("Failed to process audio", e);
+                }
+            } else {
+                log.info("Uploading file without special processing");
+                s3Client.putObject(PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(objectName)
+                        .contentType(mimeType)
+                        .contentLength((long) data.length)
+                        .build(), RequestBody.fromBytes(data)
+                );
             }
-            
-            return new MediaUploadResult(
-                UUID.randomUUID().toString(),
-                mediaUrl,
-                thumbnailUrl,
-                objectName,
-                data.length,
-                mimeType,
-                originalFilename
+
+            MediaUploadResult result = new MediaUploadResult(
+                    UUID.randomUUID().toString(),
+                    mediaUrl,
+                    thumbnailUrl,
+                    objectName,
+                    processedData.length,
+                    isAudioType(mimeType) ? "audio/mpeg" : mimeType,
+                    originalFilename,
+                    waveformData
             );
             
+            log.info("Media upload completed successfully, mediaId={}, objectName={}", 
+                    result.mediaId(), objectName);
+            
+            return result;
+
         } catch (Exception e) {
+            log.error("Failed to upload media to RustFS, filename={}", originalFilename, e);
             throw new RuntimeException("Failed to upload media to RustFS", e);
         }
     }
@@ -225,7 +268,11 @@ public class MediaStorageService {
     private boolean isImageType(String mimeType) {
         return mimeType != null && mimeType.startsWith("image/");
     }
-    
+
+    private boolean isAudioType(String mimeType) {
+        return mimeType != null && mimeType.startsWith("audio/");
+    }
+
     private String generateThumbnailObjectName(String originalObjectName) {
         int lastDotIndex = originalObjectName.lastIndexOf('.');
         if (lastDotIndex > 0) {
@@ -235,14 +282,15 @@ public class MediaStorageService {
         }
         return originalObjectName + "_thumb";
     }
-    
+
     public record MediaUploadResult(
-        String mediaId,
-        String mediaUrl,
-        String thumbnailUrl,
-        String objectName,
-        long fileSize,
-        String mimeType,
-        String fileName
+            String mediaId,
+            String mediaUrl,
+            String thumbnailUrl,
+            String objectName,
+            long fileSize,
+            String mimeType,
+            String fileName,
+            String waveformData
     ) {}
 }

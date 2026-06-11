@@ -100,6 +100,7 @@ message MediaMetadata {
   int32 width = 8;
   int32 height = 9;
   string previewText = 10;
+  bytes waveformData = 11;
 }
 
 enum MediaType {

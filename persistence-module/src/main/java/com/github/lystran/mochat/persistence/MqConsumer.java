@@ -101,6 +101,7 @@ public final class MqConsumer implements MessagePersistencePort {
             null,
             null,
             null,
+            null,
             null
         );
     }

@@ -109,15 +109,16 @@ public record MessageIngestRequest(
     }
 
     public record MultimediaMetadata(
-        String type,
-        String mediaUrl,
-        String thumbnailUrl,
-        long fileSize,
-        String mimeType,
-        String fileName,
-        Integer duration,
-        Integer width,
-        Integer height
+            String type,
+            String mediaUrl,
+            String thumbnailUrl,
+            long fileSize,
+            String mimeType,
+            String fileName,
+            Integer duration,
+            Integer width,
+            Integer height,
+            String waveformData
     ) {
         public MultimediaMetadata {
             Objects.requireNonNull(type, "type");

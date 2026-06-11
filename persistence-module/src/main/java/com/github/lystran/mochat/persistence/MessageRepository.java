@@ -31,8 +31,9 @@ public final class MessageRepository {
             file_name,
             duration,
             width,
-            height
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            height,
+            waveform_data
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     public void insert(Connection connection, PersistedMessage message) throws SQLException {
@@ -60,43 +61,38 @@ public final class MessageRepository {
             statement.setObject(18, message.duration(), Types.INTEGER);
             statement.setObject(19, message.width(), Types.INTEGER);
             statement.setObject(20, message.height(), Types.INTEGER);
+            statement.setObject(21, message.waveformData(), Types.VARCHAR);
             statement.executeUpdate();
         }
     }
 
     public record PersistedMessage(
-        long msgId,
-        long conversationId,
-        long seq,
-        long clientMsgId,
-        String kind,
-        long senderUid,
-        Long peerUidLow,
-        Long peerUidHigh,
-        Long groupId,
-        long serverTsMs,
-        String payloadBase64,
-        String messageType,
-        String mediaUrl,
-        String thumbnailUrl,
-        Long fileSize,
-        String mimeType,
-        String fileName,
-        Integer duration,
-        Integer width,
-        Integer height
+            long msgId,
+            long conversationId,
+            long seq,
+            long clientMsgId,
+            String kind,
+            long senderUid,
+            Long peerUidLow,
+            Long peerUidHigh,
+            Long groupId,
+            long serverTsMs,
+            String payloadBase64,
+            String messageType,
+            String mediaUrl,
+            String thumbnailUrl,
+            Long fileSize,
+            String mimeType,
+            String fileName,
+            Integer duration,
+            Integer width,
+            Integer height,
+            String waveformData
     ) {
         public PersistedMessage {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(payloadBase64, "payloadBase64");
             Objects.requireNonNull(messageType, "messageType");
-            
-            if (!"text".equals(messageType) && mediaUrl == null) {
-                throw new IllegalArgumentException("mediaUrl is required for non-text messages");
-            }
-            if ("text".equals(messageType) && mediaUrl != null) {
-                throw new IllegalArgumentException("mediaUrl must be null for text messages");
-            }
         }
     }
 }

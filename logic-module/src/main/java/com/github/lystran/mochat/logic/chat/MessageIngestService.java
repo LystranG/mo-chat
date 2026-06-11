@@ -475,12 +475,12 @@ public class MessageIngestService {
 
     private Mochat.MediaMetadata convertToProtobuf(MessageIngestRequest.MultimediaMetadata metadata) {
         var builder = Mochat.MediaMetadata.newBuilder()
-            .setType(convertMediaType(metadata.type()))
-            .setMediaUrl(metadata.mediaUrl())
-            .setFileSize(metadata.fileSize())
-            .setMimeType(metadata.mimeType())
-            .setFileName(metadata.fileName());
-        
+                .setType(convertMediaType(metadata.type()))
+                .setMediaUrl(metadata.mediaUrl())
+                .setFileSize(metadata.fileSize())
+                .setMimeType(metadata.mimeType())
+                .setFileName(metadata.fileName());
+
         if (metadata.thumbnailUrl() != null) {
             builder.setThumbnailUrl(metadata.thumbnailUrl());
         }
@@ -493,7 +493,10 @@ public class MessageIngestService {
         if (metadata.height() != null) {
             builder.setHeight(metadata.height());
         }
-        
+        if (metadata.waveformData() != null) {
+            builder.setPreviewText(metadata.waveformData());
+        }
+
         return builder.build();
     }
 
