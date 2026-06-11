@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":protocol"))
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     implementation("io.micronaut:micronaut-http:4.9.0")
+    implementation("io.micronaut:micronaut-http-server-netty:4.9.0")
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     implementation("jakarta.inject:jakarta.inject-api:2.0.1")
     implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
@@ -19,6 +20,8 @@ dependencies {
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.1")
     implementation("commons-codec:commons-codec:1.17.2")
+    implementation("software.amazon.awssdk:s3:2.29.0")
+    implementation("software.amazon.awssdk:netty-nio-client:2.29.0")
 
     testAnnotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")

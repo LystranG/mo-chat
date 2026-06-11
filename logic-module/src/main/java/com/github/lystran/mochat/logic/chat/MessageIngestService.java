@@ -295,10 +295,14 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(request.payloadBase64());
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
-            if (privateRequest.getNonce().size() != 12) {
+            if (!privateRequest.hasEncryptedText()) {
+                throw new IllegalArgumentException("private message requires encryptedText content");
+            }
+            var encryptedText = privateRequest.getEncryptedText();
+            if (encryptedText.getNonce().size() != 12) {
                 throw new IllegalArgumentException("private message nonce must be exactly 12 bytes");
             }
-            if (privateRequest.getCiphertext().isEmpty()) {
+            if (encryptedText.getCiphertext().isEmpty()) {
                 throw new IllegalArgumentException("private message ciphertext is required");
             }
         } catch (InvalidProtocolBufferException exception) {
@@ -435,10 +439,14 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
+            if (!privateRequest.hasEncryptedText()) {
+                throw new IllegalStateException("private message requires encryptedText content");
+            }
+            var encryptedText = privateRequest.getEncryptedText();
             return Mochat.PrivatePayload.newBuilder()
                 .setToUid(recipientUid)
-                .setNonce(privateRequest.getNonce())
-                .setCiphertext(privateRequest.getCiphertext())
+                .setNonce(encryptedText.getNonce())
+                .setCiphertext(encryptedText.getCiphertext())
                 .build();
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build private delivery payload", parseFailure);
