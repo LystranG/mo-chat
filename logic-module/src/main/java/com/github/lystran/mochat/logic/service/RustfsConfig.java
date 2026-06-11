@@ -2,8 +2,8 @@ package com.github.lystran.mochat.logic.service;
 
 import io.micronaut.context.annotation.ConfigurationProperties;
 
-@ConfigurationProperties("rustfs")
-record RustfsConfig(
+@ConfigurationProperties("mochat.media.storage.rustfs")
+public record RustfsConfig(
         String endpoint,
         String accessKey,
         String secretKey,

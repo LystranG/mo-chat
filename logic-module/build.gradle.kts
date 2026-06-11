@@ -23,6 +23,8 @@ dependencies {
     implementation("software.amazon.awssdk:s3:2.29.0")
     implementation("software.amazon.awssdk:netty-nio-client:2.29.0")
 
+    implementation("net.coobird:thumbnailator:0.4.20")
+
     testAnnotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
     testImplementation("io.micronaut:micronaut-http-client:4.9.0")

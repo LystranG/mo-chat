@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
@@ -23,39 +24,41 @@ import java.util.UUID;
 
 @Singleton
 public class MediaStorageService {
-
+    
     private final S3Client s3Client;
     private final S3Presigner presigner;
     private final String bucketName;
     private final long maxFileSize;
+    private final ThumbnailService thumbnailService;
 
-    public MediaStorageService(MediaStorageConfig config) {
+    public MediaStorageService(MediaStorageConfig config, ThumbnailService thumbnailService) {
         Objects.requireNonNull(config, "config");
+        this.thumbnailService = Objects.requireNonNull(thumbnailService, "thumbnailService");
 
         RustfsConfig rustfsConfig = config.rustfs();
         String endpoint = rustfsConfig.endpoint();
 
         this.s3Client = S3Client.builder()
-            .endpointOverride(URI.create(endpoint))
-            .region(Region.of(rustfsConfig.region()))
-            .credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(rustfsConfig.accessKey(), rustfsConfig.secretKey())
-            ))
-            .serviceConfiguration(S3Configuration.builder()
-                .pathStyleAccessEnabled(true)
-                .build())
-            .build();
+                .endpointOverride(URI.create(endpoint))
+                .region(Region.of(rustfsConfig.region()))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(rustfsConfig.accessKey(), rustfsConfig.secretKey())
+                ))
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(true)
+                        .build())
+                .build();
 
         this.presigner = S3Presigner.builder()
-            .endpointOverride(URI.create(endpoint))
-            .region(Region.of(rustfsConfig.region()))
-            .credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(rustfsConfig.accessKey(), rustfsConfig.secretKey())
-            ))
-            .serviceConfiguration(S3Configuration.builder()
-                .pathStyleAccessEnabled(true)
-                .build())
-            .build();
+                .endpointOverride(URI.create(endpoint))
+                .region(Region.of(rustfsConfig.region()))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(rustfsConfig.accessKey(), rustfsConfig.secretKey())
+                ))
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(true)
+                        .build())
+                .build();
 
         this.bucketName = rustfsConfig.bucket();
         this.maxFileSize = config.maxFileSize();
@@ -65,27 +68,34 @@ public class MediaStorageService {
 
     private void initializeBucket() {
         try {
-            boolean exists = s3Client.headBucket(HeadBucketRequest.builder()
+            s3Client.headBucket(HeadBucketRequest.builder()
                 .bucket(bucketName)
                 .build()
-            ) != null;
-
-            if (!exists) {
+            );
+            
+            // 如果 headBucket 成功，说明桶已存在，无需创建
+            
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchBucketException e) {
+            // 桶不存在，创建它
+            try {
                 s3Client.createBucket(CreateBucketRequest.builder()
                     .bucket(bucketName)
                     .build()
                 );
+            } catch (Exception createException) {
+                throw new RuntimeException("Failed to create RustFS bucket: " + bucketName, createException);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize RustFS bucket: " + bucketName, e);
+            // 其他错误（如连接失败），记录警告但不阻止启动
+            System.err.println("Warning: Failed to check/create RustFS bucket: " + e.getMessage());
         }
     }
-
+    
     public MediaUploadResult upload(byte[] data, String originalFilename, String mimeType) {
         validateFile(data.length, mimeType);
-
+        
         String objectName = generateObjectName(originalFilename);
-
+        
         try {
             s3Client.putObject(PutObjectRequest.builder()
                 .bucket(bucketName)
@@ -94,18 +104,39 @@ public class MediaStorageService {
                 .contentLength((long) data.length)
                 .build(), RequestBody.fromBytes(data)
             );
-
+            
             String mediaUrl = buildMediaUrl(objectName);
-
+            String thumbnailUrl = null;
+            
+            if (isImageType(mimeType)) {
+                try {
+                    byte[] thumbnailData = thumbnailService.generateThumbnail(data, mimeType);
+                    String thumbnailObjectName = generateThumbnailObjectName(objectName);
+                    
+                    s3Client.putObject(PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(thumbnailObjectName)
+                        .contentType(mimeType)
+                        .contentLength((long) thumbnailData.length)
+                        .build(), RequestBody.fromBytes(thumbnailData)
+                    );
+                    
+                    thumbnailUrl = buildMediaUrl(thumbnailObjectName);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to generate thumbnail", e);
+                }
+            }
+            
             return new MediaUploadResult(
                 UUID.randomUUID().toString(),
                 mediaUrl,
+                thumbnailUrl,
                 objectName,
                 data.length,
                 mimeType,
                 originalFilename
             );
-
+            
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload media to RustFS", e);
         }
@@ -191,9 +222,24 @@ public class MediaStorageService {
         return "/media/download/" + objectName;
     }
 
+    private boolean isImageType(String mimeType) {
+        return mimeType != null && mimeType.startsWith("image/");
+    }
+    
+    private String generateThumbnailObjectName(String originalObjectName) {
+        int lastDotIndex = originalObjectName.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            String baseName = originalObjectName.substring(0, lastDotIndex);
+            String extension = originalObjectName.substring(lastDotIndex);
+            return baseName + "_thumb" + extension;
+        }
+        return originalObjectName + "_thumb";
+    }
+    
     public record MediaUploadResult(
         String mediaId,
         String mediaUrl,
+        String thumbnailUrl,
         String objectName,
         long fileSize,
         String mimeType,
