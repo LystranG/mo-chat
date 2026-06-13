@@ -8,10 +8,14 @@ plugins {
 }
 
 dependencies {
+    // 统一 Netty 版本，避免 lettuce/rocketmq 带入的旧版本与 Micronaut 4.2.x 冲突
+    implementation(platform("io.netty:netty-bom:4.2.2.Final"))
+
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     annotationProcessor("io.micronaut:micronaut-graal:4.9.0")
     implementation(project(":common"))
     implementation(project(":message-module"))
+    implementation(project(":call-module"))
     implementation(project(":logic-module"))
     implementation(project(":connection-module"))
     implementation(project(":infra-redis"))
@@ -28,6 +32,7 @@ dependencies {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")
         exclude(group = "com.squareup.okio")
+        exclude(group = "io.netty", module = "netty-all")
     }
     runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
     runtimeOnly("org.yaml:snakeyaml:2.4")

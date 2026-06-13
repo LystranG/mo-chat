@@ -29,8 +29,8 @@ mochat:
     topic-prefix: ${MOCHAT_REDIS_TOPIC_PREFIX:mochat}
   postgres:
     url: jdbc:postgresql://localhost:5432/mochat
-    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
-    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+    username: ${MOCHAT_POSTGRES_USERNAME:postgres}
+    password: ${MOCHAT_POSTGRES_PASSWORD:}
   rocketmq:
     name-server: localhost:9876
     producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-producer}
@@ -38,6 +38,10 @@ mochat:
       enabled: ${MOCHAT_ROCKETMQ_CONSUMER_ENABLED:true}
     consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
     topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    # 群通话离线通知：成员不在线时，通过 RocketMQ 异步投递到数据库
+    offline-notification:
+      topic: ${MOCHAT_CALL_OFFLINE_TOPIC:mochat.call.offline-notifications}
+      consumer-group: ${MOCHAT_CALL_OFFLINE_CONSUMER_GROUP:mochat-call-offline-consumer}
   tls:
     enabled: ${MOCHAT_TLS_ENABLED:true}
     self-signed: ${MOCHAT_TLS_SELF_SIGNED:true}
@@ -45,3 +49,10 @@ mochat:
     private-key-path: ${MOCHAT_TLS_KEY_PATH:}
   id:
     worker-id: ${MOCHAT_ID_WORKER_ID:1}
+
+
+
+  livekit:
+    url: wss://easy-chat-xgexhw94.livekit.cloud
+    api-key: APIguXWPL8HYFPV
+    api-secret: o0901cxw4N3LVTczFXx3CK46onuaasFQUH5uBo9R4fK

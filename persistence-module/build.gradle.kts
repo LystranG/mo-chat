@@ -14,6 +14,7 @@ dependencies {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")
         exclude(group = "com.squareup.okio")
+        exclude(group = "io.netty", module = "netty-all")
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")

@@ -15,6 +15,7 @@ dependencies {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")
         exclude(group = "com.squareup.okio")
+        exclude(group = "io.netty", module = "netty-all")
     }
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.1")
