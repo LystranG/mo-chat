@@ -1,0 +1,602 @@
+> Task :common:compileJava UP-TO-DATE
+> Task :call-module:compileJava UP-TO-DATE
+> Task :protocol:protobufDummy UP-TO-DATE
+> Task :protocol:extractIncludeProto UP-TO-DATE
+> Task :protocol:extractProto UP-TO-DATE
+> Task :protocol:generateProto UP-TO-DATE
+> Task :protocol:compileJava UP-TO-DATE
+> Task :connection-module:compileJava UP-TO-DATE
+> Task :infra-redis:compileJava UP-TO-DATE
+> Task :message-module:compileJava UP-TO-DATE
+> Task :logic-module:compileJava UP-TO-DATE
+> Task :persistence-module:compileJava UP-TO-DATE
+> Task :app:compileJava UP-TO-DATE
+> Task :app:processResources UP-TO-DATE
+> Task :app:classes UP-TO-DATE
+> Task :call-module:processResources UP-TO-DATE
+> Task :call-module:classes UP-TO-DATE
+> Task :call-module:jar UP-TO-DATE
+> Task :common:processResources NO-SOURCE
+> Task :common:classes UP-TO-DATE
+> Task :common:jar UP-TO-DATE
+> Task :connection-module:processResources NO-SOURCE
+> Task :connection-module:classes UP-TO-DATE
+> Task :connection-module:jar UP-TO-DATE
+> Task :infra-redis:processResources NO-SOURCE
+> Task :infra-redis:classes UP-TO-DATE
+> Task :infra-redis:jar UP-TO-DATE
+> Task :logic-module:processResources NO-SOURCE
+> Task :logic-module:classes UP-TO-DATE
+> Task :logic-module:jar UP-TO-DATE
+> Task :message-module:processResources NO-SOURCE
+> Task :message-module:classes UP-TO-DATE
+> Task :message-module:jar UP-TO-DATE
+> Task :persistence-module:processResources UP-TO-DATE
+> Task :persistence-module:classes UP-TO-DATE
+> Task :persistence-module:jar UP-TO-DATE
+> Task :protocol:processResources UP-TO-DATE
+> Task :protocol:classes UP-TO-DATE
+> Task :protocol:jar UP-TO-DATE
+
+> Task :app:run
+ __  __ _                                  _   
+|  \/  (_) ___ _ __ ___  _ __   __ _ _   _| |_ 
+| |\/| | |/ __| '__/ _ \| '_ \ / _` | | | | __|
+| |  | | | (__| | | (_) | | | | (_| | |_| | |_ 
+|_|  |_|_|\___|_|  \___/|_| |_|\__,_|\__,_|\__|
+23:37:35.809 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Environment deduction is using the default of: true
+23:37:35.820 [main] INFO io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Established active environments: [local]
+23:37:35.820 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Starting environment io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment@19dc67c2 for active names [local]
+23:37:35.824 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Reading property sources from loader: io.micronaut.jackson.core.env.CloudFoundryVcapApplicationPropertySourceLoader@78a2da20
+23:37:35.826 [main] DEBUG io.micronaut.jackson.core.env.CloudFoundryVcapApplicationPropertySourceLoader -- No PropertySource found for file name: application.VCAP_APPLICATION
+23:37:35.828 [main] DEBUG io.micronaut.jackson.core.env.CloudFoundryVcapApplicationPropertySourceLoader -- No PropertySource found for file name: application-local.VCAP_APPLICATION
+23:37:35.829 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Reading property sources from loader: io.micronaut.jackson.core.env.JsonPropertySourceLoader@6a472554
+23:37:35.831 [main] DEBUG io.micronaut.jackson.core.env.JsonPropertySourceLoader -- No PropertySource found for file name: application.json
+23:37:35.832 [main] DEBUG io.micronaut.jackson.core.env.JsonPropertySourceLoader -- No PropertySource found for file name: application-local.json
+23:37:35.832 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Reading property sources from loader: io.micronaut.jackson.core.env.EnvJsonPropertySourceLoader@7ff2a664
+23:37:35.832 [main] DEBUG io.micronaut.jackson.core.env.EnvJsonPropertySourceLoader -- No PropertySource found for file name: application.json
+23:37:35.832 [main] DEBUG io.micronaut.jackson.core.env.EnvJsonPropertySourceLoader -- No PropertySource found for file name: application-local.json
+23:37:35.832 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Reading property sources from loader: io.micronaut.jackson.core.env.CloudFoundryVcapServicesPropertySourceLoader@525b461a
+23:37:35.832 [main] DEBUG io.micronaut.jackson.core.env.CloudFoundryVcapServicesPropertySourceLoader -- No PropertySource found for file name: application.VCAP_SERVICES
+23:37:35.832 [main] DEBUG io.micronaut.jackson.core.env.CloudFoundryVcapServicesPropertySourceLoader -- No PropertySource found for file name: application-local.VCAP_SERVICES
+23:37:35.832 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Reading property sources from loader: io.micronaut.context.env.PropertiesPropertySourceLoader@58c1c010
+23:37:35.833 [main] DEBUG io.micronaut.context.env.PropertiesPropertySourceLoader -- No PropertySource found for file name: application.properties
+23:37:35.833 [main] DEBUG io.micronaut.context.env.PropertiesPropertySourceLoader -- No PropertySource found for file name: application-local.properties
+23:37:35.833 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Reading property sources from loader: io.micronaut.context.env.yaml.YamlPropertySourceLoader@b7f23d9
+23:37:35.835 [main] DEBUG io.micronaut.context.env.yaml.YamlPropertySourceLoader -- Found PropertySource for file name: application.yml
+23:37:35.890 [main] DEBUG io.micronaut.context.env.yaml.YamlPropertySourceLoader -- Found PropertySource for file name: application-local.yml
+23:37:35.896 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Processing property source: application
+23:37:35.898 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Processing property source: application-local
+23:37:35.898 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Processing property source: env
+23:37:35.903 [main] DEBUG io.micronaut.context.DefaultApplicationContext$RuntimeConfiguredEnvironment -- Processing property source: system
+23:37:35.915 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: DefaultEnvironment
+23:37:35.915 [main] DEBUG io.micronaut.context.DefaultBeanContext -- No bean candidates found for type: DefaultEnvironment
+23:37:35.919 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Starting BeanContext
+23:37:35.924 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: HttpClientRegistry
+23:37:35.926 [main] DEBUG io.micronaut.context.DefaultBeanContext -- No bean candidates found for type: HttpClientRegistry
+23:37:35.927 [main] DEBUG io.micronaut.context.condition.Condition -- Configuration: io.micronaut.http.client will not be loaded due to failing conditions:
+23:37:35.928 [main] DEBUG io.micronaut.context.condition.Condition -- * No bean of type [io.micronaut.http.client.HttpClientRegistry] present within context
+23:37:35.934 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanCreatedEventListener
+23:37:35.935 [main] DEBUG io.micronaut.context.condition.Condition -- Bean [Definition: io.micronaut.web.router.version.VersionAwareRouterListener] will not be loaded due to failing conditions:
+23:37:35.935 [main] DEBUG io.micronaut.context.condition.Condition -- * Required property [micronaut.router.versioning.enabled] with value [true] not present
+23:37:35.937 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.micronaut.context.propagation.instrument.execution.ExecutorServiceInstrumenter null Definition: io.micronaut.context.propagation.instrument.execution.ExecutorServiceInstrumenter
+23:37:35.941 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanInitializedEventListener
+23:37:35.942 [main] DEBUG io.micronaut.context.DefaultBeanContext -- No bean candidates found for type: BeanInitializedEventListener
+23:37:35.942 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Resolving beans for type: io.micronaut.core.convert.TypeConverter
+23:37:35.942 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: TypeConverter
+23:37:35.942 [main] DEBUG io.micronaut.context.DefaultBeanContext -- No bean candidates found for type: TypeConverter
+23:37:35.942 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Resolving beans for type: io.micronaut.core.convert.TypeConverterRegistrar
+23:37:35.942 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: TypeConverterRegistrar
+23:37:35.958 [main] DEBUG io.micronaut.core.beans.DefaultBeanIntrospector -- Found BeanIntrospection for type: class io.micronaut.http.netty.channel.KQueueAvailabilityCondition,
+23:37:35.963 [main] DEBUG io.netty.util.internal.logging.InternalLoggerFactory -- Using SLF4J as the default logging framework
+23:37:35.971 [main] DEBUG io.netty.util.internal.PlatformDependent0 -- Java version: 25
+23:37:35.971 [main] DEBUG io.netty.util.internal.PlatformDependent0 -- -Dio.netty.noUnsafe: false
+23:37:35.971 [main] DEBUG io.netty.util.internal.PlatformDependent0 -- sun.misc.Unsafe: unavailable (io.netty.noUnsafe=true by default on Java 24+)
+23:37:35.972 [main] DEBUG io.netty.util.internal.PlatformDependent0 -- java.nio.DirectByteBuffer.<init>(long, {int,long}): unavailable
+23:37:35.984 [main] DEBUG io.netty.util.internal.PlatformDependent -- maxDirectMemory: 4078960640 bytes (maybe)
+23:37:35.984 [main] DEBUG io.netty.util.internal.PlatformDependent -- -Dio.netty.tmpdir: C:\Users\1\AppData\Local\Temp (java.io.tmpdir)
+23:37:35.985 [main] DEBUG io.netty.util.internal.PlatformDependent -- -Dio.netty.bitMode: 64 (sun.arch.data.model)
+23:37:35.985 [main] DEBUG io.netty.util.internal.PlatformDependent -- Platform: Windows
+23:37:35.985 [main] DEBUG io.netty.util.internal.PlatformDependent -- -Dio.netty.maxDirectMemory: -1 bytes
+23:37:35.987 [main] DEBUG io.netty.util.internal.CleanerJava9 -- java.nio.ByteBuffer.cleaner(): unavailable
+java.lang.UnsupportedOperationException: sun.misc.Unsafe unavailable
+	at io.netty.util.internal.CleanerJava9.<clinit>(CleanerJava9.java:70)
+	at io.netty.util.internal.PlatformDependent.<clinit>(PlatformDependent.java:193)
+	at io.netty.util.internal.ClassInitializerUtil.tryLoadClasses(ClassInitializerUtil.java:32)
+	at io.netty.channel.kqueue.Native.<clinit>(Native.java:65)
+	at io.netty.channel.kqueue.KQueue.<clinit>(KQueue.java:36)
+	at io.micronaut.http.netty.channel.KQueueAvailabilityCondition.matches(KQueueAvailabilityCondition.java:39)
+	at io.micronaut.context.conditions.MatchesCustomCondition.matches(MatchesCustomCondition.java:60)
+	at io.micronaut.context.AbstractInitializableBeanDefinitionAndReference.matches(AbstractInitializableBeanDefinitionAndReference.java:111)
+	at io.micronaut.context.AbstractInitializableBeanDefinitionAndReference.isEnabled(AbstractInitializableBeanDefinitionAndReference.java:94)
+	at io.micronaut.context.DefaultBeanContext$BeanDefinitionProducer.isDefinitionEnabled(DefaultBeanContext.java:4306)
+	at io.micronaut.context.DefaultBeanContext$BeanDefinitionProducer.getDefinitionIfEnabled(DefaultBeanContext.java:4396)
+	at io.micronaut.context.DefaultBeanContext.collectBeanCandidates(DefaultBeanContext.java:2200)
+	at io.micronaut.context.DefaultBeanContext.findBeanCandidates(DefaultBeanContext.java:2175)
+	at io.micronaut.context.DefaultBeanContext.findBeanCandidatesInternal(DefaultBeanContext.java:3461)
+	at io.micronaut.context.DefaultBeanContext.getBeanRegistrations(DefaultBeanContext.java:3517)
+	at io.micronaut.context.DefaultBeanContext.getBeansOfType(DefaultBeanContext.java:1475)
+	at io.micronaut.context.DefaultBeanContext.getBeansOfType(DefaultBeanContext.java:1458)
+	at io.micronaut.context.DefaultBeanContext.getBeansOfType(DefaultBeanContext.java:881)
+	at io.micronaut.context.DefaultApplicationContext.initializeTypeConverters(DefaultApplicationContext.java:735)
+	at io.micronaut.context.DefaultApplicationContext.initializeContext(DefaultApplicationContext.java:322)
+	at io.micronaut.context.DefaultBeanContext.configureAndStartContext(DefaultBeanContext.java:3350)
+	at io.micronaut.context.DefaultBeanContext.start(DefaultBeanContext.java:353)
+	at io.micronaut.context.DefaultApplicationContext.start(DefaultApplicationContext.java:225)
+	at io.micronaut.runtime.Micronaut.start(Micronaut.java:75)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:347)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:333)
+	at com.github.lystran.mochat.Application.main(Application.java:13)
+23:37:35.999 [main] DEBUG io.netty.util.internal.CleanerJava24 -- java.nio.ByteBuffer.cleaner(): available
+23:37:36.000 [main] DEBUG io.netty.util.internal.PlatformDependent -- -Dio.netty.noPreferDirect: false
+23:37:36.004 [main] DEBUG io.micronaut.context.condition.Condition -- Bean [Definition: io.micronaut.http.netty.channel.converters.KQueueChannelOptionFactory] will not be loaded due to failing conditions:
+23:37:36.005 [main] DEBUG io.micronaut.context.condition.Condition -- * Custom condition [class io.micronaut.http.netty.channel.KQueueAvailabilityCondition] failed evaluation
+23:37:36.005 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.micronaut.http.converters.HttpConverterRegistrar null Definition: io.micronaut.http.converters.HttpConverterRegistrar
+23:37:36.005 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.micronaut.http.server.netty.converters.NettyConverters null Definition: io.micronaut.http.server.netty.converters.NettyConverters
+23:37:36.005 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.micronaut.jackson.databind.convert.JacksonConverterRegistrar null Definition: io.micronaut.jackson.databind.convert.JacksonConverterRegistrar
+23:37:36.005 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.micronaut.json.convert.JsonConverterRegistrar null Definition: io.micronaut.json.convert.JsonConverterRegistrar
+23:37:36.005 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Attempting to dynamically load class io.micronaut.context.annotation.Prototype
+23:37:36.005 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Successfully loaded class io.micronaut.context.annotation.Prototype
+23:37:36.010 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<ResourceResolver T> resourceResolver
+23:37:36.010 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.010 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: resourceResolver 
+23:37:36.011 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(ResourceResolver T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.011 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.micronaut.http.converters.HttpConverterRegistrar@3e96bacf] from definition [Definition: io.micronaut.http.converters.HttpConverterRegistrar] with qualifier [null]
+23:37:36.011 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found a registration BeanRegistration: io.micronaut.http.converters.HttpConverterRegistrar@3e96bacf for candidate: Definition: io.micronaut.http.converters.HttpConverterRegistrar with qualifier: null
+23:37:36.013 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Attempting to dynamically load class io.micronaut.context.annotation.Prototype
+23:37:36.013 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Successfully loaded class io.micronaut.context.annotation.Prototype
+23:37:36.013 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<MediaTypeCodecRegistry T> decoderRegistryProvider
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: decoderRegistryProvider 
+23:37:36.014 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(MediaTypeCodecRegistry T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<MessageBodyHandlerRegistry T> messageBodyHandlerRegistries
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: messageBodyHandlerRegistries 
+23:37:36.014 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(MessageBodyHandlerRegistry T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<ChannelOptionFactory T> channelOptionFactory
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.014 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: channelOptionFactory 
+23:37:36.014 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(ChannelOptionFactory T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.014 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.micronaut.http.server.netty.converters.NettyConverters@60015ef5] from definition [Definition: io.micronaut.http.server.netty.converters.NettyConverters] with qualifier [null]
+23:37:36.015 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found a registration BeanRegistration: io.micronaut.http.server.netty.converters.NettyConverters@60015ef5 for candidate: Definition: io.micronaut.http.server.netty.converters.NettyConverters with qualifier: null
+23:37:36.015 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Attempting to dynamically load class io.micronaut.context.annotation.Prototype
+23:37:36.015 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Successfully loaded class io.micronaut.context.annotation.Prototype
+23:37:36.016 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<ObjectMapper T> objectMapper
+23:37:36.016 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.016 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: objectMapper 
+23:37:36.016 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(ObjectMapper T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.016 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.micronaut.jackson.databind.convert.JacksonConverterRegistrar@568ff82] from definition [Definition: io.micronaut.jackson.databind.convert.JacksonConverterRegistrar] with qualifier [null]
+23:37:36.016 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found a registration BeanRegistration: io.micronaut.jackson.databind.convert.JacksonConverterRegistrar@568ff82 for candidate: Definition: io.micronaut.jackson.databind.convert.JacksonConverterRegistrar with qualifier: null
+23:37:36.016 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Attempting to dynamically load class io.micronaut.context.annotation.Prototype
+23:37:36.016 [main] DEBUG io.micronaut.core.reflect.ClassUtils -- Successfully loaded class io.micronaut.context.annotation.Prototype
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<JsonMapper T> objectCodec
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: objectCodec 
+23:37:36.017 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(JsonMapper T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: BeanProvider<BeanPropertyBinder T> beanPropertyBinder
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.micronaut.context.BeanProvider null io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] for type: beanPropertyBinder 
+23:37:36.017 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [Provider(BeanPropertyBinder T)] from definition [io.micronaut.inject.provider.BeanProviderDefinition@4e2e4fc3] with qualifier [null]
+23:37:36.017 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.micronaut.json.convert.JsonConverterRegistrar@186f8716] from definition [Definition: io.micronaut.json.convert.JsonConverterRegistrar] with qualifier [null]
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found a registration BeanRegistration: io.micronaut.json.convert.JsonConverterRegistrar@186f8716 for candidate: Definition: io.micronaut.json.convert.JsonConverterRegistrar with qualifier: null
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found 4 bean registrations for type [typeConverterRegistrar]
+23:37:36.017 [main] DEBUG io.micronaut.context.DefaultBeanContext --   Definition: io.micronaut.http.converters.HttpConverterRegistrar null
+23:37:36.018 [main] DEBUG io.micronaut.context.DefaultBeanContext --   Definition: io.micronaut.http.server.netty.converters.NettyConverters null
+23:37:36.018 [main] DEBUG io.micronaut.context.DefaultBeanContext --   Definition: io.micronaut.jackson.databind.convert.JacksonConverterRegistrar null
+23:37:36.018 [main] DEBUG io.micronaut.context.DefaultBeanContext --   Definition: io.micronaut.json.convert.JsonConverterRegistrar null
+23:37:36.031 [main] DEBUG io.micronaut.context.condition.Condition -- Bean [Definition: io.micronaut.logging.PropertiesLoggingLevelsConfigurer] will not be loaded due to failing conditions:
+23:37:36.031 [main] DEBUG io.micronaut.context.condition.Condition -- * Required property [logger] not present
+23:37:36.031 [main] DEBUG io.micronaut.context.condition.Condition -- Bean [Definition: io.micronaut.buffer.netty.DefaultByteBufAllocatorConfiguration] will not be loaded due to failing conditions:
+23:37:36.032 [main] DEBUG io.micronaut.context.condition.Condition -- * Required property [netty.default.allocator] not present
+23:37:36.035 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: OutboundEventSubscriber outboundEventSubscriber
+23:37:36.036 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class com.github.lystran.mochat.connection.OutboundEventSubscriber null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.036 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: outboundEventSubscriber 
+23:37:36.036 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: MochatRuntimeFactory
+23:37:36.037 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class com.github.lystran.mochat.runtime.MochatRuntimeFactory null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.037 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: mochatRuntimeFactory 
+23:37:36.038 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [com.github.lystran.mochat.runtime.MochatRuntimeFactory@4da4253] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:36.039 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: EventBus eventBus
+23:37:36.039 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface com.github.lystran.mochat.common.event.EventBus null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.039 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: eventBus 
+23:37:36.039 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: RedisCommands<String K, String V> redisCommands
+23:37:36.040 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.lettuce.core.api.sync.RedisCommands null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.040 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: redisCommands 
+23:37:36.040 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: StatefulRedisConnection<String K, String V> redisConnection
+23:37:36.041 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.lettuce.core.api.StatefulRedisConnection null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.041 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.lettuce.core.pubsub.StatefulRedisPubSubConnection null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.041 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Searching for @Primary for type [redisConnection] from candidates: [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory, Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] 
+23:37:36.043 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: redisConnection 
+23:37:36.043 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: RedisClient redisClient
+23:37:36.044 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.lettuce.core.RedisClient null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:36.044 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: redisClient 
+23:37:36.116 [main] DEBUG io.netty.util.NetUtil -- -Djava.net.preferIPv4Stack: false
+23:37:36.116 [main] DEBUG io.netty.util.NetUtil -- -Djava.net.preferIPv6Addresses: false
+23:37:36.123 [main] DEBUG io.netty.util.NetUtilInitializations -- Loopback interface: loopback_0 (Software Loopback Interface 1, 0:0:0:0:0:0:0:1)
+23:37:36.124 [main] DEBUG io.netty.util.NetUtil -- Failed to get SOMAXCONN from sysctl and file \proc\sys\net\core\somaxconn. Default: 200
+23:37:36.124 [main] DEBUG io.netty.resolver.dns.DnsNameResolver -- Default ResolvedAddressTypes: IPV4_ONLY
+23:37:36.124 [main] DEBUG io.netty.resolver.dns.DnsNameResolver -- Localhost address: localhost/127.0.0.1
+23:37:36.137 [main] DEBUG io.netty.resolver.dns.DnsNameResolver -- Windows hostname: DESKTOP-QB4G8C2
+23:37:36.140 [main] DEBUG io.netty.resolver.dns.DnsNameResolver -- Default search domains: []
+23:37:36.143 [main] DEBUG io.netty.resolver.dns.DnsNameResolver -- Default UnixResolverOptions{ndots=1, timeout=5, attempts=16}
+23:37:36.146 [main] DEBUG io.netty.util.internal.InternalThreadLocalMap -- -Dio.netty.threadLocalMap.stringBuilder.initialSize: 1024
+23:37:36.146 [main] DEBUG io.netty.util.internal.InternalThreadLocalMap -- -Dio.netty.threadLocalMap.stringBuilder.maxSize: 4096
+23:37:36.154 [main] DEBUG io.netty.resolver.DefaultHostsFileEntriesResolver -- -Dio.netty.hostsFileRefreshInterval: 0
+23:37:36.177 [main] DEBUG io.netty.resolver.dns.DefaultDnsServerAddressStreamProvider -- Default DNS servers: [/119.29.29.29:53, /182.254.116.116:53] (sun.net.dns.ResolverConfiguration)
+23:37:36.181 [main] DEBUG io.lettuce.core.resource.KqueueProvider -- Starting without optional kqueue library
+23:37:36.264 [main] DEBUG io.lettuce.core.resource.IOUringProvider -- Starting without optional io_uring library
+23:37:36.269 [main] DEBUG io.lettuce.core.resource.EpollProvider -- Starting without optional epoll library
+23:37:36.283 [main] DEBUG io.lettuce.core.resource.DefaultClientResources -- -Dio.netty.eventLoopThreads: 16
+23:37:36.288 [main] DEBUG io.lettuce.core.resource.DefaultEventLoopGroupProvider -- Creating executor io.netty.util.concurrent.DefaultEventExecutorGroup
+23:37:36.298 [main] DEBUG io.netty.util.concurrent.GlobalEventExecutor -- -Dio.netty.globalEventExecutor.quietPeriodSeconds: 1
+23:37:36.310 [main] DEBUG io.netty.util.ResourceLeakDetector -- -Dio.netty.leakDetection.level: simple
+23:37:36.310 [main] DEBUG io.netty.util.ResourceLeakDetector -- -Dio.netty.leakDetection.targetRecords: 4
+23:37:36.310 [main] DEBUG io.netty.util.ResourceLeakDetectorFactory -- Loaded default ResourceLeakDetector: io.netty.util.ResourceLeakDetector@4e423aa2
+23:37:36.312 [main] DEBUG io.netty.util.internal.PlatformDependent -- org.jctools-core.MpscChunkedArrayQueue: unavailable
+23:37:36.327 [main] DEBUG reactor.util.Loggers -- Using Slf4j logging framework
+23:37:36.375 [main] DEBUG io.lettuce.core.event.jfr.EventRecorderHolder -- Starting with JFR support
+23:37:36.458 [main] DEBUG io.lettuce.core.resource.DefaultClientResources -- LatencyUtils/HdrUtils are not available, metrics are disabled
+23:37:36.462 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.lettuce.core.RedisClient@1d131e1b] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:36.464 [main] DEBUG io.lettuce.core.RedisClient -- Trying to get a Redis connection for: redis://localhost
+23:37:36.694 [main] DEBUG io.netty.buffer.AdaptiveByteBufAllocator -- -Dio.netty.allocator.useCachedMagazinesForNonEventLoopThreads: false
+23:37:36.711 [main] DEBUG io.netty.util.Recycler -- -Dio.netty.recycler.maxCapacityPerThread: 4096
+23:37:36.711 [main] DEBUG io.netty.util.Recycler -- -Dio.netty.recycler.ratio: 8
+23:37:36.711 [main] DEBUG io.netty.util.Recycler -- -Dio.netty.recycler.chunkSize: 32
+23:37:36.711 [main] DEBUG io.netty.util.Recycler -- -Dio.netty.recycler.blocking: false
+23:37:36.711 [main] DEBUG io.netty.util.Recycler -- -Dio.netty.recycler.batchFastThreadLocalOnly: true
+23:37:36.714 [main] DEBUG io.netty.buffer.ByteBufUtil -- -Dio.netty.allocator.type: adaptive
+23:37:36.714 [main] DEBUG io.netty.buffer.ByteBufUtil -- -Dio.netty.threadLocalDirectBufferSize: 0
+23:37:36.714 [main] DEBUG io.netty.buffer.ByteBufUtil -- -Dio.netty.maxThreadLocalCharBufferSize: 16384
+23:37:36.718 [main] DEBUG io.lettuce.core.resource.DefaultEventLoopGroupProvider -- Allocating executor io.netty.channel.nio.NioEventLoopGroup
+23:37:36.719 [main] DEBUG io.lettuce.core.resource.DefaultEventLoopGroupProvider -- Creating executor io.netty.channel.nio.NioEventLoopGroup
+23:37:36.720 [main] DEBUG io.netty.channel.MultithreadEventLoopGroup -- -Dio.netty.eventLoopThreads: 32
+23:37:36.723 [main] DEBUG io.netty.channel.nio.NioIoHandler -- -Dio.netty.noKeySetOptimization: false
+23:37:36.723 [main] DEBUG io.netty.channel.nio.NioIoHandler -- -Dio.netty.selectorAutoRebuildThreshold: 512
+23:37:36.759 [main] DEBUG io.lettuce.core.resource.DefaultEventLoopGroupProvider -- Adding reference to io.netty.channel.nio.NioEventLoopGroup@63fd4873, existing ref count 0
+23:37:36.857 [main] DEBUG io.lettuce.core.RedisClient -- Resolved SocketAddress localhost/<unresolved>:6379 using redis://localhost
+23:37:36.858 [main] DEBUG io.lettuce.core.AbstractRedisClient -- Connecting to Redis at localhost/<unresolved>:6379
+23:37:36.870 [main] DEBUG io.netty.channel.DefaultChannelId -- -Dio.netty.processId: 49288 (auto-detected)
+23:37:36.872 [main] DEBUG io.netty.channel.DefaultChannelId -- -Dio.netty.machineId: 7c:4d:8f:ff:fe:07:28:44 (auto-detected)
+23:37:36.894 [main] DEBUG io.netty.bootstrap.ChannelInitializerExtensions -- -Dio.netty.bootstrap.extensions: null
+23:37:36.942 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, [id: 0xfdda94da] (inactive), epid=0x1, chid=0x1] channelRegistered()
+23:37:36.948 [lettuce-nioEventLoop-4-1] DEBUG io.netty.buffer.AbstractByteBuf -- -Dio.netty.buffer.checkAccessible: true
+23:37:36.949 [lettuce-nioEventLoop-4-1] DEBUG io.netty.buffer.AbstractByteBuf -- -Dio.netty.buffer.checkBounds: true
+23:37:36.949 [lettuce-nioEventLoop-4-1] DEBUG io.netty.util.ResourceLeakDetectorFactory -- Loaded default ResourceLeakDetector: io.netty.util.ResourceLeakDetector@2840167
+23:37:36.970 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] write(ctx, AsyncCommand [type=HELLO, output=GenericMapOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command], promise)
+23:37:36.975 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=HELLO, output=GenericMapOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.982 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Received: 30 bytes, 1 commands in the stack
+23:37:36.983 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Stack contains: 1 commands
+23:37:36.986 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:36.987 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Completing command AsyncCommand [type=HELLO, output=GenericMapOutput [output=null, error='ERR unknown command 'HELLO''], commandType=io.lettuce.core.protocol.Command]
+23:37:36.988 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] write(ctx, AsyncCommand [type=PING, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command], promise)
+23:37:36.989 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=PING, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.990 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Received: 7 bytes, 1 commands in the stack
+23:37:36.990 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Stack contains: 1 commands
+23:37:36.990 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:36.990 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Completing command AsyncCommand [type=PING, output=StatusOutput [output=PONG, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.993 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] write(ctx, [AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command], AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]], promise)
+23:37:36.993 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.993 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.994 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Received: 178 bytes, 2 commands in the stack
+23:37:36.994 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Stack contains: 2 commands
+23:37:36.994 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:36.994 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Completing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.996 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Stack contains: 1 commands
+23:37:36.996 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:36.996 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] Completing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)'], commandType=io.lettuce.core.protocol.Command]
+23:37:36.996 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.RedisHandshake -- Error applying connection metadata
+java.util.concurrent.CompletionException: io.lettuce.core.RedisCommandExecutionException: ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)
+	at java.base/java.util.concurrent.CompletableFuture.wrapInCompletionException(CompletableFuture.java:323)
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:376)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:391)
+	at java.base/java.util.concurrent.CompletableFuture$BiRelay.tryFire(CompletableFuture.java:1519)
+	at java.base/java.util.concurrent.CompletableFuture$CoCompletion.tryFire(CompletableFuture.java:1240)
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:531)
+	at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2221)
+	at io.lettuce.core.protocol.AsyncCommand.doCompleteExceptionally(AsyncCommand.java:143)
+	at io.lettuce.core.protocol.AsyncCommand.completeResult(AsyncCommand.java:124)
+	at io.lettuce.core.protocol.AsyncCommand.complete(AsyncCommand.java:115)
+	at io.lettuce.core.protocol.CommandHandler.complete(CommandHandler.java:769)
+	at io.lettuce.core.protocol.CommandHandler.decode(CommandHandler.java:704)
+	at io.lettuce.core.protocol.CommandHandler.channelRead(CommandHandler.java:621)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1429)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:918)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:167)
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.handle(AbstractNioChannel.java:445)
+	at io.netty.channel.nio.NioIoHandler$DefaultNioRegistration.handle(NioIoHandler.java:381)
+	at io.netty.channel.nio.NioIoHandler.processSelectedKey(NioIoHandler.java:575)
+	at io.netty.channel.nio.NioIoHandler.processSelectedKeysPlain(NioIoHandler.java:520)
+	at io.netty.channel.nio.NioIoHandler.processSelectedKeys(NioIoHandler.java:493)
+	at io.netty.channel.nio.NioIoHandler.run(NioIoHandler.java:468)
+	at io.netty.channel.SingleThreadIoEventLoop.runIo(SingleThreadIoEventLoop.java:206)
+	at io.netty.channel.SingleThreadIoEventLoop.run(SingleThreadIoEventLoop.java:177)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:1073)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: io.lettuce.core.RedisCommandExecutionException: ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)
+	at io.lettuce.core.internal.ExceptionFactory.createExecutionException(ExceptionFactory.java:151)
+	at io.lettuce.core.internal.ExceptionFactory.createExecutionException(ExceptionFactory.java:120)
+	... 21 common frames omitted
+23:37:36.996 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] channelActive()
+23:37:36.998 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1] activateEndpointAndExecuteBufferedCommands 0 command(s) buffered
+23:37:36.998 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1] activating endpoint
+23:37:36.998 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1] flushCommands()
+23:37:37.000 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1] flushCommands() Flushing 0 commands
+23:37:37.002 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.ConnectionWatchdog -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, last known addr=localhost/127.0.0.1:6379] channelActive()
+23:37:37.002 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x9c0a97be, /127.0.0.1:63870 -> localhost/127.0.0.1:6379, epid=0x1, chid=0x1] channelActive() done
+23:37:37.002 [lettuce-nioEventLoop-4-1] DEBUG io.lettuce.core.AbstractRedisClient -- Connecting to Redis at localhost/<unresolved>:6379: Success
+23:37:37.004 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.lettuce.core.StatefulRedisConnectionImpl@3cbe5552] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.004 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.lettuce.core.FutureSyncInvocationHandler@2532b351] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.004 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: StatefulRedisPubSubConnection<String K, String V> redisPubSubConnection
+23:37:37.004 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface io.lettuce.core.pubsub.StatefulRedisPubSubConnection null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:37.004 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: redisPubSubConnection 
+23:37:37.111 [main] DEBUG io.lettuce.core.RedisClient -- Resolved SocketAddress localhost/<unresolved>:6379 using redis://localhost
+23:37:37.112 [main] DEBUG io.lettuce.core.AbstractRedisClient -- Connecting to Redis at localhost/<unresolved>:6379
+23:37:37.114 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, [id: 0x51717408] (inactive), epid=0x2, chid=0x2] channelRegistered()
+23:37:37.118 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] write(ctx, AsyncCommand [type=HELLO, output=GenericMapOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command], promise)
+23:37:37.119 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=HELLO, output=GenericMapOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.119 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Received: 30 bytes, 1 commands in the stack
+23:37:37.120 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Stack contains: 1 commands
+23:37:37.121 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:37.121 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Completing command AsyncCommand [type=HELLO, output=GenericMapOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.121 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] write(ctx, AsyncCommand [type=PING, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command], promise)
+23:37:37.121 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=PING, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.122 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Received: 7 bytes, 1 commands in the stack
+23:37:37.122 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Stack contains: 1 commands
+23:37:37.129 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:37.129 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Completing command AsyncCommand [type=PING, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.129 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] write(ctx, [AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command], AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]], promise)
+23:37:37.130 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.130 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandEncoder -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379] writing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.131 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Received: 178 bytes, 2 commands in the stack
+23:37:37.132 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Stack contains: 2 commands
+23:37:37.132 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:37.132 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Completing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.132 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Stack contains: 1 commands
+23:37:37.133 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.RedisStateMachine -- Decode done, empty stack: true
+23:37:37.133 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] Completing command AsyncCommand [type=CLIENT, output=StatusOutput [output=null, error='null'], commandType=io.lettuce.core.protocol.Command]
+23:37:37.133 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.RedisHandshake -- Error applying connection metadata
+java.util.concurrent.CompletionException: io.lettuce.core.RedisCommandExecutionException: ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)
+	at java.base/java.util.concurrent.CompletableFuture.wrapInCompletionException(CompletableFuture.java:323)
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:376)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:391)
+	at java.base/java.util.concurrent.CompletableFuture$BiRelay.tryFire(CompletableFuture.java:1519)
+	at java.base/java.util.concurrent.CompletableFuture$CoCompletion.tryFire(CompletableFuture.java:1240)
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:531)
+	at java.base/java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2221)
+	at io.lettuce.core.protocol.AsyncCommand.doCompleteExceptionally(AsyncCommand.java:143)
+	at io.lettuce.core.protocol.AsyncCommand.completeResult(AsyncCommand.java:124)
+	at io.lettuce.core.protocol.AsyncCommand.complete(AsyncCommand.java:115)
+	at io.lettuce.core.protocol.CommandHandler.complete(CommandHandler.java:769)
+	at io.lettuce.core.pubsub.PubSubCommandHandler.complete(PubSubCommandHandler.java:152)
+	at io.lettuce.core.protocol.CommandHandler.decode(CommandHandler.java:704)
+	at io.lettuce.core.pubsub.PubSubCommandHandler.decode(PubSubCommandHandler.java:97)
+	at io.lettuce.core.protocol.CommandHandler.channelRead(CommandHandler.java:621)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1429)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:918)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:167)
+	at io.netty.channel.nio.AbstractNioChannel$AbstractNioUnsafe.handle(AbstractNioChannel.java:445)
+	at io.netty.channel.nio.NioIoHandler$DefaultNioRegistration.handle(NioIoHandler.java:381)
+	at io.netty.channel.nio.NioIoHandler.processSelectedKey(NioIoHandler.java:575)
+	at io.netty.channel.nio.NioIoHandler.processSelectedKeysPlain(NioIoHandler.java:520)
+	at io.netty.channel.nio.NioIoHandler.processSelectedKeys(NioIoHandler.java:493)
+	at io.netty.channel.nio.NioIoHandler.run(NioIoHandler.java:468)
+	at io.netty.channel.SingleThreadIoEventLoop.runIo(SingleThreadIoEventLoop.java:206)
+	at io.netty.channel.SingleThreadIoEventLoop.run(SingleThreadIoEventLoop.java:177)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:1073)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: io.lettuce.core.RedisCommandExecutionException: ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)
+	at io.lettuce.core.internal.ExceptionFactory.createExecutionException(ExceptionFactory.java:151)
+	at io.lettuce.core.internal.ExceptionFactory.createExecutionException(ExceptionFactory.java:120)
+	... 23 common frames omitted
+23:37:37.133 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] channelActive()
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2] activateEndpointAndExecuteBufferedCommands 0 command(s) buffered
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2] activating endpoint
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2] flushCommands()
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.DefaultEndpoint -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2] flushCommands() Flushing 0 commands
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.ConnectionWatchdog -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, last known addr=localhost/127.0.0.1:6379] channelActive()
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.protocol.CommandHandler -- [channel=0x5051ca1c, /127.0.0.1:63871 -> localhost/127.0.0.1:6379, epid=0x2, chid=0x2] channelActive() done
+23:37:37.134 [lettuce-nioEventLoop-4-2] DEBUG io.lettuce.core.AbstractRedisClient -- Connecting to Redis at localhost/<unresolved>:6379: Success
+23:37:37.134 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [io.lettuce.core.pubsub.StatefulRedisPubSubConnectionImpl@50092c0f] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.137 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [com.github.lystran.mochat.infra.redis.RedisEventBus@59532566] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.137 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: UserChannelDirectory<Channel C> userChannelDirectory
+23:37:37.138 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface com.github.lystran.mochat.common.directory.UserChannelDirectory null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:37.138 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: userChannelDirectory 
+23:37:37.138 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [com.github.lystran.mochat.runtime.InMemoryChannelDirectory@1237e0be] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.138 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: OfflineQueue offlineQueue
+23:37:37.139 [main] DEBUG io.micronaut.context.DefaultBeanContext --   interface com.github.lystran.mochat.common.offline.OfflineQueue null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:37.139 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: offlineQueue 
+23:37:37.139 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [com.github.lystran.mochat.infra.redis.RedisOfflineQueue@1d96d872] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.140 [main] DEBUG io.micronaut.context.lifecycle -- Created bean [com.github.lystran.mochat.connection.OutboundEventSubscriber@1dc2de84] from definition [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] with qualifier [null]
+23:37:37.140 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: NettyChatServer nettyChatServer
+23:37:37.142 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class com.github.lystran.mochat.connection.NettyChatServer null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:37.142 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: nettyChatServer 
+23:37:37.142 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Finding candidate beans for type: SslContext sslContext
+23:37:37.142 [main] DEBUG io.micronaut.context.DefaultBeanContext --   class io.netty.handler.ssl.SslContext null Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory
+23:37:37.142 [main] DEBUG io.micronaut.context.DefaultBeanContext -- Found concrete candidate [Definition: com.github.lystran.mochat.runtime.MochatRuntimeFactory] for type: sslContext 
+23:37:37.151 [main] DEBUG io.netty.handler.ssl.util.SelfSignedCertificate -- Not attempting to generate a certificate with CertificateBuilder because it's not available on the classpath
+23:37:37.151 [main] DEBUG io.netty.handler.ssl.util.SelfSignedCertificate -- Failed to generate a self-signed X.509 certificate because BouncyCastle PKIX is not available in classpath
+23:37:37.152 [main] DEBUG io.netty.handler.ssl.util.SelfSignedCertificate -- Not attempting to generate certificate with keytool because keytool is missing
+23:37:37.331 [main] DEBUG io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator -- OpenJdkSelfSignedCertGenerator not supported
+java.lang.ClassNotFoundException: sun.security.x509.CertificateIssuerName
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:580)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:490)
+	at java.base/java.lang.Class.forName0(Native Method)
+	at java.base/java.lang.Class.forName(Class.java:547)
+	at io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1.run(OpenJdkSelfSignedCertGenerator.java:106)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:74)
+	at io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator.<clinit>(OpenJdkSelfSignedCertGenerator.java:97)
+	at io.netty.handler.ssl.util.SelfSignedCertificate$Builder.generateSunMiscSecurity(SelfSignedCertificate.java:569)
+	at io.netty.handler.ssl.util.SelfSignedCertificate.<init>(SelfSignedCertificate.java:228)
+	at io.netty.handler.ssl.util.SelfSignedCertificate.<init>(SelfSignedCertificate.java:127)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.buildSslContext(MochatRuntimeFactory.java:380)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.buildMandatorySslContext(MochatRuntimeFactory.java:360)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.sslContext(MochatRuntimeFactory.java:340)
+	at com.github.lystran.mochat.runtime.$MochatRuntimeFactory$SslContext23$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:3000)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:2762)
+	at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:1781)
+	at io.micronaut.context.AbstractBeanResolutionContext.getBean(AbstractBeanResolutionContext.java:210)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.resolveBean(AbstractInitializableBeanDefinition.java:2130)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.getBeanForConstructorArgument(AbstractInitializableBeanDefinition.java:1360)
+	at com.github.lystran.mochat.runtime.$MochatRuntimeFactory$NettyChatServer22$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:3000)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:2762)
+	at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:1781)
+	at io.micronaut.context.AbstractBeanResolutionContext.getBean(AbstractBeanResolutionContext.java:210)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.resolveBean(AbstractInitializableBeanDefinition.java:2130)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.getBeanForConstructorArgument(AbstractInitializableBeanDefinition.java:1360)
+	at com.github.lystran.mochat.runtime.$ConnectionRuntimeLifecycle$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.intializeEagerBean(DefaultBeanContext.java:3039)
+	at io.micronaut.context.DefaultBeanContext.initializeEagerBean(DefaultBeanContext.java:2708)
+	at io.micronaut.context.DefaultBeanContext.initializeContext(DefaultBeanContext.java:2034)
+	at io.micronaut.context.DefaultApplicationContext.initializeContext(DefaultApplicationContext.java:323)
+	at io.micronaut.context.DefaultBeanContext.configureAndStartContext(DefaultBeanContext.java:3350)
+	at io.micronaut.context.DefaultBeanContext.start(DefaultBeanContext.java:353)
+	at io.micronaut.context.DefaultApplicationContext.start(DefaultApplicationContext.java:225)
+	at io.micronaut.runtime.Micronaut.start(Micronaut.java:75)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:347)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:333)
+	at com.github.lystran.mochat.Application.main(Application.java:13)
+23:37:37.332 [main] DEBUG io.netty.handler.ssl.util.SelfSignedCertificate -- Failed to generate a self-signed X.509 certificate using sun.security.x509:
+java.lang.UnsupportedOperationException: OpenJdkSelfSignedCertGenerator not supported on the used JDK version
+	at io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator.generate(OpenJdkSelfSignedCertGenerator.java:284)
+	at io.netty.handler.ssl.util.SelfSignedCertificate$Builder.generateSunMiscSecurity(SelfSignedCertificate.java:569)
+	at io.netty.handler.ssl.util.SelfSignedCertificate.<init>(SelfSignedCertificate.java:228)
+	at io.netty.handler.ssl.util.SelfSignedCertificate.<init>(SelfSignedCertificate.java:127)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.buildSslContext(MochatRuntimeFactory.java:380)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.buildMandatorySslContext(MochatRuntimeFactory.java:360)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.sslContext(MochatRuntimeFactory.java:340)
+	at com.github.lystran.mochat.runtime.$MochatRuntimeFactory$SslContext23$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:3000)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:2762)
+	at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:1781)
+	at io.micronaut.context.AbstractBeanResolutionContext.getBean(AbstractBeanResolutionContext.java:210)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.resolveBean(AbstractInitializableBeanDefinition.java:2130)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.getBeanForConstructorArgument(AbstractInitializableBeanDefinition.java:1360)
+	at com.github.lystran.mochat.runtime.$MochatRuntimeFactory$NettyChatServer22$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:3000)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:2762)
+	at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:1781)
+	at io.micronaut.context.AbstractBeanResolutionContext.getBean(AbstractBeanResolutionContext.java:210)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.resolveBean(AbstractInitializableBeanDefinition.java:2130)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.getBeanForConstructorArgument(AbstractInitializableBeanDefinition.java:1360)
+	at com.github.lystran.mochat.runtime.$ConnectionRuntimeLifecycle$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.intializeEagerBean(DefaultBeanContext.java:3039)
+	at io.micronaut.context.DefaultBeanContext.initializeEagerBean(DefaultBeanContext.java:2708)
+	at io.micronaut.context.DefaultBeanContext.initializeContext(DefaultBeanContext.java:2034)
+	at io.micronaut.context.DefaultApplicationContext.initializeContext(DefaultApplicationContext.java:323)
+	at io.micronaut.context.DefaultBeanContext.configureAndStartContext(DefaultBeanContext.java:3350)
+	at io.micronaut.context.DefaultBeanContext.start(DefaultBeanContext.java:353)
+	at io.micronaut.context.DefaultApplicationContext.start(DefaultApplicationContext.java:225)
+	at io.micronaut.runtime.Micronaut.start(Micronaut.java:75)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:347)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:333)
+	at com.github.lystran.mochat.Application.main(Application.java:13)
+23:37:37.340 [main] ERROR io.micronaut.runtime.Micronaut -- Error starting Micronaut server: Bean definition [com.github.lystran.mochat.runtime.ConnectionRuntimeLifecycle] could not be loaded: Error instantiating bean of type  [com.github.lystran.mochat.connection.NettyChatServer]
+
+Message: Failed to build TLS context
+Path Taken:
+new @i.m.c.a.Context c.g.l.m.r.ConnectionRuntimeLifecycle(OutboundEventSubscriber outboundEventSubscriber, NettyChatServer nettyChatServer, boolean tcpEnabled)
+\---> new @i.m.c.a.Context c.g.l.m.r.ConnectionRuntimeLifecycle(OutboundEventSubscriber outboundEventSubscriber, [NettyChatServer nettyChatServer], boolean tcpEnabled)
+      \---> @j.i.Singleton c.g.l.m.c.NettyChatServer c.g.l.m.r.MochatRuntimeFactory.nettyChatServer#nettyChatServer(EventBus eventBus, [SslContext sslContext], SessionResolver sessionResolver, UserChannelDirectory<Channel> userChannelDirectory, int tcpPort, int maxFrameLength, Duration heartbeatInterval, Duration heartbeatTimeout)
+io.micronaut.context.exceptions.BeanInstantiationException: Bean definition [com.github.lystran.mochat.runtime.ConnectionRuntimeLifecycle] could not be loaded: Error instantiating bean of type  [com.github.lystran.mochat.connection.NettyChatServer]
+
+Message: Failed to build TLS context
+Path Taken:
+new @i.m.c.a.Context c.g.l.m.r.ConnectionRuntimeLifecycle(OutboundEventSubscriber outboundEventSubscriber, NettyChatServer nettyChatServer, boolean tcpEnabled)
+\---> new @i.m.c.a.Context c.g.l.m.r.ConnectionRuntimeLifecycle(OutboundEventSubscriber outboundEventSubscriber, [NettyChatServer nettyChatServer], boolean tcpEnabled)
+      \---> @j.i.Singleton c.g.l.m.c.NettyChatServer c.g.l.m.r.MochatRuntimeFactory.nettyChatServer#nettyChatServer(EventBus eventBus, [SslContext sslContext], SessionResolver sessionResolver, UserChannelDirectory<Channel> userChannelDirectory, int tcpPort, int maxFrameLength, Duration heartbeatInterval, Duration heartbeatTimeout)
+	at io.micronaut.context.DefaultBeanContext.initializeContext(DefaultBeanContext.java:2040)
+	at io.micronaut.context.DefaultApplicationContext.initializeContext(DefaultApplicationContext.java:323)
+	at io.micronaut.context.DefaultBeanContext.configureAndStartContext(DefaultBeanContext.java:3350)
+	at io.micronaut.context.DefaultBeanContext.start(DefaultBeanContext.java:353)
+	at io.micronaut.context.DefaultApplicationContext.start(DefaultApplicationContext.java:225)
+	at io.micronaut.runtime.Micronaut.start(Micronaut.java:75)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:347)
+	at io.micronaut.runtime.Micronaut.run(Micronaut.java:333)
+	at com.github.lystran.mochat.Application.main(Application.java:13)
+Caused by: io.micronaut.context.exceptions.BeanInstantiationException: Error instantiating bean of type  [com.github.lystran.mochat.connection.NettyChatServer]
+
+Message: Failed to build TLS context
+Path Taken:
+new @i.m.c.a.Context c.g.l.m.r.ConnectionRuntimeLifecycle(OutboundEventSubscriber outboundEventSubscriber, NettyChatServer nettyChatServer, boolean tcpEnabled)
+\---> new @i.m.c.a.Context c.g.l.m.r.ConnectionRuntimeLifecycle(OutboundEventSubscriber outboundEventSubscriber, [NettyChatServer nettyChatServer], boolean tcpEnabled)
+      \---> @j.i.Singleton c.g.l.m.c.NettyChatServer c.g.l.m.r.MochatRuntimeFactory.nettyChatServer#nettyChatServer(EventBus eventBus, [SslContext sslContext], SessionResolver sessionResolver, UserChannelDirectory<Channel> userChannelDirectory, int tcpPort, int maxFrameLength, Duration heartbeatInterval, Duration heartbeatTimeout)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2352)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:3000)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:2762)
+	at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:1781)
+	at io.micronaut.context.AbstractBeanResolutionContext.getBean(AbstractBeanResolutionContext.java:210)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.resolveBean(AbstractInitializableBeanDefinition.java:2130)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.getBeanForConstructorArgument(AbstractInitializableBeanDefinition.java:1360)
+	at com.github.lystran.mochat.runtime.$MochatRuntimeFactory$NettyChatServer22$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:3000)
+	at io.micronaut.context.DefaultBeanContext.resolveBeanRegistration(DefaultBeanContext.java:2762)
+	at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:1781)
+	at io.micronaut.context.AbstractBeanResolutionContext.getBean(AbstractBeanResolutionContext.java:210)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.resolveBean(AbstractInitializableBeanDefinition.java:2130)
+	at io.micronaut.context.AbstractInitializableBeanDefinition.getBeanForConstructorArgument(AbstractInitializableBeanDefinition.java:1360)
+	at com.github.lystran.mochat.runtime.$ConnectionRuntimeLifecycle$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	at io.micronaut.context.DefaultBeanContext.createRegistration(DefaultBeanContext.java:3150)
+	at io.micronaut.context.SingletonScope.getOrCreate(SingletonScope.java:80)
+	at io.micronaut.context.DefaultBeanContext.intializeEagerBean(DefaultBeanContext.java:3039)
+	at io.micronaut.context.DefaultBeanContext.initializeEagerBean(DefaultBeanContext.java:2708)
+	at io.micronaut.context.DefaultBeanContext.initializeContext(DefaultBeanContext.java:2034)
+	... 8 common frames omitted
+Caused by: java.lang.IllegalStateException: Failed to build TLS context
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.sslContext(MochatRuntimeFactory.java:344)
+	at com.github.lystran.mochat.runtime.$MochatRuntimeFactory$SslContext23$Definition.instantiate(Unknown Source)
+	at io.micronaut.context.DefaultBeanContext.resolveByBeanFactory(DefaultBeanContext.java:2337)
+	... 33 common frames omitted
+Caused by: java.security.cert.CertificateException: No provider succeeded to generate a self-signed certificate. See debug log for the root cause.
+	at io.netty.handler.ssl.util.SelfSignedCertificate$Builder.generateSunMiscSecurity(SelfSignedCertificate.java:574)
+	at io.netty.handler.ssl.util.SelfSignedCertificate.<init>(SelfSignedCertificate.java:228)
+	at io.netty.handler.ssl.util.SelfSignedCertificate.<init>(SelfSignedCertificate.java:127)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.buildSslContext(MochatRuntimeFactory.java:380)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.buildMandatorySslContext(MochatRuntimeFactory.java:360)
+	at com.github.lystran.mochat.runtime.MochatRuntimeFactory.sslContext(MochatRuntimeFactory.java:340)
+	... 35 common frames omitted
+Caused by: java.lang.UnsupportedOperationException: OpenJdkSelfSignedCertGenerator not supported on the used JDK version
+	at io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator.generate(OpenJdkSelfSignedCertGenerator.java:284)
+	at io.netty.handler.ssl.util.SelfSignedCertificate$Builder.generateSunMiscSecurity(SelfSignedCertificate.java:569)
+	... 40 common frames omitted
+
+> Task :app:run FAILED
+
+[Incubating] Problems report is available at: file:///D:/%E5%A4%A7%E4%B8%89%E4%B8%8B/%E5%B7%A5%E7%A8%8B%E5%AE%9E%E8%B7%B5/%E9%A1%B9%E7%9B%AE/cloud/mo-chat/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+25 actionable tasks: 1 executed, 24 up-to-date
