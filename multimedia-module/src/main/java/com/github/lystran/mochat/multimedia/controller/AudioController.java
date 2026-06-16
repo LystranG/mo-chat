@@ -1,7 +1,7 @@
-package com.github.lystran.mochat.logic.http;
+package com.github.lystran.mochat.multimedia.controller;
 
-import com.github.lystran.mochat.logic.service.AudioProcessingService;
-import com.github.lystran.mochat.logic.service.MediaStorageConfig;
+import com.github.lystran.mochat.multimedia.config.MediaStorageConfig;
+import com.github.lystran.mochat.multimedia.service.AudioProcessingService;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 
 @Controller("/audio")
-public class AudioController {
+public final class AudioController {
 
     private static final Logger log = LoggerFactory.getLogger(AudioController.class);
 
@@ -34,12 +34,12 @@ public class AudioController {
     public AudioController(AudioProcessingService audioProcessingService, MediaStorageConfig config) {
         this.audioProcessingService = Objects.requireNonNull(audioProcessingService, "audioProcessingService");
         Objects.requireNonNull(config, "config");
-        
+
         var rustfsConfig = config.rustfs();
         String endpoint = rustfsConfig.endpoint();
-        
+
         log.info("Initializing AudioController with RustFS endpoint={}", endpoint);
-        
+
         this.s3Client = S3Client.builder()
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.of(rustfsConfig.region()))
@@ -50,28 +50,29 @@ public class AudioController {
                         .pathStyleAccessEnabled(true)
                         .build())
                 .build();
-        
+
         this.bucketName = rustfsConfig.bucket();
     }
 
     @Get("/waveform/{objectName+}")
-    public Map<String, Object> getWaveform(@PathVariable String objectName) {
+    public ApiResponse<Map<String, Object>> getWaveform(@PathVariable String objectName) {
         log.info("Generating waveform for audio file, objectName={}", objectName);
-        
+
         try {
             byte[] audioData = downloadAudioData(objectName);
             String mimeType = inferMimeType(objectName);
-            
+
             String waveformData = audioProcessingService.generateWaveformData(audioData, mimeType);
-            
-            log.info("Waveform generated successfully, objectName={}, waveformDataSize={} bytes", 
+
+            log.info("Waveform generated successfully, objectName={}, waveformDataSize={} bytes",
                     objectName, waveformData.length());
-            
-            return Map.of(
-                "success", true,
-                "waveform", waveformData,
-                "points", 100
+
+            Map<String, Object> responseData = Map.of(
+                    "waveform", waveformData,
+                    "points", 100
             );
+
+            return ApiResponse.ok(responseData);
         } catch (Exception e) {
             log.error("Failed to generate waveform, objectName={}", objectName, e);
             throw new RuntimeException("Failed to generate waveform", e);
@@ -80,22 +81,22 @@ public class AudioController {
 
     @Get("/transcode/{objectName+}")
     public HttpResponse<byte[]> transcode(@PathVariable String objectName,
-                                         @QueryValue(defaultValue = "mp3") String format) {
+                                          @QueryValue(defaultValue = "mp3") String format) {
         log.info("Transcoding audio file, objectName={}, targetFormat={}", objectName, format);
-        
+
         try {
             byte[] audioData = downloadAudioData(objectName);
             String mimeType = inferMimeType(objectName);
-            
+
             byte[] transcodedData = audioProcessingService.transcodeAudio(audioData, mimeType);
             String outputMimeType = getOutputMimeType(format);
-            
-            log.info("Audio transcoded successfully, objectName={}, outputSize={} bytes, outputMimeType={}", 
+
+            log.info("Audio transcoded successfully, objectName={}, outputSize={} bytes, outputMimeType={}",
                     objectName, transcodedData.length, outputMimeType);
-            
+
             return HttpResponse.ok(transcodedData)
-                .header("Content-Type", outputMimeType)
-                .header("Content-Disposition", "inline; filename=\"" + objectName + "\"");
+                    .header("Content-Type", outputMimeType)
+                    .header("Content-Disposition", "inline; filename=\"" + objectName + "\"");
         } catch (Exception e) {
             log.error("Failed to transcode audio, objectName={}, format={}", objectName, format, e);
             throw new RuntimeException("Failed to transcode audio", e);
@@ -105,9 +106,9 @@ public class AudioController {
     private byte[] downloadAudioData(String objectName) {
         try {
             return s3Client.getObjectAsBytes(GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectName)
-                .build()
+                    .bucket(bucketName)
+                    .key(objectName)
+                    .build()
             ).asByteArray();
         } catch (Exception e) {
             throw new RuntimeException("Failed to download audio: " + objectName, e);

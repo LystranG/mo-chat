@@ -27,10 +27,8 @@ message PrivateMessageReq {
   int64 conversationId = 3;
   int64 toUid = 4;
 
-  oneof content {
-    EncryptedText encryptedText = 10;
-    MediaMetadata media = 11;
-  }
+  // 改为 repeated，支持组合消息（既有文本又有图片等）
+  repeated MessageContent contents = 10;
 }
 
 message GroupMessageReq {
@@ -39,10 +37,22 @@ message GroupMessageReq {
   int64 conversationId = 3;
   int64 groupId = 4;
 
+  // 改为 repeated，支持组合消息
+  repeated MessageContent contents = 10;
+}
+
+// 新增：统一的消息内容结构，使用 oneof 区分不同类型
+message MessageContent {
   oneof content {
-    string text = 10;
-    MediaMetadata media = 11;
+    EncryptedText encryptedText = 1;
+    PlainText plainText = 2;
+    MediaMetadata media = 3;
   }
+}
+
+// 新增：明文文本（群聊用）
+message PlainText {
+  string text = 1;
 }
 
 message ChatMessageDelivery {
@@ -52,23 +62,24 @@ message ChatMessageDelivery {
   int64 conversationId = 4;
   int64 fromUid = 5;
 
+  // 改为 repeated，支持组合消息下发
+  repeated MessageContent contents = 10;
+
+  // 保留旧字段用于兼容（可选）
   oneof payload {
-    PrivatePayload privatePayload = 10;
-    GroupPayload groupPayload = 11;
+    PrivatePayload privatePayload = 11;
+    GroupPayload groupPayload = 12;
   }
 }
 
 message PrivatePayload {
   int64 toUid = 1;
-  bytes nonce = 2;
-  bytes ciphertext = 3;
-  MediaMetadata mediaMetadata = 4;
+  repeated MessageContent contents = 2;
 }
 
 message GroupPayload {
   int64 groupId = 1;
-  string text = 2;
-  MediaMetadata mediaMetadata = 3;
+  repeated MessageContent contents = 2;
 }
 
 message ClientReceiveAck {

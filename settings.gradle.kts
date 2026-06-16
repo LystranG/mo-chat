@@ -1,12 +1,14 @@
 rootProject.name = "mo-chat"
 
 include(
-    "app",
-    "common",
-    "protocol",
-    "infra-redis",
-    "connection-module",
-    "message-module",
-    "logic-module",
-    "persistence-module",
+    "app", 
+    "common", 
+    "connection-module", 
+    "logic-module", 
+    "message-module", 
+    "persistence-module", 
+    "infra-redis", 
+    "protocol", 
+    "call-module", 
+    "multimedia-module"  // 新增多媒体模块
 )

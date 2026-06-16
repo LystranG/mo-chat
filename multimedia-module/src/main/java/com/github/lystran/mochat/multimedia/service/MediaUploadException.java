@@ -1,4 +1,4 @@
-package com.github.lystran.mochat.logic.service;
+package com.github.lystran.mochat.multimedia.service;
 
 public class MediaUploadException extends RuntimeException {
 
