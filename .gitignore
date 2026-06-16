@@ -50,6 +50,8 @@ docker/
 .claude
 .serena/
 .codex
+.sisyphus/
 
 tmp.txt
-.sisyphus
+
+
