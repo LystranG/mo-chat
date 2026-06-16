@@ -4,6 +4,7 @@ import com.github.lystran.mochat.call.dto.CallSignalMessage;
 import com.github.lystran.mochat.call.dto.CallRoomState;
 import com.github.lystran.mochat.call.dto.CallRoomName;
 import com.github.lystran.mochat.call.dto.CallRoomType;
+import com.github.lystran.mochat.call.entity.CallOfflineNotification;
 import com.github.lystran.mochat.call.manager.CallRoomManager;
 import com.github.lystran.mochat.call.websocket.CallSignalGateway;
 
@@ -54,16 +55,30 @@ public final class CallService {
 
         String callId = newCallId();
         CallRoomState room = callRoomManager.createPrivateRoom(fromUserId, toUserId, callId);
-        String token = callTokenService.issueToken(fromUserId, room.roomName());
-        signalGateway.sendToUser(toUserId, new CallSignalMessage(
-            "call_invite",
-            callId,
-            fromUserId,
-            toUserId,
-            0L,
-            room.roomName(),
-            clock.millis()
+
+        boolean callInvite = signalGateway.sendToUser(toUserId, new CallSignalMessage(
+                "call_invite",
+                callId,
+                fromUserId,
+                toUserId,
+                0L,
+                room.roomName(),
+                clock.millis()
         ));
+        if(!callInvite){
+           //插入离线消息
+            offlineNotificationService.enqueueBatch(List.of(new CallSignalMessage(
+                    "call_invite",
+                    callId,
+                    fromUserId,
+                    toUserId,
+                    -1,
+                    room.roomName(),
+                    clock.millis()
+            )));
+            callRoomManager.endRoom(room.roomName());
+        }
+        String token = callInvite ? callTokenService.issueToken(fromUserId, room.roomName()):null;
         return new PrivateCallInviteResult(callId, room.roomName(), fromUserId, toUserId, token, callTokenService.livekitUrl());
     }
 
@@ -86,6 +101,7 @@ public final class CallService {
 
         if ("call_accept".equals(normalizedType)) {
             callRoomManager.markJoined(parsed.value(), fromUserId);
+            callRoomManager.markJoined(parsed.value(), toUserId);
         }
         if ("call_reject".equals(normalizedType) || "call_cancel".equals(normalizedType) || "call_hangup".equals(normalizedType)) {
             callRoomManager.endRoom(parsed.value());

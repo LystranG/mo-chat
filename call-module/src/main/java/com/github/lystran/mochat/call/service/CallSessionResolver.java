@@ -6,7 +6,6 @@ import jakarta.inject.Singleton;
 import java.util.Objects;
 import java.util.Optional;
 
-/** 音视频模块自己解析登录 session，避免直接依赖逻辑模块。 */
 @Singleton
 public final class CallSessionResolver {
     private static final String SESSION_KEY_PREFIX = "mochat:session:";
