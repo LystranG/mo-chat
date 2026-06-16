@@ -13,22 +13,17 @@ public record MessageIngestRequest(
     Long peerUidLow,
     Long peerUidHigh,
     Long groupId,
-    String payloadBase64
+    String payloadBase64,
+    MultimediaMetadata multimediaMetadata
 ) {
     public static final String KIND_PRIVATE = "PRIVATE";
     public static final String KIND_GROUP = "GROUP";
 
-    /**
-     * 校验消息种类和编码后的消息内容等必填字段。
-     */
     public MessageIngestRequest {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(payloadBase64, "payloadBase64");
     }
 
-    /**
-     * 构造私聊消息的摄入请求。
-     */
     public static MessageIngestRequest privateMessage(
         long senderUid,
         long conversationId,
@@ -45,13 +40,11 @@ public record MessageIngestRequest(
             peerUidLow,
             peerUidHigh,
             null,
-            payloadBase64
+            payloadBase64,
+            null
         );
     }
 
-    /**
-     * 构造群聊消息的摄入请求。
-     */
     public static MessageIngestRequest groupMessage(
         long senderUid,
         long conversationId,
@@ -67,7 +60,74 @@ public record MessageIngestRequest(
             null,
             null,
             groupId,
-            payloadBase64
+            payloadBase64,
+            null
         );
+    }
+
+    public static MessageIngestRequest privateMultimediaMessage(
+        long senderUid,
+        long conversationId,
+        long clientMsgId,
+        long peerUidLow,
+        long peerUidHigh,
+        String payloadBase64,
+        MultimediaMetadata multimediaMetadata
+    ) {
+        return new MessageIngestRequest(
+            senderUid,
+            conversationId,
+            clientMsgId,
+            KIND_PRIVATE,
+            peerUidLow,
+            peerUidHigh,
+            null,
+            payloadBase64,
+            Objects.requireNonNull(multimediaMetadata, "multimediaMetadata")
+        );
+    }
+
+    public static MessageIngestRequest groupMultimediaMessage(
+        long senderUid,
+        long conversationId,
+        long clientMsgId,
+        long groupId,
+        String payloadBase64,
+        MultimediaMetadata multimediaMetadata
+    ) {
+        return new MessageIngestRequest(
+            senderUid,
+            conversationId,
+            clientMsgId,
+            KIND_GROUP,
+            null,
+            null,
+            groupId,
+            payloadBase64,
+            Objects.requireNonNull(multimediaMetadata, "multimediaMetadata")
+        );
+    }
+
+    public record MultimediaMetadata(
+            String type,
+            String mediaUrl,
+            String thumbnailUrl,
+            long fileSize,
+            String mimeType,
+            String fileName,
+            Integer duration,
+            Integer width,
+            Integer height,
+            String waveformData
+    ) {
+        public MultimediaMetadata {
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(mediaUrl, "mediaUrl");
+            if (fileSize <= 0) {
+                throw new IllegalArgumentException("fileSize must be positive");
+            }
+            Objects.requireNonNull(mimeType, "mimeType");
+            Objects.requireNonNull(fileName, "fileName");
+        }
     }
 }

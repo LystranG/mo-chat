@@ -8,7 +8,6 @@ plugins {
 }
 
 dependencies {
-    // 统一 Netty 版本，避免 lettuce/rocketmq 带入的旧版本与 Micronaut 4.2.x 冲突
     implementation(platform("io.netty:netty-bom:4.2.2.Final"))
 
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")

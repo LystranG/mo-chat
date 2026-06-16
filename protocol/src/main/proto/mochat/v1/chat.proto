@@ -26,8 +26,11 @@ message PrivateMessageReq {
   int64 clientMsgId = 2;
   int64 conversationId = 3;
   int64 toUid = 4;
-  bytes nonce = 5;
-  bytes ciphertext = 6;
+
+  oneof content {
+    EncryptedText encryptedText = 10;
+    MediaMetadata media = 11;
+  }
 }
 
 message GroupMessageReq {
@@ -35,7 +38,11 @@ message GroupMessageReq {
   int64 clientMsgId = 2;
   int64 conversationId = 3;
   int64 groupId = 4;
-  string text = 5;
+
+  oneof content {
+    string text = 10;
+    MediaMetadata media = 11;
+  }
 }
 
 message ChatMessageDelivery {
@@ -55,11 +62,13 @@ message PrivatePayload {
   int64 toUid = 1;
   bytes nonce = 2;
   bytes ciphertext = 3;
+  MediaMetadata mediaMetadata = 4;
 }
 
 message GroupPayload {
   int64 groupId = 1;
   string text = 2;
+  MediaMetadata mediaMetadata = 3;
 }
 
 message ClientReceiveAck {
@@ -73,4 +82,30 @@ message DeliveredAck {
   int64 toUid = 2;
   int64 latestReceivedSeq = 3;
   int64 serverTimeMs = 4;
+}
+
+message EncryptedText {
+  bytes nonce = 1;
+  bytes ciphertext = 2;
+}
+
+message MediaMetadata {
+  MediaType type = 1;
+  string mediaUrl = 2;
+  string thumbnailUrl = 3;
+  int64 fileSize = 4;
+  string mimeType = 5;
+  string fileName = 6;
+  int32 duration = 7;
+  int32 width = 8;
+  int32 height = 9;
+  string previewText = 10;
+  bytes waveformData = 11;
+}
+
+enum MediaType {
+  IMAGE = 0;
+  VIDEO = 1;
+  AUDIO = 2;
+  FILE = 3;
 }

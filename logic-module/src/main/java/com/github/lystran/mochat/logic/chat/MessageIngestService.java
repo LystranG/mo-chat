@@ -295,10 +295,14 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(request.payloadBase64());
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
-            if (privateRequest.getNonce().size() != 12) {
+            if (!privateRequest.hasEncryptedText()) {
+                throw new IllegalArgumentException("private message requires encryptedText content");
+            }
+            var encryptedText = privateRequest.getEncryptedText();
+            if (encryptedText.getNonce().size() != 12) {
                 throw new IllegalArgumentException("private message nonce must be exactly 12 bytes");
             }
-            if (privateRequest.getCiphertext().isEmpty()) {
+            if (encryptedText.getCiphertext().isEmpty()) {
                 throw new IllegalArgumentException("private message ciphertext is required");
             }
         } catch (InvalidProtocolBufferException exception) {
@@ -388,29 +392,41 @@ public class MessageIngestService {
         }
 
         long recipientUid = resolvePrivateRecipientUid(request.senderUid(), request.peerUidLow(), request.peerUidHigh());
-        var delivery = Mochat.ChatMessageDelivery.newBuilder()
+        
+        var deliveryBuilder = Mochat.ChatMessageDelivery.newBuilder()
             .setMsgId(msgId)
             .setSeq(seq)
             .setServerTimeMs(serverTimeMs)
             .setConversationId(request.conversationId())
-            .setFromUid(request.senderUid())
-            .setPrivatePayload(buildPrivatePayload(request.payloadBase64(), recipientUid))
-            .build();
-
+            .setFromUid(request.senderUid());
+        
+        Mochat.PrivatePayload.Builder privatePayloadBuilder = buildPrivatePayloadBuilder(request.payloadBase64(), recipientUid);
+        
+        if (request.multimediaMetadata() != null) {
+            privatePayloadBuilder.setMediaMetadata(convertToProtobuf(request.multimediaMetadata()));
+        }
+        
+        deliveryBuilder.setPrivatePayload(privatePayloadBuilder.build());
+        
+        var delivery = deliveryBuilder.build();
         emitOutboundEvent(recipientUid, MsgType.PRIVATE_MESSAGE, delivery.toByteArray());
     }
 
-    /**
-     * 在群聊场景下把消息发给群里其他成员。
-     */
     private void emitGroupDelivery(MessageIngestRequest request, long msgId, long seq, long serverTimeMs) {
         if (!MessageIngestRequest.KIND_GROUP.equals(request.kind())) {
             return;
         }
 
         long groupId = Objects.requireNonNull(request.groupId(), "groupId");
-        Mochat.GroupPayload groupPayload = buildGroupPayload(request.payloadBase64(), groupId);
-        // 这里先去重，再固定一份当前成员名单，避免仓储返回重复成员，或遍历时名单发生变化。
+        
+        var groupPayloadBuilder = buildGroupPayloadBuilder(request.payloadBase64(), groupId);
+        
+        if (request.multimediaMetadata() != null) {
+            groupPayloadBuilder.setMediaMetadata(convertToProtobuf(request.multimediaMetadata()));
+        }
+        
+        Mochat.GroupPayload groupPayload = groupPayloadBuilder.build();
+        
         for (Long recipientUid : new LinkedHashSet<>(messageRelationshipRepository.listActiveGroupMemberIds(groupId))) {
             if (recipientUid == null || recipientUid <= 0 || recipientUid == request.senderUid()) {
                 continue;
@@ -428,37 +444,70 @@ public class MessageIngestService {
         }
     }
 
-    /**
-     * 从原始私聊请求里拆出接收方真正需要的消息内容。
-     */
-    private Mochat.PrivatePayload buildPrivatePayload(String requestPayloadBase64, long recipientUid) {
+    private Mochat.PrivatePayload.Builder buildPrivatePayloadBuilder(String requestPayloadBase64, long recipientUid) {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
+            if (!privateRequest.hasEncryptedText()) {
+                throw new IllegalStateException("private message requires encryptedText content");
+            }
+            var encryptedText = privateRequest.getEncryptedText();
             return Mochat.PrivatePayload.newBuilder()
                 .setToUid(recipientUid)
-                .setNonce(privateRequest.getNonce())
-                .setCiphertext(privateRequest.getCiphertext())
-                .build();
+                .setNonce(encryptedText.getNonce())
+                .setCiphertext(encryptedText.getCiphertext());
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build private delivery payload", parseFailure);
         }
     }
 
-    /**
-     * 从原始群聊请求里拆出后面转发要用的群消息内容。
-     */
-    private Mochat.GroupPayload buildGroupPayload(String requestPayloadBase64, long groupId) {
+    private Mochat.GroupPayload.Builder buildGroupPayloadBuilder(String requestPayloadBase64, long groupId) {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
             var groupRequest = Mochat.GroupMessageReq.parseFrom(body);
             return Mochat.GroupPayload.newBuilder()
                 .setGroupId(groupId)
-                .setText(groupRequest.getText())
-                .build();
+                .setText(groupRequest.getText());
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build group delivery payload", parseFailure);
         }
+    }
+
+    private Mochat.MediaMetadata convertToProtobuf(MessageIngestRequest.MultimediaMetadata metadata) {
+        var builder = Mochat.MediaMetadata.newBuilder()
+                .setType(convertMediaType(metadata.type()))
+                .setMediaUrl(metadata.mediaUrl())
+                .setFileSize(metadata.fileSize())
+                .setMimeType(metadata.mimeType())
+                .setFileName(metadata.fileName());
+
+        if (metadata.thumbnailUrl() != null) {
+            builder.setThumbnailUrl(metadata.thumbnailUrl());
+        }
+        if (metadata.duration() != null) {
+            builder.setDuration(metadata.duration());
+        }
+        if (metadata.width() != null) {
+            builder.setWidth(metadata.width());
+        }
+        if (metadata.height() != null) {
+            builder.setHeight(metadata.height());
+        }
+        if (metadata.waveformData() != null) {
+            builder.setPreviewText(metadata.waveformData());
+        }
+
+        return builder.build();
+    }
+
+    private Mochat.MediaType convertMediaType(String type) {
+        return switch (type) {
+            case "image" -> Mochat.MediaType.IMAGE;
+            case "video" -> Mochat.MediaType.VIDEO;
+            case "audio" -> Mochat.MediaType.AUDIO;
+            case "file" -> Mochat.MediaType.FILE;
+            default -> throw new IllegalArgumentException("Unknown media type: " + type);
+        };
     }
 
     /**

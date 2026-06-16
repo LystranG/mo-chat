@@ -22,11 +22,20 @@ public final class MessageRepository {
             peer_uid_high,
             group_id,
             server_ts_ms,
-            payload_base64
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            payload_base64,
+            message_type,
+            media_url,
+            thumbnail_url,
+            file_size,
+            mime_type,
+            file_name,
+            duration,
+            width,
+            height,
+            waveform_data
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
-    // 插入一整行消息数据，写进去的列和 messages 表里的列是一一对应的。
     public void insert(Connection connection, PersistedMessage message) throws SQLException {
         Objects.requireNonNull(connection, "connection");
         Objects.requireNonNull(message, "message");
@@ -43,30 +52,47 @@ public final class MessageRepository {
             statement.setObject(9, message.groupId(), Types.BIGINT);
             statement.setLong(10, message.serverTsMs());
             statement.setString(11, message.payloadBase64());
+            statement.setString(12, message.messageType());
+            statement.setObject(13, message.mediaUrl(), Types.VARCHAR);
+            statement.setObject(14, message.thumbnailUrl(), Types.VARCHAR);
+            statement.setObject(15, message.fileSize(), Types.BIGINT);
+            statement.setObject(16, message.mimeType(), Types.VARCHAR);
+            statement.setObject(17, message.fileName(), Types.VARCHAR);
+            statement.setObject(18, message.duration(), Types.INTEGER);
+            statement.setObject(19, message.width(), Types.INTEGER);
+            statement.setObject(20, message.height(), Types.INTEGER);
+            statement.setObject(21, message.waveformData(), Types.VARCHAR);
             statement.executeUpdate();
         }
     }
 
-    /**
-     * 表示已经整理成“可以直接写数据库”的消息数据。
-     */
     public record PersistedMessage(
-        long msgId,
-        long conversationId,
-        long seq,
-        long clientMsgId,
-        String kind,
-        long senderUid,
-        Long peerUidLow,
-        Long peerUidHigh,
-        Long groupId,
-        long serverTsMs,
-        String payloadBase64
+            long msgId,
+            long conversationId,
+            long seq,
+            long clientMsgId,
+            String kind,
+            long senderUid,
+            Long peerUidLow,
+            Long peerUidHigh,
+            Long groupId,
+            long serverTsMs,
+            String payloadBase64,
+            String messageType,
+            String mediaUrl,
+            String thumbnailUrl,
+            Long fileSize,
+            String mimeType,
+            String fileName,
+            Integer duration,
+            Integer width,
+            Integer height,
+            String waveformData
     ) {
-        // 先拦住最基本的空字段，避免把半截消息直接交给 JDBC 去写。
         public PersistedMessage {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(payloadBase64, "payloadBase64");
+            Objects.requireNonNull(messageType, "messageType");
         }
     }
 }
