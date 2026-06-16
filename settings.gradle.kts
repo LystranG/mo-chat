@@ -10,4 +10,5 @@ include(
     "message-module",
     "logic-module",
     "persistence-module",
+    "multimedia-module"
 )
