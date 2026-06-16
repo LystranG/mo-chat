@@ -52,3 +52,4 @@ docker/
 .codex
 
 tmp.txt
+.sisyphus
