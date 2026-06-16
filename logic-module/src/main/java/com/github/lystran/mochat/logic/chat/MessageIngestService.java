@@ -6,9 +6,9 @@ import com.github.lystran.mochat.common.idempotency.IdempotencyStore;
 import com.github.lystran.mochat.common.lock.ConversationLock;
 import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
 import com.github.lystran.mochat.logic.mq.RocketMqProducer;
-import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import com.github.lystran.mochat.logic.repository.AllowAllMessageRelationshipRepository;
 import com.github.lystran.mochat.logic.repository.MessageRelationshipRepository;
+import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import com.github.lystran.mochat.protocol.ErrorCode;
 import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
@@ -295,15 +295,32 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(request.payloadBase64());
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
-            if (!privateRequest.hasEncryptedText()) {
-                throw new IllegalArgumentException("private message requires encryptedText content");
+            
+            // 适配新的 repeated MessageContent 结构
+            if (privateRequest.getContentsCount() == 0) {
+                throw new IllegalArgumentException("private message requires at least one content item");
             }
-            var encryptedText = privateRequest.getEncryptedText();
-            if (encryptedText.getNonce().size() != 12) {
-                throw new IllegalArgumentException("private message nonce must be exactly 12 bytes");
-            }
-            if (encryptedText.getCiphertext().isEmpty()) {
-                throw new IllegalArgumentException("private message ciphertext is required");
+            
+            // 验证每个内容项
+            for (Mochat.MessageContent content : privateRequest.getContentsList()) {
+                if (content.hasEncryptedText()) {
+                    var encryptedText = content.getEncryptedText();
+                    if (encryptedText.getNonce().size() != 12) {
+                        throw new IllegalArgumentException("private message nonce must be exactly 12 bytes");
+                    }
+                    if (encryptedText.getCiphertext().isEmpty()) {
+                        throw new IllegalArgumentException("private message ciphertext is required");
+                    }
+                } else if (content.hasMedia()) {
+                    var media = content.getMedia();
+                    if (media.getMediaUrl().isEmpty()) {
+                        throw new IllegalArgumentException("media message requires mediaUrl");
+                    }
+                }
+                // PlainText 不应该出现在私聊中（私聊应该用 EncryptedText）
+                if (content.hasPlainText()) {
+                    throw new IllegalArgumentException("private message should use encryptedText, not plainText");
+                }
             }
         } catch (InvalidProtocolBufferException exception) {
             throw new IllegalArgumentException("invalid private message payload", exception);
@@ -356,11 +373,35 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(request.payloadBase64());
             var groupRequest = Mochat.GroupMessageReq.parseFrom(body);
-            if (!Objects.equals(request.groupId(), groupRequest.getGroupId())) {
+            
+            // 适配新的 repeated MessageContent 结构
+            if (groupRequest.getContentsCount() == 0) {
+                throw new IllegalArgumentException("group message requires at least one content item");
+            }
+            
+            if (request.groupId() != null && request.groupId() != groupRequest.getGroupId()) {
                 throw new IllegalArgumentException("group message groupId mismatch");
             }
             if (request.conversationId() != groupRequest.getConversationId()) {
                 throw new IllegalArgumentException("group message conversationId mismatch");
+            }
+            
+            // 验证每个内容项
+            for (Mochat.MessageContent content : groupRequest.getContentsList()) {
+                if (content.hasPlainText()) {
+                    if (content.getPlainText().getText().isEmpty()) {
+                        throw new IllegalArgumentException("plain text content cannot be empty");
+                    }
+                } else if (content.hasMedia()) {
+                    var media = content.getMedia();
+                    if (media.getMediaUrl().isEmpty()) {
+                        throw new IllegalArgumentException("media message requires mediaUrl");
+                    }
+                }
+                // 私聊的 EncryptedText 不应该出现在群聊中
+                if (content.hasEncryptedText()) {
+                    throw new IllegalArgumentException("group message should not use encryptedText");
+                }
             }
         } catch (InvalidProtocolBufferException exception) {
             throw new IllegalArgumentException("invalid group message payload", exception);
@@ -400,11 +441,8 @@ public class MessageIngestService {
             .setConversationId(request.conversationId())
             .setFromUid(request.senderUid());
         
+        // 适配新的 repeated MessageContent 结构
         Mochat.PrivatePayload.Builder privatePayloadBuilder = buildPrivatePayloadBuilder(request.payloadBase64(), recipientUid);
-        
-        if (request.multimediaMetadata() != null) {
-            privatePayloadBuilder.setMediaMetadata(convertToProtobuf(request.multimediaMetadata()));
-        }
         
         deliveryBuilder.setPrivatePayload(privatePayloadBuilder.build());
         
@@ -419,11 +457,8 @@ public class MessageIngestService {
 
         long groupId = Objects.requireNonNull(request.groupId(), "groupId");
         
+        // 适配新的 repeated MessageContent 结构
         var groupPayloadBuilder = buildGroupPayloadBuilder(request.payloadBase64(), groupId);
-        
-        if (request.multimediaMetadata() != null) {
-            groupPayloadBuilder.setMediaMetadata(convertToProtobuf(request.multimediaMetadata()));
-        }
         
         Mochat.GroupPayload groupPayload = groupPayloadBuilder.build();
         
@@ -448,14 +483,14 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
-            if (!privateRequest.hasEncryptedText()) {
-                throw new IllegalStateException("private message requires encryptedText content");
-            }
-            var encryptedText = privateRequest.getEncryptedText();
-            return Mochat.PrivatePayload.newBuilder()
-                .setToUid(recipientUid)
-                .setNonce(encryptedText.getNonce())
-                .setCiphertext(encryptedText.getCiphertext());
+            
+            var builder = Mochat.PrivatePayload.newBuilder()
+                .setToUid(recipientUid);
+            
+            // 适配新的 repeated MessageContent 结构
+            builder.addAllContents(privateRequest.getContentsList());
+            
+            return builder;
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build private delivery payload", parseFailure);
         }
@@ -465,67 +500,17 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
             var groupRequest = Mochat.GroupMessageReq.parseFrom(body);
-            return Mochat.GroupPayload.newBuilder()
-                .setGroupId(groupId)
-                .setText(groupRequest.getText());
+            
+            var builder = Mochat.GroupPayload.newBuilder()
+                .setGroupId(groupId);
+            
+            // 适配新的 repeated MessageContent 结构
+            builder.addAllContents(groupRequest.getContentsList());
+            
+            return builder;
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build group delivery payload", parseFailure);
         }
-    }
-
-    private Mochat.MediaMetadata convertToProtobuf(MessageIngestRequest.MultimediaMetadata metadata) {
-        var builder = Mochat.MediaMetadata.newBuilder()
-                .setType(convertMediaType(metadata.type()))
-                .setMediaUrl(metadata.mediaUrl())
-                .setFileSize(metadata.fileSize())
-                .setMimeType(metadata.mimeType())
-                .setFileName(metadata.fileName());
-
-        if (metadata.thumbnailUrl() != null) {
-            builder.setThumbnailUrl(metadata.thumbnailUrl());
-        }
-        if (metadata.duration() != null) {
-            builder.setDuration(metadata.duration());
-        }
-        if (metadata.width() != null) {
-            builder.setWidth(metadata.width());
-        }
-        if (metadata.height() != null) {
-            builder.setHeight(metadata.height());
-        }
-        if (metadata.waveformData() != null) {
-            builder.setPreviewText(metadata.waveformData());
-        }
-
-        return builder.build();
-    }
-
-    private Mochat.MediaType convertMediaType(String type) {
-        return switch (type) {
-            case "image" -> Mochat.MediaType.IMAGE;
-            case "video" -> Mochat.MediaType.VIDEO;
-            case "audio" -> Mochat.MediaType.AUDIO;
-            case "file" -> Mochat.MediaType.FILE;
-            default -> throw new IllegalArgumentException("Unknown media type: " + type);
-        };
-    }
-
-    /**
-     * 根据发送方和有序参与者信息解析私聊接收方 ID。
-     */
-    private long resolvePrivateRecipientUid(long senderUid, Long peerUidLow, Long peerUidHigh) {
-        if (peerUidLow == null || peerUidHigh == null) {
-            throw new IllegalStateException("private message requires both peer uids");
-        }
-
-        if (senderUid == peerUidLow) {
-            return peerUidHigh;
-        }
-        if (senderUid == peerUidHigh) {
-            return peerUidLow;
-        }
-
-        throw new IllegalStateException("sender must be one of private conversation peers");
     }
 
     /**
@@ -554,5 +539,23 @@ public class MessageIngestService {
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to release conversation lock", exception);
         }
+    }
+    
+    /**
+     * 根据发送方和有序参与者信息解析私聊接收方 ID。
+     */
+    private long resolvePrivateRecipientUid(long senderUid, Long peerUidLow, Long peerUidHigh) {
+        if (peerUidLow == null || peerUidHigh == null) {
+            throw new IllegalStateException("private message requires both peer uids");
+        }
+
+        if (senderUid == peerUidLow) {
+            return peerUidHigh;
+        }
+        if (senderUid == peerUidHigh) {
+            return peerUidLow;
+        }
+
+        throw new IllegalStateException("sender must be one of private conversation peers");
     }
 }

@@ -1,13 +1,16 @@
-package com.github.lystran.mochat.logic.chat;
+package com.github.lystran.mochat.multimedia.dto;
 
 import io.micronaut.core.annotation.Nullable;
 
+/**
+ * 多媒体消息请求，用于 HTTP API 接收客户端发送的多媒体消息
+ */
 public record MultimediaMessageRequest(
         String sessionId,
         long clientMsgId,
         long conversationId,
         long toUid,
-        String messageType,
+        String messageType,      // image/video/audio/file
         String mediaUrl,
         @Nullable String thumbnailUrl,
         long fileSize,
