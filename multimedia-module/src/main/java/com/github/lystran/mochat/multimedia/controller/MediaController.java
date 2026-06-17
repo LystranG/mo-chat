@@ -47,19 +47,21 @@ public final class MediaController {
                 originalFilename, data.length, mimeType);
 
         try {
-            MediaUploadResult result = mediaStorageService.upload(data, originalFilename, mimeType);
+            MediaStorageService.MediaUploadResult result = mediaStorageService.upload(data, originalFilename, mimeType);
 
             Map<String, Object> responseData = Map.of(
                     "mediaId", result.mediaId(),
                     "mediaUrl", result.mediaUrl(),
+                    "thumbnailUrl", result.thumbnailUrl() != null ? result.thumbnailUrl() : "",
                     "objectName", result.objectName(),
                     "fileSize", result.fileSize(),
                     "mimeType", result.mimeType(),
-                    "fileName", result.fileName()
+                    "fileName", result.fileName(),
+                    "waveformData", result.waveformData() != null ? result.waveformData() : ""
             );
 
-            log.info("Media upload successful: mediaId={}, mediaUrl={}, objectName={}", 
-                    result.mediaId(), result.mediaUrl(), result.objectName());
+            log.info("Media upload successful: mediaId={}, mediaUrl={}, thumbnailUrl={}", 
+                    result.mediaId(), result.mediaUrl(), result.thumbnailUrl());
 
             return ApiResponse.ok(responseData);
 

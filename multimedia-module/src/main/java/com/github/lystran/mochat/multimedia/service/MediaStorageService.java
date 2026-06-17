@@ -95,6 +95,22 @@ public class MediaStorageService {
         }
     }
 
+    /**
+     * 上传媒体文件到 RustFS 对象存储
+     * 
+     * <p>业务规则：</p>
+     * <ul>
+     *   <li><b>图片</b>：原图和缩略图都上传，返回两个 URL</li>
+     *   <li><b>视频</b>：原视频和封面缩略图都上传，返回两个 URL</li>
+     *   <li><b>音频</b>：转码为 MP3 并生成波形数据，只返回一个 URL</li>
+     *   <li><b>其他文件</b>：直接上传，只返回一个 URL</li>
+     * </ul>
+     * 
+     * @param data 文件二进制数据
+     * @param originalFilename 原始文件名
+     * @param mimeType MIME 类型
+     * @return 上传结果，包含 mediaUrl、thumbnailUrl（如果有）、waveformData（如果有）
+     */
     public MediaUploadResult upload(byte[] data, String originalFilename, String mimeType) {
         validateFile(data.length, mimeType);
 
@@ -110,7 +126,20 @@ public class MediaStorageService {
             String waveformData = null;
 
             if (isImageType(mimeType)) {
-                log.info("Processing image file, generating thumbnail");
+                // ========== 图片处理：原图 + 缩略图都上传 ==========
+                log.info("Processing image file, uploading original and generating thumbnail");
+                
+                // 1. 先上传原图
+                s3Client.putObject(PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(objectName)
+                        .contentType(mimeType)
+                        .contentLength((long) data.length)
+                        .build(), RequestBody.fromBytes(data)
+                );
+                log.info("Original image uploaded, objectName={}", objectName);
+                
+                // 2. 生成并上传缩略图
                 try {
                     byte[] thumbnailData = thumbnailService.generateThumbnail(data, mimeType);
                     String thumbnailObjectName = generateThumbnailObjectName(objectName);
@@ -118,23 +147,64 @@ public class MediaStorageService {
                     s3Client.putObject(PutObjectRequest.builder()
                             .bucket(bucketName)
                             .key(thumbnailObjectName)
-                            .contentType(mimeType)
+                            .contentType("image/jpeg")  // 缩略图统一为 JPEG
                             .contentLength((long) thumbnailData.length)
                             .build(), RequestBody.fromBytes(thumbnailData)
                     );
 
                     thumbnailUrl = buildMediaUrl(thumbnailObjectName);
                     log.info("Thumbnail generated and uploaded, thumbnailUrl={}", thumbnailUrl);
+                    
                 } catch (IOException e) {
                     log.error("Failed to generate thumbnail", e);
-                    throw new RuntimeException("Failed to generate thumbnail", e);
+                    // 缩略图生成失败不影响原图上传，继续返回
                 }
+                
+            } else if (isVideoType(mimeType)) {
+                // ========== 视频处理：原视频 + 封面缩略图都上传 ==========
+                log.info("Processing video file, uploading original and generating cover thumbnail");
+                
+                // 1. 先上传原视频
+                s3Client.putObject(PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(objectName)
+                        .contentType(mimeType)
+                        .contentLength((long) data.length)
+                        .build(), RequestBody.fromBytes(data)
+                );
+                log.info("Original video uploaded, objectName={}", objectName);
+                
+                // 2. 生成并上传封面缩略图（从第5秒提取帧）
+                try {
+                    byte[] thumbnailData = thumbnailService.generateThumbnail(data, mimeType);
+                    String thumbnailObjectName = generateThumbnailObjectName(objectName);
+
+                    s3Client.putObject(PutObjectRequest.builder()
+                            .bucket(bucketName)
+                            .key(thumbnailObjectName)
+                            .contentType("image/jpeg")  // 封面统一为 JPEG
+                            .contentLength((long) thumbnailData.length)
+                            .build(), RequestBody.fromBytes(thumbnailData)
+                    );
+
+                    thumbnailUrl = buildMediaUrl(thumbnailObjectName);
+                    log.info("Video cover thumbnail generated and uploaded, thumbnailUrl={}", thumbnailUrl);
+                    
+                } catch (IOException e) {
+                    log.error("Failed to generate video cover thumbnail", e);
+                    // 封面生成失败不影响原视频上传，继续返回
+                }
+                
             } else if (isAudioType(mimeType)) {
-                log.info("Processing audio file, transcoding and generating waveform");
+                // ========== 音频处理：转码为 MP3 + 生成波形数据 ==========
+                log.info("Processing audio file, transcoding to MP3 and generating waveform");
+                
                 try {
                     byte[] transcodedData = audioProcessingService.transcodeAudio(data, mimeType);
                     if (transcodedData.length != data.length) {
                         processedData = transcodedData;
+                        
+                        // 上传转码后的 MP3
                         s3Client.putObject(PutObjectRequest.builder()
                                 .bucket(bucketName)
                                 .key(objectName)
@@ -143,15 +213,29 @@ public class MediaStorageService {
                                 .build(), RequestBody.fromBytes(processedData)
                         );
                         log.info("Audio transcoded and uploaded, newSize={} bytes", processedData.length);
+                    } else {
+                        // 如果已经是 MP3，直接上传原数据
+                        s3Client.putObject(PutObjectRequest.builder()
+                                .bucket(bucketName)
+                                .key(objectName)
+                                .contentType(mimeType)
+                                .contentLength((long) data.length)
+                                .build(), RequestBody.fromBytes(data)
+                        );
+                        log.info("Audio uploaded without transcoding");
                     }
 
+                    // 生成波形数据
                     waveformData = audioProcessingService.generateWaveformData(processedData, "audio/mpeg");
                     log.info("Audio waveform generated, waveformDataSize={} bytes", waveformData.length());
+                    
                 } catch (IOException e) {
                     log.error("Failed to process audio", e);
                     throw new RuntimeException("Failed to process audio", e);
                 }
+                
             } else {
+                // ========== 其他文件：直接上传 ==========
                 log.info("Uploading file without special processing");
                 s3Client.putObject(PutObjectRequest.builder()
                         .bucket(bucketName)
@@ -162,17 +246,20 @@ public class MediaStorageService {
                 );
             }
 
+            // 构建返回结果
             MediaUploadResult result = new MediaUploadResult(
                     UUID.randomUUID().toString(),
-                    mediaUrl,
-                    objectName,
-                    processedData.length,
-                    isAudioType(mimeType) ? "audio/mpeg" : mimeType,
-                    originalFilename
+                    mediaUrl,                                    // 原图/原视频/原音频 URL
+                    thumbnailUrl,                                // 缩略图 URL（图片/视频有值，其他为 null）
+                    objectName,                                  // 原图/原视频/原音频的 objectName
+                    processedData.length,                        // 原图/原视频/转码后音频的文件大小
+                    isAudioType(mimeType) ? "audio/mpeg" : mimeType,  // 音频统一为 audio/mpeg
+                    originalFilename,
+                    waveformData                                 // 波形数据（仅音频有值，其他为 null）
             );
 
-            log.info("Media upload completed successfully, mediaId={}, objectName={}",
-                    result.mediaId(), objectName);
+            log.info("Media upload completed successfully, mediaId={}, objectName={}, hasThumbnail={}",
+                    result.mediaId(), objectName, thumbnailUrl != null);
 
             return result;
 
@@ -247,6 +334,7 @@ public class MediaStorageService {
     }
 
     private String generateThumbnailObjectName(String originalObjectName) {
+        // 例如：images/uuid.jpg -> images/uuid_thumb.jpg
         return originalObjectName.replaceFirst("\\.", "_thumb.");
     }
 
@@ -291,6 +379,10 @@ public class MediaStorageService {
 
     private boolean isImageType(String mimeType) {
         return mimeType != null && mimeType.startsWith("image/");
+    }
+
+    private boolean isVideoType(String mimeType) {
+        return mimeType != null && mimeType.startsWith("video/");
     }
 
     private boolean isAudioType(String mimeType) {
