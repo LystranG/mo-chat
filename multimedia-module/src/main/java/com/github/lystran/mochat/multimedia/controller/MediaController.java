@@ -47,7 +47,7 @@ public final class MediaController {
                 originalFilename, data.length, mimeType);
 
         try {
-            MediaStorageService.MediaUploadResult result = mediaStorageService.upload(data, originalFilename, mimeType);
+            MediaUploadResult result = mediaStorageService.upload(data, originalFilename, mimeType);
 
             Map<String, Object> responseData = Map.of(
                     "mediaId", result.mediaId(),
