@@ -26,6 +26,18 @@ subprojects {
         }
     }
 
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "com.fasterxml.jackson.core" ||
+                requested.group == "com.fasterxml.jackson.datatype" ||
+                requested.group == "com.fasterxml.jackson.dataformat"
+            ) {
+                useVersion("2.18.3")
+                because("Micronaut 4.9.0 native-image support expects the Jackson 2.18.x API surface.")
+            }
+        }
+    }
+
     tasks.withType<Test>().configureEach {
         if (System.getenv("DOCKER_HOST").isNullOrBlank() && !Files.exists(Path.of("/var/run/docker.sock"))) {
             podmanSocketFromRuntimeDir()?.let { podmanSocket ->

@@ -1,0 +1,13 @@
+mo-chat service:
+  http_url: http://{{ include "mo-chat-observability.mochatName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.mochat.service.httpPort }}
+  prometheus_url: http://{{ include "mo-chat-observability.mochatName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.mochat.service.httpPort }}/prometheus
+
+AIOps datasource examples:
+  prometheus.base_url: http://{{ .Release.Name }}-kube-prometheus-prometheus.{{ .Release.Namespace }}.svc:9090
+  loki.base_url: http://{{ .Release.Name }}-loki.{{ .Release.Namespace }}.svc:3100
+  tempo.base_url: http://{{ .Release.Name }}-tempo.{{ .Release.Namespace }}.svc:3200
+
+AIOps resource attributes:
+  service.name: mo-chat
+  aiops.project_id: {{ .Values.observability.aiopsProjectId }}
+  deployment.environment: {{ .Values.observability.environment }}

@@ -44,6 +44,7 @@ bin/
 
 ### Local Runtime Data ###
 docker/
+deploy/helm/**/charts/*.tgz
 
 ### AI ###
 .opencode
@@ -53,5 +54,4 @@ docker/
 .sisyphus/
 
 tmp.txt
-
 

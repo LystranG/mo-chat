@@ -1,0 +1,134 @@
+mochat:
+  replicaCount: 1
+  image:
+    repository: mo-chat
+    tag: "1.0-SNAPSHOT"
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  service:
+    type: ClusterIP
+    httpPort: 8080
+    tcpPort: 9000
+  env:
+    javaToolOptions: ""
+    httpHost: 0.0.0.0
+    httpPort: "8080"
+    tcpEnabled: "true"
+    tcpHost: 0.0.0.0
+    tcpPort: "9000"
+    tcpIoUringPreferred: "false"
+    flywayMigrateOnStart: "true"
+    redisUri: redis://redis:6379
+    redisTopicPrefix: mochat
+    postgresUrl: jdbc:postgresql://postgres:5432/mochat
+    postgresUsername: mochat
+    postgresPassword: mochat
+    rocketmqNameServer: rocketmq-namesrv:9876
+    rocketmqProducerGroup: mochat-producer
+    rocketmqConsumerEnabled: "true"
+    rocketmqConsumerGroup: mochat-persistence-consumer
+    rocketmqTopic: mochat.messages
+    callOfflineTopic: mochat.call.offline-notifications
+    callOfflineConsumerGroup: mochat-call-offline-consumer
+    tlsEnabled: "true"
+    tlsSelfSigned: "true"
+    tlsCertificatePath: ""
+    tlsPrivateKeyPath: ""
+    idWorkerId: "1"
+    rustfsEndpoint: http://rustfs:9002
+    rustfsAccessKey: rustfsadmin
+    rustfsSecretKey: rustfsadmin
+    rustfsBucket: mochat-media
+    rustfsRegion: cn-local
+
+externalDependencies:
+  enabled: true
+  host: host.docker.internal
+  services:
+    postgres:
+      enabled: true
+      name: postgres
+      ports:
+        - name: postgres
+          port: 5432
+    redis:
+      enabled: true
+      name: redis
+      ports:
+        - name: redis
+          port: 6379
+    rocketmqNamesrv:
+      enabled: true
+      name: rocketmq-namesrv
+      ports:
+        - name: namesrv
+          port: 9876
+    rustfs:
+      enabled: true
+      name: rustfs
+      ports:
+        - name: api
+          port: 9002
+
+observability:
+  enabled: true
+  aiopsProjectId: mochat-prod
+  environment: prod
+  serviceNamespace: mochat
+  prometheus:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+  otel:
+    enabled: true
+    javaAgentImage:
+      repository: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java
+      tag: "2.16.0"
+      pullPolicy: IfNotPresent
+    exporterOtlpEndpoint: ""
+    tracesExporter: otlp
+    metricsExporter: none
+    logsExporter: none
+
+kube-prometheus-stack:
+  enabled: true
+  grafana:
+    enabled: false
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+
+loki:
+  enabled: true
+  deploymentMode: SingleBinary
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+  loki:
+    auth_enabled: false
+    useTestSchema: true
+    commonConfig:
+      replication_factor: 1
+  singleBinary:
+    replicas: 1
+  minio:
+    enabled: true
+
+tempo:
+  enabled: true
+  tempo:
+    reportingEnabled: false
+  service:
+    type: ClusterIP

@@ -38,7 +38,7 @@ podman compose down
 - `podman compose up -d` started Postgres, Redis, RocketMQ NameServer, and RocketMQ Broker.
 - `podman compose ps` showed all four dependency services in `Up` state.
 - `for port in 5432 6379 9876 10909 10911 10912; ...; done` printed `ok:<port>` for all dependency ports.
-- `podman logs ddd-demo-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
+- `podman logs mo-chat-rocketmq-broker | rg 'boot success'` confirmed broker startup succeeded.
 - Local app defaults were aligned with `docker-compose.yml`: PostgreSQL now defaults to `jdbc:postgresql://localhost:5432/mochat` with `mochat` / `mochat` credentials.
 
 ## Build, test, and run commands

@@ -1,0 +1,25 @@
+{{- if .Values.externalDependencies.enabled }}
+{{- $root := . -}}
+{{- range $key, $service := .Values.externalDependencies.services }}
+{{- if $service.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "mo-chat-observability.labels" $root | nindent 4 }}
+    app.kubernetes.io/name: {{ $service.name }}
+    app.kubernetes.io/component: external-dependency
+spec:
+  type: ExternalName
+  externalName: {{ default $root.Values.externalDependencies.host $service.externalName | quote }}
+  ports:
+    {{- range $service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -22,6 +22,9 @@ dependencies {
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     implementation("io.micronaut:micronaut-http-server-netty:4.9.0")
     implementation("io.micronaut:micronaut-jackson-databind:4.9.0")
+    implementation("io.micronaut:micronaut-management:4.9.0")
+    implementation("io.micronaut.micrometer:micronaut-micrometer-core:5.12.0")
+    implementation("io.micronaut.micrometer:micronaut-micrometer-registry-prometheus:5.12.0")
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("org.flywaydb:flyway-core:10.20.1")
     implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
@@ -43,6 +46,15 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
 }
 
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.micronaut") {
+            useVersion("4.9.0")
+            because("Keep Micronaut framework artifacts aligned with the app while using Micrometer 5.12.0.")
+        }
+    }
+}
+
 application {
     mainClass.set("com.github.lystran.mochat.Application")
 }
@@ -52,6 +64,7 @@ graalvmNative {
         named("main") {
             imageName.set("mo-chat")
             buildArgs.add("-Ob")
+            buildArgs.add("--initialize-at-build-time=kotlin.coroutines.intrinsics.CoroutineSingletons")
         }
     }
 }
