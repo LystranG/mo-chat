@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mo-chat-observability.mochatConfigMapName" . }}
+  labels:
+    {{- include "mo-chat-observability.mochatLabels" . | nindent 4 }}
+data:
+  MICRONAUT_ENVIRONMENTS: "k8s"
+  MOCHAT_HTTP_HOST: {{ .Values.mochat.env.httpHost | quote }}
+  MOCHAT_HTTP_PORT: {{ .Values.mochat.env.httpPort | quote }}
+  MOCHAT_TCP_ENABLED: {{ .Values.mochat.env.tcpEnabled | quote }}
+  MOCHAT_TCP_HOST: {{ .Values.mochat.env.tcpHost | quote }}
+  MOCHAT_TCP_PORT: {{ .Values.mochat.env.tcpPort | quote }}
+  MOCHAT_TCP_IO_URING_PREFERRED: {{ .Values.mochat.env.tcpIoUringPreferred | quote }}
+  MOCHAT_FLYWAY_MIGRATE_ON_START: {{ .Values.mochat.env.flywayMigrateOnStart | quote }}
+  MOCHAT_REDIS_URI: {{ .Values.mochat.env.redisUri | quote }}
+  MOCHAT_REDIS_TOPIC_PREFIX: {{ .Values.mochat.env.redisTopicPrefix | quote }}
+  MOCHAT_POSTGRES_URL: {{ .Values.mochat.env.postgresUrl | quote }}
+  MOCHAT_POSTGRES_USERNAME: {{ .Values.mochat.env.postgresUsername | quote }}
+  MOCHAT_ROCKETMQ_NAME_SERVER: {{ .Values.mochat.env.rocketmqNameServer | quote }}
+  MOCHAT_ROCKETMQ_PRODUCER_GROUP: {{ .Values.mochat.env.rocketmqProducerGroup | quote }}
+  MOCHAT_ROCKETMQ_CONSUMER_ENABLED: {{ .Values.mochat.env.rocketmqConsumerEnabled | quote }}
+  MOCHAT_ROCKETMQ_CONSUMER_GROUP: {{ .Values.mochat.env.rocketmqConsumerGroup | quote }}
+  MOCHAT_ROCKETMQ_TOPIC: {{ .Values.mochat.env.rocketmqTopic | quote }}
+  MOCHAT_CALL_OFFLINE_TOPIC: {{ .Values.mochat.env.callOfflineTopic | quote }}
+  MOCHAT_CALL_OFFLINE_CONSUMER_GROUP: {{ .Values.mochat.env.callOfflineConsumerGroup | quote }}
+  MOCHAT_TLS_ENABLED: {{ .Values.mochat.env.tlsEnabled | quote }}
+  MOCHAT_TLS_SELF_SIGNED: {{ .Values.mochat.env.tlsSelfSigned | quote }}
+  MOCHAT_TLS_CERT_PATH: {{ .Values.mochat.env.tlsCertificatePath | quote }}
+  MOCHAT_TLS_KEY_PATH: {{ .Values.mochat.env.tlsPrivateKeyPath | quote }}
+  MOCHAT_ID_WORKER_ID: {{ .Values.mochat.env.idWorkerId | quote }}
+  RUSTFS_ENDPOINT: {{ .Values.mochat.env.rustfsEndpoint | quote }}
+  RUSTFS_ACCESS_KEY: {{ .Values.mochat.env.rustfsAccessKey | quote }}
+  RUSTFS_BUCKET: {{ .Values.mochat.env.rustfsBucket | quote }}
+  RUSTFS_REGION: {{ .Values.mochat.env.rustfsRegion | quote }}
+  OTEL_SERVICE_NAME: "mo-chat"
+  OTEL_RESOURCE_ATTRIBUTES: {{ printf "service.namespace=%s,deployment.environment=%s,aiops.project_id=%s" .Values.observability.serviceNamespace .Values.observability.environment .Values.observability.aiopsProjectId | quote }}
+  OTEL_TRACES_EXPORTER: {{ .Values.observability.otel.tracesExporter | quote }}
+  OTEL_METRICS_EXPORTER: {{ .Values.observability.otel.metricsExporter | quote }}
+  OTEL_LOGS_EXPORTER: {{ .Values.observability.otel.logsExporter | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ include "mo-chat-observability.otlpEndpoint" . | quote }}

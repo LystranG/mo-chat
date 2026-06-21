@@ -1,0 +1,23 @@
+{{- if and .Values.observability.enabled .Values.observability.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "mo-chat-observability.mochatName" . }}
+  labels:
+    {{- include "mo-chat-observability.mochatLabels" . | nindent 4 }}
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- $extraLabels := omit . "helm.sh/chart" "app.kubernetes.io/managed-by" "app.kubernetes.io/instance" "app.kubernetes.io/name" "app.kubernetes.io/component" "aiops.project_id" }}
+    {{- if gt (len $extraLabels) 0 }}
+    {{- $extraLabels | toYaml | nindent 4 }}
+    {{- end }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "mo-chat-observability.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /prometheus
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout }}
+{{- end }}

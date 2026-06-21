@@ -1,0 +1,31 @@
+endpoints:
+  all:
+    enabled: true
+  health:
+    enabled: true
+    sensitive: false
+    details-visible: ANONYMOUS
+  prometheus:
+    enabled: true
+    sensitive: false
+    path: /prometheus
+
+micronaut:
+  metrics:
+    enabled: true
+    binders:
+      jvm:
+        enabled: true
+      uptime:
+        enabled: true
+      processor:
+        enabled: true
+      files:
+        enabled: true
+      logback:
+        enabled: true
+    export:
+      prometheus:
+        enabled: true
+        descriptions: true
+        step: PT1M
