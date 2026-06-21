@@ -10,10 +10,11 @@
 - Redis 基础设施实现：`infra-redis/src/main/java/com/github/lystran/mochat/infra/redis/*`
 - runtime 配置模型与拓扑解析：`service-runtime/src/main/java/com/github/lystran/mochat/runtime/config/*`、`runtime/topology/*`
 - 跨服务消息域契约：`message-module/src/main/java/com/github/lystran/mochat/message/contract/*`、`message-module/src/main/java/com/github/lystran/mochat/logic/chat/ReceiptConversationStateStore.java`
+- `call-service` 当前不是 shared contract 消费方；通话 HTTP/WebSocket、LiveKit token 和离线通知实现位于 `call-module` / `call-service-app`。
 
 ## 非职责
 
-- 不拥有 HTTP controller、TCP handler、MQ consume 事务流或 DB repository 的业务实现。
+- 不拥有 HTTP controller、TCP handler、MQ consume 事务流、DB repository、通话信令或 LiveKit token 的业务实现。
 - 不决定 dedicated services 的 runtime ownership，只提供配置模型、协议和可复用基础设施。
 - 不应重新演化成隐式单体装配层。
 - `message-module` 保留 `ReceiptConversationStateStore` 契约，但 JDBC owner 在 `persistence-module`。
@@ -62,6 +63,7 @@ shared 本身不是可运行入口。配置模型被 dedicated apps 的 `applica
 - `api-service-app/src/main/resources/application.yml`
 - `message-service-app/src/main/resources/application.yml`
 - `persistence-service-app/src/main/resources/application.yml`
+- `call-service-app/src/main/resources/application.yml`
 
 Gradle 模块：
 
@@ -70,6 +72,7 @@ Gradle 模块：
 - `infra-redis/build.gradle.kts`
 - `service-runtime/build.gradle.kts`
 - `message-module/build.gradle.kts`
+- `call-module` 不属于 shared 边界，虽然依赖 `common` 的 `IdGenerator`。
 
 ## 测试入口
 
@@ -95,4 +98,4 @@ Gradle 模块：
 - 修改 Redis key prefix、幂等 TTL、offline queue 行为、seq fallback 行为。
 - 修改 `RuntimeTopologyConfiguration` 的 identity/discovery 模式或默认值。
 - 将任何业务 owner 从 dedicated module 上移到 shared module，或把 shared contract 下沉到单个 service。
-
+- 将 `call-module` 的通话信令、房间状态、LiveKit 或离线通知契约提升为跨服务 shared contract。

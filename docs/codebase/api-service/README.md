@@ -19,6 +19,7 @@
 
 - 不负责 TCP/TLS 长连接、bind、心跳或在线 route ownership。
 - 不负责消息命令入口、幂等、`msgId`/`seq` 分配、sender ACK、在线投递编排或 offline fallback。
+- 不负责音视频通话信令、LiveKit token 或通话离线通知；`call-service` 只读取 api-service ownership 下的好友/群成员表做权限判断。
 - 不负责 RocketMQ 消费、`messages`/`conversations` 持久化写入或 post-commit conversation advancement。
 - 不拥有 durable message truth；`/history` 和 `/conversations/{id}/state` 只读取已提交视图。
 - 不直接执行登录后离线补发；dedicated runtime 通过 `api-service-app/src/main/java/com/github/lystran/mochat/apiservice/grpc/GrpcLoginOfflineReplayGateway.java` 调 `message-service` 的 `ReplayOfflineMessages`。
@@ -108,8 +109,8 @@ history/read-side：
 - 修改 `ApiInternalGrpcService` 中 session authority、private policy、group context 的映射。
 - 修改登录后离线补发路径：`LoginOfflineReplayGateway`、`GrpcLoginOfflineReplayGateway`、`LocalLoginOfflineReplayGateway`。
 - 修改 social graph 数据模型或 lifecycle，尤其 friendship id / group id 是否继续复用为 conversation id。
+- 修改 `user_friendships` 或 `group_memberships` 的状态值时，同时核对 `call-service` 的通话权限读取。
 - 修改 history/read-side ownership 或 committed view vs realtime delivery visibility 语义。
 - 修改 JDBC repository 对 `messages`、`conversations`、`user_friendships`、`group_memberships` 的查询规则。
 - 给 `api-service-app` 增加或移除 DataSource / IdGenerator / Flyway 装配。
 - 改变 `api-service` 与其他 dedicated services 的职责边界。
-

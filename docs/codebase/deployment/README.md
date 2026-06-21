@@ -2,10 +2,12 @@
 
 ## 职责
 
-`deployment` 边界定义当前默认四服务拓扑的运行、镜像、Kubernetes 资源、本地 kind 验证和共享基础设施约定：
+`deployment` 边界定义当前默认 dedicated services 的运行、镜像、Kubernetes 资源、本地 kind 验证和共享基础设施约定：
 
-- 默认服务：`api-service`、`message-service`、`access-gateway`、`persistence-service`
+- 默认源码服务：`api-service`、`message-service`、`access-gateway`、`persistence-service`、`call-service`
+- 当前 Kubernetes/kind manifest 仍只覆盖 `api-service`、`message-service`、`access-gateway`、`persistence-service`
 - 共享基础设施：PostgreSQL、Redis、RocketMQ
+- 外部音视频基础设施：LiveKit
 - Kubernetes base 和 kind overlay
 - Dockerfile 和镜像构建方式
 - runtime ConfigMap / Secret / 环境变量
@@ -17,6 +19,7 @@
 - 不做 database-per-service。
 - 不做 schema rollback 或数据层回滚。
 - 不把 PostgreSQL、Redis、RocketMQ 放进 Kubernetes manifest 管理；它们当前是集群外依赖。
+- 当前不把 LiveKit 放进 Kubernetes manifest 管理；`call-service` 只读取 LiveKit URL/API key/API secret。
 - 不用 `app` 作为默认部署入口。
 
 ## 主要代码路径
@@ -25,7 +28,7 @@
 - kind overlay：`deploy/kubernetes/overlays/kind/kustomization.yaml`、`prepare-local-inputs.sh`、`verify-minimal-topology.sh`、`verify-routing-and-drain.sh`
 - 本地基础设施：`docker-compose.yml`
 - Dockerfile：`access-gateway-app/Dockerfile`、`api-service-app/Dockerfile`、`message-service-app/Dockerfile`、`persistence-service-app/Dockerfile`
-- 服务配置：`access-gateway-app/src/main/resources/application.yml`、`api-service-app/src/main/resources/application.yml`、`message-service-app/src/main/resources/application.yml`、`persistence-service-app/src/main/resources/application.yml`
+- 服务配置：`access-gateway-app/src/main/resources/application.yml`、`api-service-app/src/main/resources/application.yml`、`message-service-app/src/main/resources/application.yml`、`persistence-service-app/src/main/resources/application.yml`、`call-service-app/src/main/resources/application.yml`
 - Kubernetes manifest 测试：`service-runtime/src/test/java/com/github/lystran/mochat/runtime/kubernetes/**`
 
 ## 核心数据流和交互
@@ -34,6 +37,7 @@
 - `message-service`：Deployment + ClusterIP Service，gRPC `19092`。
 - `persistence-service`：Deployment，无 Service，消费 RocketMQ 并写 PostgreSQL。
 - `access-gateway`：StatefulSet，`access-gateway-headless` 用于 Pod DNS/gRPC，`access-gateway-tcp` NodePort 暴露 TCP `9000`。
+- `call-service`：源码已有 Micronaut HTTP/WebSocket app，默认 HTTP `8090`；当前没有 Dockerfile、Kubernetes workload、Service 或 kind 验证入口。
 - `mochat-runtime-config` 放集群内发现：
   - `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
   - `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
@@ -49,10 +53,12 @@
 
 当前注意点：
 
-- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；其他三个 service Dockerfile 使用 `nativeCompile` + distroless。
+- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service` Dockerfile 使用 `nativeCompile` + distroless。
+- `build.gradle.kts` 已把 `:call-service-app` 加入 `deployableNativeAppImages`，但仓库当前没有 `call-service-app/Dockerfile` 或 Kubernetes manifest。
 - `deploy/kubernetes/base/persistence-service.yaml` 没有 Service，这与 runbook 一致；后续若加探针 sidecar 或入站 API 会改变边界。
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
 - `docker-compose.yml` 的 compose name 是 `ddd-demo`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-ddd-demo`。
+- `call-service-app/src/main/resources/application.yml` 当前含 LiveKit 默认 URL/API key/API secret；部署时应通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
 
 ## 配置和运行入口
 
@@ -63,13 +69,14 @@ podman compose up -d
 podman compose down
 ```
 
-本地四服务：
+本地 dedicated services：
 
 ```bash
 ./gradlew :api-service-app:run
 ./gradlew :message-service-app:run
 ./gradlew :persistence-service-app:run
 ./gradlew :access-gateway-app:run
+./gradlew :call-service-app:run
 ```
 
 Kubernetes/kind：
@@ -89,6 +96,8 @@ podman build -f message-service-app/Dockerfile -t localhost/mochat/message-servi
 podman build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
 ```
 
+当前没有 `call-service-app/Dockerfile`；不要把 call-service 纳入镜像构建或 kind 脚本，除非先补齐部署资源和测试。
+
 ## 测试入口
 
 - `service-runtime/src/test/java/com/github/lystran/mochat/runtime/kubernetes/KubernetesWorkloadManifestContractTest.java`
@@ -104,7 +113,8 @@ podman build -f persistence-service-app/Dockerfile -t localhost/mochat/persisten
 - 新增 prod overlay 或改变 kind overlay 入口。
 - 修改 Dockerfile 构建方式、镜像名、native/JVM 运行方式。
 - 修改默认端口或 `MOCHAT_*` 环境变量。
+- 给 `call-service` 新增 Dockerfile、Kubernetes workload、Service、Secret、探针或 kind 验证入口。
+- 修改 LiveKit Secret 管理方式或 `MOCHAT_LIVEKIT_*` 环境变量。
 - 把 PostgreSQL/Redis/RocketMQ 从集群外改为集群内管理。
 - 改变 gateway StatefulSet/headless Service/Pod DNS identity 约定。
 - 改变回滚方式或 `app` 是否为默认入口。
-
