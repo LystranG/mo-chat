@@ -1,0 +1,40 @@
+micronaut:
+  application:
+    name: call-service
+  server:
+    host: ${MOCHAT_CALL_SERVICE_HTTP_HOST:0.0.0.0}
+    port: ${MOCHAT_CALL_SERVICE_HTTP_PORT:8090}
+
+mochat:
+  flyway:
+    locations: classpath:db/migration
+  redis:
+    uri: ${MOCHAT_REDIS_URI:redis://127.0.0.1:6379}
+  postgres:
+    url: ${MOCHAT_POSTGRES_URL:`jdbc:postgresql://127.0.0.1:5432/mochat`}
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+  rocketmq:
+    name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+    call-producer-group: ${MOCHAT_CALL_SERVICE_ROCKETMQ_PRODUCER_GROUP:mochat-call-producer}
+    offline-notification:
+      topic: ${MOCHAT_CALL_OFFLINE_TOPIC:mochat.call.offline-notifications}
+      consumer-group: ${MOCHAT_CALL_OFFLINE_CONSUMER_GROUP:mochat-call-offline-consumer}
+  livekit:
+    url: ${MOCHAT_LIVEKIT_URL:}
+    api-key: ${MOCHAT_LIVEKIT_API_KEY:}
+    api-secret: ${MOCHAT_LIVEKIT_API_SECRET:}
+  call-service:
+    http:
+      host: ${MOCHAT_CALL_SERVICE_HTTP_HOST:0.0.0.0}
+      port: ${MOCHAT_CALL_SERVICE_HTTP_PORT:8090}
+    flyway:
+      migrate-on-start: ${MOCHAT_CALL_SERVICE_FLYWAY_MIGRATE_ON_START:true}
+    queue:
+      consumer-enabled: ${MOCHAT_CALL_SERVICE_QUEUE_CONSUMER_ENABLED:true}
+    id:
+      worker-id: ${MOCHAT_CALL_SERVICE_ID_WORKER_ID:3}
+    dependencies:
+      postgres-enabled: ${MOCHAT_CALL_SERVICE_POSTGRES_ENABLED:true}
+      redis-enabled: ${MOCHAT_CALL_SERVICE_REDIS_ENABLED:true}
+      mq-enabled: ${MOCHAT_CALL_SERVICE_MQ_ENABLED:true}

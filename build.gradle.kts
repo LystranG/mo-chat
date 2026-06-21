@@ -18,6 +18,7 @@ val deployableNativeAppImages = mapOf(
     ":api-service-app" to "api-service",
     ":message-service-app" to "message-service",
     ":persistence-service-app" to "persistence-service",
+    ":call-service-app" to "call-service",
 )
 
 allprojects {

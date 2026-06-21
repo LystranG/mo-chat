@@ -15,6 +15,7 @@ include(
     "api-service-app",
     "message-service-app",
     "persistence-service-app",
+    "call-service-app",
     "common",
     "protocol",
     "infra-redis",
@@ -22,4 +23,5 @@ include(
     "message-module",
     "logic-module",
     "persistence-module",
+    "call-module",
 )
