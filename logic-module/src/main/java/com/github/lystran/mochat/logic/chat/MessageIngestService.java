@@ -245,7 +245,7 @@ public class MessageIngestService {
     public MessageIngestResult ingest(MessageIngestRequest request) {
         Objects.requireNonNull(request, "request");
 
-        // 先按会话加锁，保证同一会话里的顺序号分配和幂等判断不会并发打架。
+
         AutoCloseable lockHandle = conversationLock.acquire(request.conversationId());
         try {
             var storedResult = idempotencyStore.find(request.senderUid(), request.clientMsgId());

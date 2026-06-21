@@ -56,7 +56,7 @@ public class RocketMqProducer {
         SendResult sendResult;
         try {
             // 同一会话始终选择同一条队列，这样消费侧更容易按顺序处理。
-            sendResult = producer.send(message, CONVERSATION_SELECTOR, acceptedEvent.shardingKey());
+            sendResult = producer.send(message, CONVERSATION_SELECTOR, acceptedEvent.shardingKey());//消息保序
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Ordered publish interrupted", interruptedException);

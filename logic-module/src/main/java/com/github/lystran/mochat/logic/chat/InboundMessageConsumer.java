@@ -90,6 +90,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
      * 按消息类型分发到私聊、群聊或回执处理流程。
      */
     private void consume(String inboundEvent) {
+//        1001|GROUP_MESSAGE|PROTOBUF|CgZzZXMtNDISCAQoDb2hhBQ==
         ParsedInboundEvent parsedInboundEvent = parseInboundEvent(inboundEvent);
         if (parsedInboundEvent == null || parsedInboundEvent.serializerType() != SerializerType.PROTOBUF) {
             return;
@@ -111,7 +112,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
         String[] segments = inboundEvent.split("\\|", 4);
         try {
             return switch (segments.length) {
-                case 3 -> new ParsedInboundEvent(
+                case 3 -> new ParsedInboundEvent(//心跳帧
                     null,
                     MsgType.valueOf(segments[0]),
                     SerializerType.valueOf(segments[1]),
