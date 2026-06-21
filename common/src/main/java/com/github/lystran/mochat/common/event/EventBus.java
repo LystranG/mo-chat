@@ -3,16 +3,16 @@ package com.github.lystran.mochat.common.event;
 import java.util.function.Consumer;
 
 /**
- * 在模块之间转发字符串消息的简单事件总线。
+ * 用来在模块之间发消息、收消息。
  */
 public interface EventBus {
     /**
-     * 往某个事件名下发一条消息。
+     * 往指定分类里发一条消息。
      */
     void publish(String topic, String event);
 
     /**
-     * 监听某个事件名下的新消息。
+     * 订阅某个分类下的消息，并返回一个以后可以取消订阅的句柄。
      */
     AutoCloseable subscribe(String topic, Consumer<String> subscriber);
 }

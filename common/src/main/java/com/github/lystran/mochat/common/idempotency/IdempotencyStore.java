@@ -3,21 +3,21 @@ package com.github.lystran.mochat.common.idempotency;
 import java.util.Optional;
 
 /**
- * 记住客户端消息是否已经处理过，避免重试时重复入链路。
+ * 记住客户端发消息的结果，避免重试时把同一条消息处理两遍。
  */
 public interface IdempotencyStore {
     /**
-     * 查某个发送方的某条客户端消息有没有已经处理过的结果。
+     * 查这个发送方带来的这条客户端消息，之前是不是已经处理过。
      */
     Optional<StoredSendResult> find(long senderUid, long clientMsgId);
 
     /**
-     * 只在第一次处理时记下结果，后续重试不覆盖原值。
+     * 只有之前没记过时，才把这次发送结果记下来。
      */
     void storeIfAbsent(long senderUid, long clientMsgId, long msgId, long seq);
 
     /**
-     * 保存一条消息第一次处理成功后拿到的服务端编号和顺序号。
+     * 保存一次已接收发送对应的服务端消息 ID 和顺序号。
      */
     record StoredSendResult(long msgId, long seq) {
     }

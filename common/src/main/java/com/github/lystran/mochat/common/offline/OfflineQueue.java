@@ -3,16 +3,16 @@ package com.github.lystran.mochat.common.offline;
 import java.util.List;
 
 /**
- * 暂存用户离线时没能立刻送达的消息。
+ * 用来暂存用户离线时还没收到的消息。
  */
 public interface OfflineQueue {
     /**
-     * 往离线队列里追加一条消息，并按上限裁掉过旧内容。
+     * 把一条消息塞进用户的离线队列，并按最大容量截断旧消息。
      */
     void enqueue(long userId, String payload, int maxQueueSize);
 
     /**
-     * 取出一批待补发消息。
+     * 一次取出用户离线队列里的多条消息。
      */
     List<String> drain(long userId, int maxItems);
 }

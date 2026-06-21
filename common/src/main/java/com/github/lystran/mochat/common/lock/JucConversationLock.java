@@ -6,13 +6,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 基于 JDK 锁实现的会话级串行锁。
+ * 用 JUC 锁让同一个会话里的关键路径排队执行。
  */
 public final class JucConversationLock implements ConversationLock {
     private final ConcurrentMap<Long, LockEntry> locksByConversationId = new ConcurrentHashMap<>();
 
     /**
-     * 锁住指定会话，确保同一个会话里的关键操作一次只跑一条。
+     * 拿到某个会话的锁，并在释放时顺手回收已经闲下来的锁条目。
      */
     @Override
     public AutoCloseable acquire(long conversationId) {
@@ -27,7 +27,7 @@ public final class JucConversationLock implements ConversationLock {
     }
 
     /**
-     * 解锁后按引用计数回收不用的锁对象，免得会话多了以后一直堆在内存里。
+     * 释放会话锁；如果这把锁已经没人拿、也没人等，就把它从表里删掉。
      */
     private void release(long conversationId, LockEntry lockEntry) {
         lockEntry.lock.unlock();
@@ -38,6 +38,7 @@ public final class JucConversationLock implements ConversationLock {
             }
 
             int holders = lockEntry.holderCount.decrementAndGet();
+            // 只有既没人拿着这把锁，也没人排队等它时，才能安全删掉这条记录。
             if (holders == 0 && !lockEntry.lock.isLocked() && !lockEntry.lock.hasQueuedThreads()) {
                 return null;
             }
@@ -47,7 +48,7 @@ public final class JucConversationLock implements ConversationLock {
     }
 
     /**
-     * 保存单个会话当前正在用的锁和引用计数。
+     * 保存某个会话对应的锁对象和当前还有多少地方在用它。
      */
     private static final class LockEntry {
         private final ReentrantLock lock = new ReentrantLock();

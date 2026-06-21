@@ -1,11 +1,11 @@
 package com.github.lystran.mochat.common.id;
 
 /**
- * 生成全局唯一 id。
+ * 用来生成全局唯一 ID。
  */
 public interface IdGenerator {
     /**
-     * 取下一个可用 id。
+     * 生成下一个唯一 ID。
      */
     long nextId();
 }

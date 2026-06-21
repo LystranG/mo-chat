@@ -7,13 +7,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
- * 只在当前进程里转发消息的事件总线实现。
+ * 用当前进程里的内存结构实现一个轻量消息总线。
  */
 public final class InProcessEventBus implements EventBus {
     private final ConcurrentMap<String, CopyOnWriteArrayList<Consumer<String>>> subscribersByTopic = new ConcurrentHashMap<>();
 
     /**
-     * 把消息发给当前进程里订了这个事件名的所有回调。
+     * 把消息发给当前进程里订阅了这个分类的所有处理方。
      */
     @Override
     public void publish(String topic, String event) {
@@ -29,13 +29,13 @@ public final class InProcessEventBus implements EventBus {
             try {
                 subscriber.accept(event);
             } catch (RuntimeException ignored) {
-                // 某一个回调出错时，其他回调照样继续收消息，免得一处出错把整条链路卡住。
+                // Best-effort fan-out: one failing subscriber must not block others.
             }
         }
     }
 
     /**
-     * 给某个事件名挂上一个本地回调，并返回取消监听的方法。
+     * 记下某个分类的处理方，并返回一个以后可以取消订阅的句柄。
      */
     @Override
     public AutoCloseable subscribe(String topic, Consumer<String> subscriber) {
