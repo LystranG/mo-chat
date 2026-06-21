@@ -1,11 +1,21 @@
+import org.gradle.api.tasks.StopExecutionException
+import org.graalvm.buildtools.gradle.tasks.BuildNativeImageTask
+import java.io.File
+
 plugins {
     application
+    id("org.graalvm.buildtools.native") version "0.11.1"
 }
 
 dependencies {
+    implementation(platform("io.netty:netty-bom:4.2.2.Final"))
+
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
+    annotationProcessor("io.micronaut:micronaut-graal:4.9.0")
     implementation(project(":common"))
     implementation(project(":message-module"))
+    implementation(project(":call-module"))
+    implementation(project(":multimedia-module"))
     implementation(project(":logic-module"))
     implementation(project(":connection-module"))
     implementation(project(":infra-redis"))
@@ -13,6 +23,9 @@ dependencies {
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     implementation("io.micronaut:micronaut-http-server-netty:4.9.0")
     implementation("io.micronaut:micronaut-jackson-databind:4.9.0")
+    implementation("io.micronaut:micronaut-management:4.9.0")
+    implementation("io.micronaut.micrometer:micronaut-micrometer-core:5.12.0")
+    implementation("io.micronaut.micrometer:micronaut-micrometer-registry-prometheus:5.12.0")
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("org.flywaydb:flyway-core:10.20.1")
     implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
@@ -22,6 +35,7 @@ dependencies {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")
         exclude(group = "com.squareup.okio")
+        exclude(group = "io.netty", module = "netty-all")
     }
     runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
     runtimeOnly("org.yaml:snakeyaml:2.4")
@@ -33,8 +47,60 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
 }
 
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.micronaut") {
+            useVersion("4.9.0")
+            because("Keep Micronaut framework artifacts aligned with the app while using Micrometer 5.12.0.")
+        }
+    }
+}
+
 application {
     mainClass.set("com.github.lystran.mochat.Application")
+}
+
+graalvmNative {
+    binaries {
+        named("main") {
+            imageName.set("mo-chat")
+            buildArgs.add("-Ob")
+            buildArgs.add("--initialize-at-build-time=kotlin.coroutines.intrinsics.CoroutineSingletons")
+        }
+    }
+}
+
+tasks.named<BuildNativeImageTask>("nativeCompile") {
+    doFirst("skipWhenNativeImageIsMissing") {
+        val configuredJavaHome = options.get().javaLauncher.orNull
+            ?.metadata
+            ?.installationPath
+            ?.asFile
+
+        val candidateHomes = mutableListOf<File>()
+        configuredJavaHome?.let(candidateHomes::add)
+        System.getenv("GRAALVM_HOME")?.takeIf { it.isNotBlank() }?.let(::File)?.let(candidateHomes::add)
+        System.getenv("JAVA_HOME")?.takeIf { it.isNotBlank() }?.let(::File)?.let(candidateHomes::add)
+        candidateHomes.add(File(System.getProperty("java.home")))
+
+        val nativeImageExecutable = candidateHomes
+            .asSequence()
+            .flatMap { home ->
+                sequenceOf(
+                    home.resolve("bin/native-image"),
+                    home.resolve("bin/native-image.cmd"),
+                    home.resolve("bin/native-image.exe")
+                )
+            }
+            .firstOrNull { it.isFile }
+
+        if (nativeImageExecutable == null) {
+            logger.lifecycle(
+                "Skipping :app:nativeCompile: native-image is unavailable in javaLauncher/GRAALVM_HOME/JAVA_HOME/java.home."
+            )
+            throw StopExecutionException("native-image unavailable")
+        }
+    }
 }
 
 tasks.test {

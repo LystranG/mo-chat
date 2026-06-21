@@ -40,6 +40,8 @@ public final class ConnectionRuntimeLifecycle implements AutoCloseable {
      */
     @PostConstruct
     void start() {
+        // 应用一启动就先把“要发给客户端的数据”接进来；如果后面 TCP 服务没起来，
+        // 就把这一步撤掉，避免出现“内部还在发消息，但外部端口根本没开”的半成品状态。
         outboundEventSubscriber.start();
         outboundSubscriberStarted = true;
         if (!tcpEnabled) {

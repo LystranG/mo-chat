@@ -10,6 +10,10 @@ mochat:
     producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-producer}
     consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
     topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+  # 群通话离线通知：成员不在线时，通过 RocketMQ 异步投递到数据库
+  offline-notification:
+    topic: ${MOCHAT_CALL_OFFLINE_TOPIC:mochat.call.offline-notifications}
+    consumer-group: ${MOCHAT_CALL_OFFLINE_CONSUMER_GROUP:mochat-call-offline-consumer}
   tls:
     enabled: ${MOCHAT_TLS_ENABLED:true}
     self-signed: ${MOCHAT_TLS_SELF_SIGNED:true}

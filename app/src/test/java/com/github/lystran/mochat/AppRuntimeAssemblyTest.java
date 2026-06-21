@@ -113,6 +113,7 @@ class AppRuntimeAssemblyTest {
         try (ApplicationContext context = ApplicationContext.run(AppTestSupport.runtimeAssemblyDefaultConfigProperties())) {
             assertNotNull(context.getBean(DataSource.class));
             assertNotNull(context.getBean(RedisClient.class));
+            assertNotNull(context.getBean(DefaultMQPushConsumer.class));
             assertNotNull(context.getBean(DefaultMQProducer.class));
             assertNotNull(context.getBean(NettyChatServer.class));
             assertTrue(context.findBean(MessageRepository.class).isEmpty());

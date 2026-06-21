@@ -183,6 +183,8 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         }
 
         // 先按长度拆完整帧，再做协议解码，避免后续处理器拿到半包。
+        // 这里的先后顺序不能乱：先解包并拦掉坏消息和超速消息，再做身份绑定，
+        // 最后才交给心跳和业务处理，免得还没认出是谁就把消息送进逻辑层。
         pipeline.addLast("frameDecoder", new LengthFieldBasedFrameDecoder(
             maxFrameLength,
             FrameConstants.BODY_LENGTH_OFFSET,
@@ -197,6 +199,7 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
         if (sessionBindingHandler != null) {
             pipeline.addLast("sessionBinding", sessionBindingHandler);
         }
+        pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIntervalSeconds, heartbeatIdleTimeoutSeconds));
         pipeline.addLast("inboundRouter", new InboundRouterHandler(eventBus));
     }
 

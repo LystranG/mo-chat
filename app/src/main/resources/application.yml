@@ -38,6 +38,10 @@ mochat:
       enabled: ${MOCHAT_ROCKETMQ_CONSUMER_ENABLED:true}
     consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
     topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    # 群通话离线通知：成员不在线时，通过 RocketMQ 异步投递到数据库
+    offline-notification:
+      topic: ${MOCHAT_CALL_OFFLINE_TOPIC:mochat.call.offline-notifications}
+      consumer-group: ${MOCHAT_CALL_OFFLINE_CONSUMER_GROUP:mochat-call-offline-consumer}
   tls:
     enabled: ${MOCHAT_TLS_ENABLED:true}
     self-signed: ${MOCHAT_TLS_SELF_SIGNED:true}
@@ -51,3 +55,18 @@ mochat:
   message-service:
     inbound-consumer:
       enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}
+  media:
+    storage:
+      type: rustfs
+      rustfs:
+        endpoint: ${RUSTFS_ENDPOINT:http://localhost:9000}
+        access-key: ${RUSTFS_ACCESS_KEY:rustfsadmin}
+        secret-key: ${RUSTFS_SECRET_KEY:rustfsadmin}
+        bucket: ${RUSTFS_BUCKET:mochat-media}
+        region: ${RUSTFS_REGION:cn-local}
+      max-file-size: ${MOCHAT_MEDIA_MAX_FILE_SIZE:10485760}
+      allowed-types: image/jpeg,image/png,image/gif,image/webp,audio/mpeg,audio/wav,video/mp4,application/pdf,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document
+  livekit:
+    url: wss://easy-chat-xgexhw94.livekit.cloud
+    api-key: APIguXWPL8HYFPV
+    api-secret: o0901cxw4N3LVTczFXx3CK46onuaasFQUH5uBo9R4fK

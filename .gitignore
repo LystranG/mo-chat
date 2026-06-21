@@ -44,11 +44,14 @@ bin/
 
 ### Local Runtime Data ###
 docker/
+deploy/helm/**/charts/*.tgz
 
 ### AI ###
 .opencode
 .claude
 .serena/
 .codex
+.sisyphus/
 
 tmp.txt
+

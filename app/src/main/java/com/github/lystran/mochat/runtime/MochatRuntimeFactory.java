@@ -158,7 +158,8 @@ public final class MochatRuntimeFactory {
             redisCommands,
             conversationLock,
             // Redis 里没有现成序号时，回到数据库补一次最新进度，避免服务重启后从 0 重新开始。
-            conversationId -> conversationStateRepository.findConversationLatestState(conversationId)
+            // 先用数据库里的最新顺序号接上，避免服务重启后顺序号往回跳。
+           conversationId -> conversationStateRepository.findConversationLatestState(conversationId)
                 .map(ConversationStateRepository.ConversationLatestState::latestSeq)
                 .orElse(0L)
         );

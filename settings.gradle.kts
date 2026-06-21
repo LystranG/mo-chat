@@ -21,5 +21,7 @@ include(
     "connection-module",
     "message-module",
     "logic-module",
+    "call-module",
     "persistence-module",
+    "multimedia-module"
 )
