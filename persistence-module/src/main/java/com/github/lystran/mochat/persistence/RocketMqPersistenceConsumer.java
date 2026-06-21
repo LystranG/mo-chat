@@ -90,7 +90,7 @@ public final class RocketMqPersistenceConsumer implements MessageListenerOrderly
         if (fields.length != FIELD_COUNT) {
             throw new IllegalArgumentException("Unexpected RocketMQ message envelope field count: " + fields.length);
         }
-
+        // 这串文本里同时塞了通用字段和“私聊/群聊二选一”的字段，后面再按 kind 分开还原。
         long msgId = parseLong(fields[0], "msgId");
         long conversationId = parseLong(fields[1], "conversationId");
         long seq = parseLong(fields[2], "seq");

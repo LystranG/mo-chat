@@ -157,7 +157,17 @@ class MqConsumerTransactionTest {
             200L,
             null,
             serverTsMs,
-            "cGF5bG9hZA=="
+            "cGF5bG9hZA==",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 
@@ -180,7 +190,17 @@ class MqConsumerTransactionTest {
             null,
             groupId,
             serverTsMs,
-            "Z3JvdXAtcGF5bG9hZA=="
+            "Z3JvdXAtcGF5bG9hZA==",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 }

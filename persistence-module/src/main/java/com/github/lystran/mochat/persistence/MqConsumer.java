@@ -105,7 +105,17 @@ public final class MqConsumer implements MessagePersistencePort {
             event.peerUidHigh(),
             event.groupId(),
             event.serverTimeMs(),
-            event.payloadBase64()
+            event.payloadBase64(),
+                "text",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 

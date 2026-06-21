@@ -24,9 +24,20 @@ public final class MessageRepository {
             peer_uid_high,
             group_id,
             server_ts_ms,
-            payload_base64
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            payload_base64,
+            message_type,
+            media_url,
+            thumbnail_url,
+            file_size,
+            mime_type,
+            file_name,
+            duration,
+            width,
+            height,
+            waveform_data
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
+
     private static final String SELECT_BY_MSG_ID_SQL = """
         SELECT
             msg_id,
@@ -39,7 +50,17 @@ public final class MessageRepository {
             peer_uid_high,
             group_id,
             server_ts_ms,
-            payload_base64
+            payload_base64,
+            message_type,
+            media_url,
+            thumbnail_url,
+            file_size,
+            mime_type,
+            file_name,
+            duration,
+            width,
+            height,
+            waveform_data
         FROM messages
         WHERE msg_id = ?
         """;
@@ -66,6 +87,16 @@ public final class MessageRepository {
                 statement.setObject(9, message.groupId(), Types.BIGINT);
                 statement.setLong(10, message.serverTsMs());
                 statement.setString(11, message.payloadBase64());
+                statement.setString(12, message.messageType());
+                statement.setObject(13, message.mediaUrl(), Types.VARCHAR);
+                statement.setObject(14, message.thumbnailUrl(), Types.VARCHAR);
+                statement.setObject(15, message.fileSize(), Types.BIGINT);
+                statement.setObject(16, message.mimeType(), Types.VARCHAR);
+                statement.setObject(17, message.fileName(), Types.VARCHAR);
+                statement.setObject(18, message.duration(), Types.INTEGER);
+                statement.setObject(19, message.width(), Types.INTEGER);
+                statement.setObject(20, message.height(), Types.INTEGER);
+                statement.setObject(21, message.waveformData(), Types.VARCHAR);
                 statement.executeUpdate();
             }
             return InsertResult.INSERTED;
@@ -104,7 +135,17 @@ public final class MessageRepository {
                     resultSet.getObject("peer_uid_high", Long.class),
                     resultSet.getObject("group_id", Long.class),
                     resultSet.getLong("server_ts_ms"),
-                    resultSet.getString("payload_base64")
+                    resultSet.getString("payload_base64"),
+                        resultSet.getString("message_type"),
+                        resultSet.getString("media_url"),
+                        resultSet.getString("thumbnail_url"),
+                        resultSet.getObject("file_size", Long.class),
+                        resultSet.getString("mime_type"),
+                        resultSet.getString("file_name"),
+                        resultSet.getObject("duration", Integer.class),
+                        resultSet.getObject("width", Integer.class),
+                        resultSet.getObject("height", Integer.class),
+                        resultSet.getString("waveform_data")
                 );
             }
         } catch (SQLException lookupFailure) {
@@ -147,7 +188,17 @@ public final class MessageRepository {
         Long peerUidHigh,
         Long groupId,
         long serverTsMs,
-        String payloadBase64
+        String payloadBase64,
+        String messageType,
+        String mediaUrl,
+        String thumbnailUrl,
+        Long fileSize,
+        String mimeType,
+        String fileName,
+        Integer duration,
+        Integer width,
+        Integer height,
+        String waveformData
     ) {
         /**
          * 在构造时拦住最基本的坏数据。
@@ -155,6 +206,7 @@ public final class MessageRepository {
         public PersistedMessage {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(payloadBase64, "payloadBase64");
+            Objects.requireNonNull(messageType, "messageType");
         }
     }
 }
