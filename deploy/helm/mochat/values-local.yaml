@@ -1,0 +1,26 @@
+global:
+  namespace: mochat
+  createNamespace: false
+  imageRegistry: localhost/mochat
+  projectId: mochat-local
+  environment: local
+
+externalDependencies:
+  redisUri: redis://host.docker.internal:6379
+  postgresUrl: jdbc:postgresql://host.docker.internal:5432/mochat
+  rocketmqNameServer: host.docker.internal:9876
+  secret:
+    create: true
+    postgresUsername: mochat
+    postgresPassword: mochat
+
+accessGatewayTls:
+  create: true
+  certificate: ""
+  privateKey: ""
+
+livekit:
+  createSecret: true
+  url: ""
+  apiKey: ""
+  apiSecret: ""

@@ -1,0 +1,137 @@
+{{- if .Values.accessGateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: access-gateway-headless
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: access-gateway
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: access-gateway
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+    - name: grpc
+      port: {{ .Values.accessGateway.ports.grpc }}
+      targetPort: {{ .Values.accessGateway.ports.grpc }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: access-gateway-tcp
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: access-gateway
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: access-gateway
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp
+      port: {{ .Values.accessGateway.ports.tcp }}
+      targetPort: {{ .Values.accessGateway.ports.tcp }}
+      nodePort: {{ .Values.accessGateway.ports.nodePort }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: access-gateway
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: access-gateway
+spec:
+  serviceName: access-gateway-headless
+  replicas: {{ .Values.accessGateway.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: access-gateway
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mochat.labels" . | nindent 8 }}
+        app.kubernetes.io/name: access-gateway
+      {{- if .Values.observability.prometheus.scrape }}
+      annotations:
+        {{- include "mochat.prometheusAnnotations" . | nindent 8 }}
+        prometheus.io/port: {{ .Values.accessGateway.ports.admin | quote }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "mochat.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.accessGateway.terminationGracePeriodSeconds }}
+      containers:
+        - name: access-gateway
+          image: {{ include "mochat.image" (list . .Values.accessGateway.image) | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+            - configMapRef:
+                name: mochat-observability
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: access-gateway
+            - name: MOCHAT_ACCESS_GATEWAY_HTTP_PORT
+              value: {{ .Values.accessGateway.ports.admin | quote }}
+            - name: MOCHAT_ACCESS_GATEWAY_TCP_PORT
+              value: {{ .Values.accessGateway.ports.tcp | quote }}
+            - name: MOCHAT_ACCESS_GATEWAY_GRPC_PORT
+              value: {{ .Values.accessGateway.ports.grpc | quote }}
+            - name: MOCHAT_ACCESS_GATEWAY_TLS_CERTIFICATE_PATH
+              value: /var/run/mochat/tls/tls.crt
+            - name: MOCHAT_ACCESS_GATEWAY_TLS_PRIVATE_KEY_PATH
+              value: /var/run/mochat/tls/tls.key
+            - name: MOCHAT_ACCESS_GATEWAY_TLS_SELF_SIGNED
+              value: "false"
+            - name: MOCHAT_ACCESS_GATEWAY_DRAIN_SHUTDOWN_WAIT_ENABLED
+              value: "true"
+            - name: MOCHAT_ACCESS_GATEWAY_DRAIN_GRACE_PERIOD
+              value: {{ .Values.accessGateway.drainGracePeriod | quote }}
+            - name: MOCHAT_RUNTIME_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MOCHAT_RUNTIME_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: admin
+              containerPort: {{ .Values.accessGateway.ports.admin }}
+            - name: tcp
+              containerPort: {{ .Values.accessGateway.ports.tcp }}
+            - name: grpc
+              containerPort: {{ .Values.accessGateway.ports.grpc }}
+          volumeMounts:
+            - name: access-gateway-tls
+              mountPath: /var/run/mochat/tls
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /internal/lifecycle/readyz
+              port: {{ .Values.accessGateway.ports.admin }}
+            periodSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /internal/lifecycle/livez
+              port: {{ .Values.accessGateway.ports.admin }}
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /internal/lifecycle/drain
+                port: {{ .Values.accessGateway.ports.admin }}
+      volumes:
+        - name: access-gateway-tls
+          secret:
+            secretName: {{ .Values.accessGatewayTls.secretName }}
+{{- end }}

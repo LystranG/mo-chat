@@ -1,0 +1,25 @@
+default_project: mochat-local
+
+projects:
+  mochat-local:
+    name: "mo-chat 本地联调"
+    metric_profile: java
+    enabled: true
+    datasources:
+      # localhost 适用于 AIOps 直接运行在宿主机。
+      # 如果 AIOps 在容器中运行，请改为 host.docker.internal 或同 Docker 网络内的服务名。
+      prometheus:
+        base_url: "http://localhost:9090"
+        verify_ssl: false
+      loki:
+        base_url: "http://localhost:3100"
+        auth_type: NoAuth
+        verify_ssl: false
+      tempo:
+        base_url: "http://localhost:3200"
+        verify_ssl: false
+      kubernetes:
+        mode: kubeconfig
+        kubeconfig_path: "~/.kube/config"
+        namespaces: ["mochat"]
+        verify_ssl: false

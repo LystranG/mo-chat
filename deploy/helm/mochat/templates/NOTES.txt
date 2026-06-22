@@ -1,0 +1,11 @@
+MoChat release {{ .Release.Name }} installed in namespace {{ include "mochat.namespace" . }}.
+
+Check workloads:
+  kubectl -n {{ include "mochat.namespace" . }} get pods,svc
+
+{{- if .Values.observability.prometheus.scrape }}
+Check Prometheus annotations:
+  kubectl -n {{ include "mochat.namespace" . }} get pod -l app.kubernetes.io/part-of=mochat -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.annotations}{"\n"}{end}'
+{{- else }}
+Prometheus scrape annotations are disabled. Enable observability.prometheus.scrape only after the target images expose {{ .Values.observability.prometheus.path }}.
+{{- end }}

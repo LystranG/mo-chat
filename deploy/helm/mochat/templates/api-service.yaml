@@ -1,0 +1,73 @@
+{{- if .Values.apiService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: api-service
+  {{- if .Values.observability.prometheus.scrape }}
+  annotations:
+    {{- include "mochat.prometheusAnnotations" . | nindent 4 }}
+    prometheus.io/port: {{ .Values.apiService.ports.http | quote }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: api-service
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.apiService.ports.http }}
+      targetPort: {{ .Values.apiService.ports.http }}
+    - name: grpc
+      port: {{ .Values.apiService.ports.grpc }}
+      targetPort: {{ .Values.apiService.ports.grpc }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: api-service
+spec:
+  replicas: {{ .Values.apiService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-service
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mochat.labels" . | nindent 8 }}
+        app.kubernetes.io/name: api-service
+      {{- if .Values.observability.prometheus.scrape }}
+      annotations:
+        {{- include "mochat.prometheusAnnotations" . | nindent 8 }}
+        prometheus.io/port: {{ .Values.apiService.ports.http | quote }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "mochat.serviceAccountName" . }}
+      containers:
+        - name: api-service
+          image: {{ include "mochat.image" (list . .Values.apiService.image) | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+            - configMapRef:
+                name: mochat-observability
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: api-service
+          ports:
+            - name: http
+              containerPort: {{ .Values.apiService.ports.http }}
+            - name: grpc
+              containerPort: {{ .Values.apiService.ports.grpc }}
+{{- end }}

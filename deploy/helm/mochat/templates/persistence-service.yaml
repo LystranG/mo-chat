@@ -1,0 +1,41 @@
+{{- if .Values.persistenceService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: persistence-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: persistence-service
+spec:
+  replicas: {{ .Values.persistenceService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: persistence-service
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mochat.labels" . | nindent 8 }}
+        app.kubernetes.io/name: persistence-service
+    spec:
+      serviceAccountName: {{ include "mochat.serviceAccountName" . }}
+      containers:
+        - name: persistence-service
+          image: {{ include "mochat.image" (list . .Values.persistenceService.image) | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+            - secretRef:
+                name: {{ .Values.externalDependencies.secret.name }}
+            - configMapRef:
+                name: mochat-observability
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: persistence-service
+            - name: MOCHAT_PERSISTENCE_SERVICE_QUEUE_CONSUMER_ENABLED
+              value: {{ .Values.persistenceService.queueConsumerEnabled | quote }}
+{{- end }}
