@@ -5,9 +5,12 @@
 `deployment` 边界定义当前默认 dedicated services 的运行、镜像、Kubernetes 资源、本地 kind 验证和共享基础设施约定：
 
 - 默认源码服务：`api-service`、`message-service`、`access-gateway`、`persistence-service`、`call-service`
-- 当前 Kubernetes/kind manifest 仍只覆盖 `api-service`、`message-service`、`access-gateway`、`persistence-service`
+- 旧 `deploy/kubernetes` kustomize/kind manifest 仍只覆盖 `api-service`、`message-service`、`access-gateway`、`persistence-service`
+- 新 Helm chart `deploy/helm/mochat` 覆盖五个 dedicated services，包含 `call-service`
 - 共享基础设施：PostgreSQL、Redis、RocketMQ
+- 本地观测栈：Prometheus、Loki、Tempo、Alertmanager
 - 外部音视频基础设施：LiveKit
+- 外部 AIOps 接入示例
 - Kubernetes base 和 kind overlay
 - Dockerfile 和镜像构建方式
 - runtime ConfigMap / Secret / 环境变量
@@ -19,15 +22,19 @@
 - 不做 database-per-service。
 - 不做 schema rollback 或数据层回滚。
 - 不把 PostgreSQL、Redis、RocketMQ 放进 Kubernetes manifest 管理；它们当前是集群外依赖。
-- 当前不把 LiveKit 放进 Kubernetes manifest 管理；`call-service` 只读取 LiveKit URL/API key/API secret。
+- 当前不部署 LiveKit 服务本体；Helm 只创建或引用 `mochat-livekit` Secret，向 `call-service` 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- 不在本项目内实现 AIOps 服务；本项目只提供被监控系统端点、标签和配置示例。
 - 不用 `app` 作为默认部署入口。
 
 ## 主要代码路径
 
 - Kubernetes base：`deploy/kubernetes/base/shared-runtime.yaml`、`runtime-secrets.yaml`、`api-service.yaml`、`message-service.yaml`、`persistence-service.yaml`、`access-gateway.yaml`、`kustomization.yaml`
 - kind overlay：`deploy/kubernetes/overlays/kind/kustomization.yaml`、`prepare-local-inputs.sh`、`verify-minimal-topology.sh`、`verify-routing-and-drain.sh`
+- Helm chart：`deploy/helm/mochat/**`
+- 本地观测栈：`deploy/observability/**`
 - 本地基础设施：`docker-compose.yml`
 - Dockerfile：`access-gateway-app/Dockerfile`、`api-service-app/Dockerfile`、`message-service-app/Dockerfile`、`persistence-service-app/Dockerfile`
+- call-service 镜像：`call-service-app/Dockerfile`
 - 服务配置：`access-gateway-app/src/main/resources/application.yml`、`api-service-app/src/main/resources/application.yml`、`message-service-app/src/main/resources/application.yml`、`persistence-service-app/src/main/resources/application.yml`、`call-service-app/src/main/resources/application.yml`
 - Kubernetes manifest 测试：`service-runtime/src/test/java/com/github/lystran/mochat/runtime/kubernetes/**`
 
@@ -37,7 +44,7 @@
 - `message-service`：Deployment + ClusterIP Service，gRPC `19092`。
 - `persistence-service`：Deployment，无 Service，消费 RocketMQ 并写 PostgreSQL。
 - `access-gateway`：StatefulSet，`access-gateway-headless` 用于 Pod DNS/gRPC，`access-gateway-tcp` NodePort 暴露 TCP `9000`。
-- `call-service`：源码已有 Micronaut HTTP/WebSocket app，默认 HTTP `8090`；当前没有 Dockerfile、Kubernetes workload、Service 或 kind 验证入口。
+- `call-service`：Micronaut HTTP/WebSocket app，默认 HTTP `8090`；`call-service-app/Dockerfile` 已支持 native-first 镜像构建，Helm chart 已模板化 Deployment + ClusterIP Service，默认单副本。
 - `mochat-runtime-config` 放集群内发现：
   - `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
   - `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
@@ -53,20 +60,38 @@
 
 当前注意点：
 
-- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service` Dockerfile 使用 `nativeCompile` + distroless。
-- `build.gradle.kts` 已把 `:call-service-app` 加入 `deployableNativeAppImages`，但仓库当前没有 `call-service-app/Dockerfile` 或 Kubernetes manifest。
+- 推荐部署路径新增 `deploy/helm/mochat`，用于部署 `api-service`、`message-service`、`persistence-service`、`access-gateway`、`call-service`。
+- 本地观测栈新增 `deploy/observability`，使用 Docker Compose 管理 Prometheus、Loki、Tempo、Alertmanager。
+- 命令文档默认使用 Docker CLI；Podman 不再是 runbook 推荐主路径的默认命令。
+- AIOps 是外部服务，本项目只提供 metrics、logs、trace 预留、Alertmanager webhook 示例、Kubernetes labels 和 `projects.yaml.example`。
+- `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind` 保留为旧版 Podman-based kustomize/kind 验证路径；脚本当前仍调用 Podman，不是 Helm 推荐路径的一部分。
+- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service`、`call-service` Dockerfile 使用 `nativeCompile` + distroless。
+- `build.gradle.kts` 已把 `:call-service-app` 加入 `deployableNativeAppImages`；`call-service-app/Dockerfile` 使用 `:call-service-app:nativeCompile`。
+- 旧 kind 脚本未覆盖 call-service；Helm 路径 `deploy/helm/mochat` 覆盖 call-service。
 - `deploy/kubernetes/base/persistence-service.yaml` 没有 Service，这与 runbook 一致；后续若加探针 sidecar 或入站 API 会改变边界。
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
 - `docker-compose.yml` 的 compose name 是 `ddd-demo`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-ddd-demo`。
-- `call-service-app/src/main/resources/application.yml` 当前含 LiveKit 默认 URL/API key/API secret；部署时应通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- `values-local.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
+- `observability.prometheus.scrape` 默认关闭。chart 只预留 Prometheus annotations 和 scrape 示例；启用前需确认目标镜像实际暴露 `/prometheus`，并保证 Prometheus 可以访问对应端口。
 
 ## 配置和运行入口
 
 本地基础设施：
 
+启动：
+
 ```bash
-podman compose up -d
-podman compose down
+docker compose up -d
+cp deploy/observability/alertmanager/secrets/aiops-token.example deploy/observability/alertmanager/secrets/aiops-token
+docker compose -f deploy/observability/docker-compose.yml up -d
+```
+
+停止：
+
+```bash
+docker compose -f deploy/observability/docker-compose.yml down
+docker compose down
 ```
 
 本地 dedicated services：
@@ -79,7 +104,9 @@ podman compose down
 ./gradlew :call-service-app:run
 ```
 
-Kubernetes/kind：
+旧 Podman-based Kubernetes/kind fallback：
+
+下面入口是旧 kustomize/kind 验证路径，不是 Helm 推荐部署路径；脚本当前仍按 Podman-based kind 环境维护。
 
 ```bash
 bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
@@ -90,13 +117,34 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/ku
 镜像构建：
 
 ```bash
-podman build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-podman build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-podman build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-podman build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker build -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
 ```
 
-当前没有 `call-service-app/Dockerfile`；不要把 call-service 纳入镜像构建或 kind 脚本，除非先补齐部署资源和测试。
+Helm 部署：
+
+```bash
+mkdir -p .local/helm/access-gateway-tls
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -subj "/CN=localhost" \
+  -keyout .local/helm/access-gateway-tls/tls.key \
+  -out .local/helm/access-gateway-tls/tls.crt
+
+helm upgrade --install mochat deploy/helm/mochat \
+  --namespace mochat --create-namespace \
+  -f deploy/helm/mochat/values-local.yaml \
+  --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
+  --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
+```
+
+`accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 是 access-gateway TLS 启动必需配置，不能让 chart 创建空 `access-gateway-tls` Secret。使用预建 TLS Secret 时设置 `accessGatewayTls.create=false` 和 `accessGatewayTls.secretName=access-gateway-tls`。
+
+通话功能还需要 `mochat-livekit` Secret 或 `livekit.url`、`livekit.apiKey`、`livekit.apiSecret` values；只验证非通话链路时可以暂时保留 LiveKit 空值。使用预建 LiveKit Secret 时设置 `livekit.createSecret=false` 和 `livekit.secretName=mochat-livekit`。
+
+旧 kind 脚本未覆盖 call-service；Helm 路径覆盖 call-service。不要把旧 kind runbook 写成已验证 call-service，除非先补齐对应脚本和测试。
 
 ## 测试入口
 

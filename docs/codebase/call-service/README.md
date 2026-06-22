@@ -73,12 +73,18 @@
 
 当前注意点：
 
-- `call-service-app/src/main/resources/application.yml` 当前带 LiveKit 默认 URL/API key/API secret；这些应视为需要外部化的敏感配置，不要在新部署文档或示例中继续扩散真实值。
+- `call-service-app/src/main/resources/application.yml` 不再提供 LiveKit URL/API key/API secret 默认值；通话 token 签发必须通过 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET` 外部注入。
 - `CallOfflineNotificationMqProducer` 和 consumer 读取的 property key 是 `mochat.rocketmq.offline-notification.*`；配置文件里的 env var 是 `MOCHAT_CALL_OFFLINE_TOPIC` / `MOCHAT_CALL_OFFLINE_CONSUMER_GROUP`。
 - 活跃房间是 `ConcurrentHashMap` 进程内状态；多副本部署时同一通话必须考虑粘性路由或外部化房间状态，否则不同实例不可见。
 - `pushPendingNotifications` 当前按内存房间是否仍 active 判断可投递性；服务重启后旧离线通知会因房间状态丢失而被标记 delivered 跳过。
 - 私聊离线邀请会落库时使用 `groupId=-1`，但 `V4__call_offline_notifications.sql` 的 `group_id` 是 `NOT NULL`。
-- 当前没有 `call-service-app/Dockerfile`、Kubernetes workload 或专门测试目录；不要把它写成已纳入现有 kind 验证。
+- `call-service-app/Dockerfile` 优先使用 native image 构建，执行 `:call-service-app:nativeCompile`，distroless 运行镜像默认暴露 `8090`。
+- `call-service` 已纳入 Helm 部署，默认 `replicaCount: 1`。
+- Kubernetes Service 端口为 HTTP/WebSocket `8090`。
+- LiveKit 配置通过 `mochat-livekit` Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- 当前活跃房间状态仍在 JVM 内存中，不能直接多副本无状态扩容。
+- 旧 `deploy/kubernetes/overlays/kind` 脚本仍未覆盖 call-service。
+- 当前没有专门测试目录；不要把 call-service 写成已纳入旧 kind 验证。
 
 ## 配置和运行入口
 

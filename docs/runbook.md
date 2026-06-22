@@ -1,14 +1,171 @@
-# 第一阶段 Kubernetes 部署操作手册
+# MoChat Kubernetes 与 AIOps 部署操作手册
 
-这份 runbook 现在把 Kubernetes 原生部署视为拆分后 MoChat 拓扑的主要部署方式，涉及的服务包括 `api-service`、`message-service`、`persistence-service` 和 `access-gateway`。
+这份 runbook 记录 MoChat 当前推荐部署路径：
 
-截至 2026-03-14，当前范围如下：
+- MoChat 五个业务服务使用 Helm 部署到 Kubernetes。
+- PostgreSQL、Redis、RocketMQ 使用 Docker Compose。
+- Prometheus、Loki、Tempo、Alertmanager 使用 Docker Compose 做本地联调。
+- AIOps 是外部服务，本项目只提供被监控系统端点、标签和配置示例。
 
-- 仓库里已经有按服务拆分的 Dockerfile、独立的服务运行时、运行时拓扑抽象，以及仓库自带的 Kubernetes 资源，位置在 `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind`。
-- 当前仓库已经提供的本地验证入口是 `bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh` 和 `GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh`。
-- 本文档记录的是当前 worktree 里真实存在的资源结构、已经验证过的本地 `kind` 路径、ConfigMap / Secret 约定、集群外基础设施约束，以及回滚到当前静态地址运行时的做法。
+## 推荐本地流程
 
-## 部署目标
+### 1. 启动基础设施
+
+```bash
+docker compose up -d
+```
+
+### 2. 准备 Alertmanager token 并启动观测栈
+
+```bash
+cp deploy/observability/alertmanager/secrets/aiops-token.example deploy/observability/alertmanager/secrets/aiops-token
+docker compose -f deploy/observability/docker-compose.yml up -d
+```
+
+真实 token 只写入无后缀 `deploy/observability/alertmanager/secrets/aiops-token`，不要修改 `.example`。
+
+### 3. 构建镜像
+
+```bash
+docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker build -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
+```
+
+### 4. 准备 Kubernetes 集群和镜像可见性
+
+执行 Helm 前，必须确认当前 `kubectl` context 指向目标 Kubernetes 集群，并且目标 namespace 中的 Pod 可以拉取或访问 `localhost/mochat/*:dev` 镜像。
+
+常见本地路径：
+
+- Docker Desktop Kubernetes 通常可以直接使用本机 Docker daemon 中的 `localhost/mochat/*:dev` 镜像。
+- kind、minikube 或远端集群不能默认看到本机 Docker daemon 中的镜像。普通 Docker-provider kind 集群可先导入镜像：
+
+```bash
+KIND_CLUSTER_NAME=kind
+kind load docker-image localhost/mochat/access-gateway:dev --name "$KIND_CLUSTER_NAME"
+kind load docker-image localhost/mochat/api-service:dev --name "$KIND_CLUSTER_NAME"
+kind load docker-image localhost/mochat/message-service:dev --name "$KIND_CLUSTER_NAME"
+kind load docker-image localhost/mochat/persistence-service:dev --name "$KIND_CLUSTER_NAME"
+kind load docker-image localhost/mochat/call-service:dev --name "$KIND_CLUSTER_NAME"
+```
+
+可用 `kind get clusters` 查看实际集群名；默认 kind 集群通常是 `kind`。
+
+远端集群应先把镜像推送到集群可访问的 registry，并使用独立 values 文件，例如 `values-prod.yaml` 或环境专属 values，不要直接复用面向本地 `host.docker.internal` 和占位 Secret 的 `deploy/helm/mochat/values-local.yaml`。远端 values 至少需要提供：
+
+- `externalDependencies.*`
+- PostgreSQL Secret 或凭据管理策略
+- LiveKit Secret 或 values
+- access-gateway TLS Secret 或 values
+- 集群可访问的 registry 和 image tag
+
+远端集群示例：
+
+```bash
+helm upgrade --install mochat deploy/helm/mochat \
+  --namespace mochat --create-namespace \
+  -f values-prod.yaml \
+  --set global.imageRegistry=registry.example.com/mochat \
+  --set apiService.image.tag=dev \
+  --set messageService.image.tag=dev \
+  --set persistenceService.image.tag=dev \
+  --set accessGateway.image.tag=dev \
+  --set callService.image.tag=dev
+```
+
+这里说明的是 Helm 推荐路径的镜像可见性原则，不把旧 `deploy/kubernetes/overlays/kind` 验证脚本作为 Helm 部署步骤。
+
+### 5. 准备 Helm 必需 Secret/values
+
+`access-gateway` TLS 证书和私钥是启动必需配置。当前 chart 会创建 `access-gateway-tls` Secret 并挂载给 `access-gateway`；`deploy/helm/mochat/values-local.yaml` 中的 `accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 默认为空，直接部署会得到不可用的 TLS Secret。
+
+本地联调可以生成自签名证书。仓库根 `.gitignore` 已忽略 `.local/`，该目录只作为本地临时路径使用：
+
+```bash
+mkdir -p .local/helm/access-gateway-tls
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -subj "/CN=localhost" \
+  -keyout .local/helm/access-gateway-tls/tls.key \
+  -out .local/helm/access-gateway-tls/tls.crt
+```
+
+等价方式是预先创建并维护 `access-gateway-tls` Secret，并在 values 中设置 chart 不创建空 Secret；本地推荐命令优先使用 `--set-file` 注入证书内容。chart 默认 `accessGatewayTls.create=true`，会尝试创建 `access-gateway-tls` Secret；如果使用预建 TLS Secret，必须设置 `accessGatewayTls.create=false` 和 `accessGatewayTls.secretName=...`。使用预建 Secret 时追加：
+
+```bash
+--set accessGatewayTls.create=false \
+--set accessGatewayTls.secretName=access-gateway-tls
+```
+
+LiveKit 是 `/calls/**` 通话 token 签发必需配置。本地只验证非通话链路时可以保留空值，但调用通话 token 签发会失败；验证通话时应通过 `mochat-livekit` Secret、环境专属 values，或 Helm 参数提供：
+
+```bash
+--set livekit.url=https://livekit.example.com \
+--set livekit.apiKey=REPLACE_WITH_API_KEY \
+--set livekit.apiSecret=REPLACE_WITH_API_SECRET
+```
+
+真实 LiveKit 凭据不要写入提交到仓库的 values 文件。
+
+chart 默认 `livekit.createSecret=true`，会尝试创建 `mochat-livekit` Secret；如果使用已维护的 LiveKit Secret，必须设置 `livekit.createSecret=false` 和 `livekit.secretName=...`：
+
+```bash
+--set livekit.createSecret=false \
+--set livekit.secretName=mochat-livekit
+```
+
+### 6. 使用 Helm 部署 MoChat
+
+```bash
+helm upgrade --install mochat deploy/helm/mochat \
+  --namespace mochat --create-namespace \
+  -f deploy/helm/mochat/values-local.yaml \
+  --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
+  --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
+```
+
+验证通话链路时，在上面的命令后追加 LiveKit values 或改用已维护的 `mochat-livekit` Secret。
+
+### 7. 检查部署
+
+```bash
+kubectl -n mochat get pods,svc
+kubectl -n mochat rollout status statefulset/access-gateway
+kubectl -n mochat rollout status deploy/call-service
+helm -n mochat status mochat
+```
+
+## AIOps 接入
+
+外部 AIOps 使用 `deploy/observability/aiops/projects.yaml.example` 作为项目配置参考。更多本地观测栈说明见 `deploy/observability/README.md`。
+
+相关文件：
+
+- `deploy/observability/README.md`
+- `deploy/observability/alertmanager/alertmanager.yml`
+- `deploy/observability/aiops/projects.yaml.example`
+
+本项目只提供：
+
+- Prometheus scrape annotation 和本地 scrape 示例；`observability.prometheus.scrape` 默认关闭，启用前需确认目标服务实际暴露 `/prometheus`。
+- logs 采集的本地联调配置。
+- trace 上报预留配置。
+- Alertmanager webhook 示例。
+- Kubernetes labels 和 annotations。
+
+Docker Compose 中的 Prometheus 示例 target 使用 `host.docker.internal:18080`。如果启用应用指标并使用该示例，需要先把 access-gateway admin 端口转发到宿主机：
+
+```bash
+kubectl -n mochat port-forward pod/access-gateway-0 18080:18080
+```
+
+## 旧版 Podman-based kustomize/kind 验证路径
+
+这一节保留旧版 `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind` 验证路径。它覆盖 `api-service`、`message-service`、`persistence-service` 和 `access-gateway`，不覆盖 `call-service`。这些 legacy 脚本当前依赖 Podman，因此本节按脚本现状保留 Podman 前置条件和命令；推荐 Helm 主路径仍使用 Docker-first 命令。
+
+### 部署目标
 
 - `api-service`、`message-service` 和 `persistence-service` 作为可独立扩缩容的 Kubernetes 工作负载运行。
 - `access-gateway` 使用 StatefulSet 运行，这样每个网关副本都能保留稳定的 `gatewayPod` 身份。
@@ -16,7 +173,7 @@
 - PostgreSQL、Redis 和 RocketMQ 在这一阶段仍然放在集群外。
 - 静态的 `gateway-targets` 和 `peer-targets` 只保留为兼容兜底方案，不再是 Kubernetes 下的主要生产约定。
 
-## 仓库当前交付的 Kubernetes 资源形式
+### 仓库当前交付的 Kubernetes 资源形式
 
 当前仓库自带的 Kubernetes 打包方式是 `kustomize`：
 
@@ -25,7 +182,7 @@
 
 当前 worktree 里还没有 `deploy/kubernetes/overlays/prod` 这个 overlay。不要仅凭这份文档就推断仓库已经提供生产环境 overlay。
 
-## 当前 Kubernetes 资源结构
+### 当前 Kubernetes 资源结构
 
 | 运行时 | 工作负载类型 | Service 形态 | 主要端口 | 服务发现约定 | 说明 |
 | --- | --- | --- | --- | --- | --- |
@@ -68,7 +225,7 @@
 
 所以在 Kubernetes 里，Redis 里的在线路由 owner 应该直接保存 Pod 身份本身，比如 `gatewayPod=access-gateway-0`，而不是手写别名，例如 `gateway-a`。
 
-## 配置归属规则
+### 配置归属规则
 
 当前配置分成五类。
 
@@ -140,7 +297,7 @@ env:
 
 当回滚到当前本地静态地址拓扑时，仍然需要这些配置。
 
-## 集群外基础设施前置条件
+### 集群外基础设施前置条件
 
 第一版 Kubernetes 部署仍然把 PostgreSQL、Redis 和 RocketMQ 放在集群外。在执行任何 `kind` 或生产部署之前，先确认以下几点：
 
@@ -154,7 +311,7 @@ env:
 
 如果 `MOCHAT_REDIS_URI` 里包含密码、用户名或 TLS 选项，就把整个 URI 都按敏感信息处理。
 
-## 本地 `kind` 验证路径
+### 本地 `kind` 验证路径
 
 这一节说明的是当前仓库自带 `deploy/kubernetes/overlays/kind` overlay 的本地验证流程。
 
@@ -162,7 +319,7 @@ env:
 
 - `kind`
 - `kubectl`
-- `podman`
+- `docker`
 - `jq`
 - `rg`
 - `ss`
@@ -173,10 +330,10 @@ env:
 在仓库根目录执行：
 
 ```bash
-podman build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-podman build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-podman build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-podman build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
 ```
 
 ### 2. 创建 `kind` 集群
@@ -210,7 +367,7 @@ kind create cluster --name kind-cluster --config kind-config.yaml
 bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
 ```
 
-这个脚本会用 `podman inspect` 解析 compose 容器 IP，写出 `.local/external-dependencies.env`、`.local/external-dependency-secrets.env`，并在 `.local/access-gateway-tls/` 下生成一套自签名 gateway TLS 证书。
+这个脚本会用 `docker inspect` 解析 compose 容器 IP，写出 `.local/external-dependencies.env`、`.local/external-dependency-secrets.env`，并在 `.local/access-gateway-tls/` 下生成一套自签名 gateway TLS 证书。
 
 ### 4. 主要的最小验证路径
 
@@ -348,8 +505,8 @@ kind delete cluster --name kind-cluster
 ### 2. 在本地重启共享基础设施
 
 ```bash
-podman compose up -d
-podman compose ps
+docker compose up -d
+docker compose ps
 ```
 
 ### 3. 恢复基于静态目标映射的服务启动方式
