@@ -24,4 +24,5 @@ include(
     "logic-module",
     "persistence-module",
     "call-module",
+    "multimedia-module"
 )

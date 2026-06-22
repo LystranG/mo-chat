@@ -41,3 +41,19 @@ services:
       - "10912:10912"
     depends_on:
       - rocketmq-namesrv
+
+  rustfs:
+    image: docker.1ms.run/rustfs/rustfs:latest
+    container_name: ddd-demo-rustfs
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    environment:
+      - RUSTFS_ACCESS_KEY=rustfsadmin
+      - RUSTFS_SECRET_KEY=rustfsadmin
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_CONSOLE_ADDRESS=:9001
+    volumes:
+      - ./docker/rustfs/data:/data
+      - ./docker/rustfs/logs:/logs
+    restart: unless-stopped

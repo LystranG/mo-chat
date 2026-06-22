@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":infra-redis"))
     implementation(project(":logic-module"))
     implementation(project(":message-module"))
+    implementation(project(":multimedia-module"))
     implementation(project(":protocol"))
     implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
         exclude(group = "io.grpc", module = "grpc-stub")
