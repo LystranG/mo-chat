@@ -16,6 +16,7 @@ include(
     "message-service-app",
     "persistence-service-app",
     "call-service-app",
+    "multimedia-service-app",
     "common",
     "protocol",
     "infra-redis",
@@ -26,3 +27,4 @@ include(
     "call-module",
     "multimedia-module"
 )
+

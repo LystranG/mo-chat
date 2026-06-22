@@ -1,0 +1,17 @@
+micronaut:
+  application:
+    name: multimedia-service
+  server:
+    port: 8082
+
+rustfs:
+  endpoint: http://localhost:9002
+  access-key: rustfsadmin
+  secret-key: rustfsadmin
+  bucket: mochat-media
+  region: us-east-1
+
+logging:
+  level:
+    root: INFO
+    com.github.lystran.mochat.multimedia: DEBUG
