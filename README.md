@@ -1,8 +1,8 @@
 # MoChat
 
-MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认本地拓扑已经切换为四个 dedicated services 共享 PostgreSQL、Redis 和 RocketMQ；`app` 只作为 compatibility shell 保留，用于回滚或兼容模式，不再是默认启动入口。
+MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认拓扑是五个 dedicated services 共享 PostgreSQL、Redis 和 RocketMQ；`app` 只作为 compatibility shell 保留，用于回滚或兼容模式，不再是默认启动入口。
 
-当前 worktree 的 Kubernetes 资产位于 `deploy/kubernetes/base` 与 `deploy/kubernetes/overlays/kind`。Kubernetes-first 的部署契约、本地 `kind` 验证路径、ConfigMap/Secret 约定以及回滚到静态寻址模式的办法见 [docs/runbook.md](docs/runbook.md)。
+当前推荐部署路径是使用 `deploy/helm/mochat` 部署五个业务服务；PostgreSQL、Redis、RocketMQ 仍由根目录 Docker Compose 管理，观测栈由 `deploy/observability/docker-compose.yml` 管理。旧 `deploy/kubernetes/base` 与 `deploy/kubernetes/overlays/kind` 保留为 Podman-based fallback。完整部署、AIOps 接入和回滚说明见 [docs/runbook.md](docs/runbook.md)。
 
 ## Architecture At A Glance
 
@@ -12,6 +12,7 @@ MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认本地
 - `message-service`: 消息摄入、幂等、sender ACK、在线投递编排、离线回退
 - `access-gateway`: TCP bind、心跳、在线路由 ownership、定点投递
 - `persistence-service`: MQ 消费、持久化、会话推进、post-commit 更新
+- `call-service`: 音视频通话 HTTP/WebSocket 信令、LiveKit token、通话离线通知
 
 共享基础设施：
 
@@ -25,6 +26,7 @@ MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认本地
 - `api-service-app`
 - `message-service-app`
 - `persistence-service-app`
+- `call-service-app`
 - `service-runtime`
 - `common`
 - `protocol`
@@ -36,7 +38,7 @@ MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认本地
 ## Prerequisites
 
 - JDK 25
-- Podman with compose support: `podman compose`
+- Docker CLI with Compose support: `docker compose`
 - OpenSSL
   - 仅当你要覆盖默认自签名 TLS 证书时需要
 
@@ -45,7 +47,7 @@ MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认本地
 1. 启动共享基础设施：
 
 ```bash
-podman compose up -d
+docker compose up -d
 ```
 
 2. 在独立终端中启动核心服务：
@@ -55,6 +57,7 @@ podman compose up -d
 ./gradlew :message-service-app:run
 ./gradlew :persistence-service-app:run
 ./gradlew :access-gateway-app:run
+./gradlew :call-service-app:run
 ```
 
 3. 如果你要验证默认推荐的双 gateway 本地拓扑，再额外启动第二个 `access-gateway` 实例，并按 runbook 配置不同的 `gateway-pod`、gRPC 端口和 TCP 端口。
@@ -70,6 +73,7 @@ podman compose up -d
 | `access-gateway-a` | TCP `9000`, gRPC `19093` |
 | `access-gateway-b` | TCP `9001`, gRPC `19094` |
 | `persistence-service` | 无公开 HTTP/TCP listener |
+| `call-service` | HTTP/WebSocket `8090` |
 | PostgreSQL | `5432` |
 | Redis | `6379` |
 | RocketMQ NameServer | `9876` |
@@ -123,13 +127,14 @@ Kubernetes 运行时身份与发现：
 ## Common Commands
 
 ```bash
-podman compose up -d
-podman compose down
+docker compose up -d
+docker compose down
 ./gradlew test
 ./gradlew :api-service-app:run
 ./gradlew :message-service-app:run
 ./gradlew :persistence-service-app:run
 ./gradlew :access-gateway-app:run
+./gradlew :call-service-app:run
 bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
 bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh
 GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh

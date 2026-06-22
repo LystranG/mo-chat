@@ -1,0 +1,8 @@
+{{- if .Values.global.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+{{- end }}

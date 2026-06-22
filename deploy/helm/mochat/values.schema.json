@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "definitions": {
+    "dns1123Label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "nodePort": {
+      "type": "integer",
+      "minimum": 30000,
+      "maximum": 32767
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 }
+      },
+      "required": ["repository", "tag"]
+    },
+    "enabledReplicaService": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "image": { "$ref": "#/definitions/image" }
+      },
+      "required": ["enabled", "replicaCount", "image"]
+    }
+  },
+  "properties": {
+    "global": {
+      "type": "object",
+      "properties": {
+        "namespace": { "$ref": "#/definitions/dns1123Label" },
+        "createNamespace": { "type": "boolean" },
+        "imageRegistry": { "type": "string" },
+        "imagePullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        },
+        "projectId": { "type": "string", "minLength": 1 },
+        "environment": { "type": "string", "minLength": 1 },
+        "clusterDomain": { "type": "string", "minLength": 1 },
+        "serviceAccountName": { "$ref": "#/definitions/dns1123Label" },
+        "commonLabels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "propertyNames": {
+            "not": {
+              "enum": [
+                "app.kubernetes.io/name",
+                "app.kubernetes.io/instance",
+                "app.kubernetes.io/part-of",
+                "app.kubernetes.io/managed-by",
+                "helm.sh/chart",
+                "mochat.lystran.io/project-id",
+                "mochat.lystran.io/environment"
+              ]
+            }
+          }
+        }
+      },
+      "required": ["namespace", "projectId", "environment", "serviceAccountName"]
+    },
+    "externalDependencies": {
+      "type": "object",
+      "properties": {
+        "redisUri": { "type": "string", "minLength": 1 },
+        "postgresUrl": { "type": "string", "minLength": 1 },
+        "rocketmqNameServer": { "type": "string", "minLength": 1 },
+        "rocketmqTopic": { "type": "string", "minLength": 1 },
+        "secret": {
+          "type": "object",
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "$ref": "#/definitions/dns1123Label" },
+            "postgresUsername": { "type": "string" },
+            "postgresPassword": { "type": "string" }
+          },
+          "required": ["create", "name"]
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "prometheus": {
+          "type": "object",
+          "properties": {
+            "scrape": { "type": "boolean" },
+            "path": { "type": "string", "minLength": 1 }
+          }
+        },
+        "otel": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "endpoint": { "type": "string" },
+            "resourceAttributes": { "type": "string" }
+          }
+        },
+        "logFormat": { "type": "string", "minLength": 1 }
+      }
+    },
+    "accessGatewayTls": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "secretName": { "$ref": "#/definitions/dns1123Label" },
+        "certificate": { "type": "string" },
+        "privateKey": { "type": "string" }
+      },
+      "required": ["create", "secretName"]
+    },
+    "livekit": {
+      "type": "object",
+      "properties": {
+        "createSecret": { "type": "boolean" },
+        "secretName": { "$ref": "#/definitions/dns1123Label" },
+        "url": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "apiSecret": { "type": "string" }
+      },
+      "required": ["createSecret", "secretName"]
+    },
+    "apiService": {
+      "allOf": [
+        { "$ref": "#/definitions/enabledReplicaService" },
+        {
+          "type": "object",
+          "properties": {
+            "ports": {
+              "type": "object",
+              "properties": {
+                "http": { "$ref": "#/definitions/port" },
+                "grpc": { "$ref": "#/definitions/port" }
+              },
+              "required": ["http", "grpc"]
+            },
+            "probes": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "path": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "required": ["ports"]
+        }
+      ]
+    },
+    "messageService": {
+      "allOf": [
+        { "$ref": "#/definitions/enabledReplicaService" },
+        {
+          "type": "object",
+          "properties": {
+            "ports": {
+              "type": "object",
+              "properties": {
+                "grpc": { "$ref": "#/definitions/port" }
+              },
+              "required": ["grpc"]
+            }
+          },
+          "required": ["ports"]
+        }
+      ]
+    },
+    "persistenceService": {
+      "allOf": [
+        { "$ref": "#/definitions/enabledReplicaService" },
+        {
+          "type": "object",
+          "properties": {
+            "queueConsumerEnabled": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "accessGateway": {
+      "allOf": [
+        { "$ref": "#/definitions/enabledReplicaService" },
+        {
+          "type": "object",
+          "properties": {
+            "ports": {
+              "type": "object",
+              "properties": {
+                "admin": { "$ref": "#/definitions/port" },
+                "tcp": { "$ref": "#/definitions/port" },
+                "grpc": { "$ref": "#/definitions/port" },
+                "nodePort": { "$ref": "#/definitions/nodePort" }
+              },
+              "required": ["admin", "tcp", "grpc", "nodePort"]
+            },
+            "terminationGracePeriodSeconds": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["ports"]
+        }
+      ]
+    },
+    "callService": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "replicaCount": { "type": "integer", "minimum": 1, "maximum": 1 },
+            "image": { "$ref": "#/definitions/image" }
+          },
+          "required": ["enabled", "replicaCount", "image"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ports": {
+              "type": "object",
+              "properties": {
+                "http": { "$ref": "#/definitions/port" }
+              },
+              "required": ["http"]
+            },
+            "flywayMigrateOnStart": { "type": "boolean" },
+            "queueConsumerEnabled": { "type": "boolean" },
+            "probes": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "path": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "required": ["ports"]
+        }
+      ]
+    }
+  },
+  "required": [
+    "global",
+    "externalDependencies",
+    "observability",
+    "accessGatewayTls",
+    "livekit",
+    "apiService",
+    "messageService",
+    "persistenceService",
+    "accessGateway",
+    "callService"
+  ]
+}

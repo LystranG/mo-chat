@@ -25,6 +25,7 @@
 - 不拥有 history read-side，不暴露 `/history` 或 `/conversations/{id}/state`。
 - 不暴露公开 HTTP/TCP listener；当前 Kubernetes manifest 未为 `persistence-service` 创建 Service，源码未暴露业务 HTTP/gRPC/TCP 入站 API。
 - 不负责 sender ACK、在线投递或 offline fallback。
+- 不负责通话离线通知消费或 `call_offline_notifications` 写入；该路径属于 `call-service`。
 - 不负责 session authority、好友/群业务 HTTP 或 history query。
 - 不负责 TCP bind、心跳或在线 route ownership。
 - 不做 database-per-service，不做 distributed transaction。
@@ -57,9 +58,9 @@
 当前注意点：
 
 - `JdbcReceiptConversationStateStore` 实现位于 `persistence-module`，但包路径仍是 `com.github.lystran.mochat.logic.chat`。
-- `V1__phase1.sql` 包含 `users`、`user_friendships`、`groups` 等 Phase 1 schema；这些表的业务 lifecycle 仍按服务 ownership 拆分，不等于全部归 persistence-service 管理。
+- `V1__phase1.sql` 包含 `users`、`user_friendships`、`groups` 等 Phase 1 schema；`call-module/src/main/resources/db/migration/V4__call_offline_notifications.sql` 新增通话离线通知表。表的业务 lifecycle 仍按服务 ownership 拆分，不等于全部归 persistence-service 管理。
 - durable conflict 当前保持 suspend/retry 语义，不要写成已有 poison-message、DLQ 或人工隔离策略。
-- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；其他三个 dedicated service Dockerfile 使用 native image。
+- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service` Dockerfile 使用 native image；`call-service` 已有独立 `call-service-app/Dockerfile`，但策略不同，是 native-first。
 
 ## 配置和运行入口
 

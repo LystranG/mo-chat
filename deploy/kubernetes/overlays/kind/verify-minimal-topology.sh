@@ -46,8 +46,8 @@ for image in \
   localhost/mochat/persistence-service:dev
 do
   archive_path="${archive_dir}/$(printf '%s' "${image}" | tr '/:' '_').tar"
-  podman save -o "${archive_path}" "${image}"
-  KIND_EXPERIMENTAL_PROVIDER=podman kind load image-archive "${archive_path}" --name "${kind_cluster_name}"
+  docker save -o "${archive_path}" "${image}"
+  kind load image-archive "${archive_path}" --name "${kind_cluster_name}"
 done
 
 kubectl apply -k "${overlay_dir}"
@@ -99,7 +99,7 @@ node_port="$(
   kubectl get service access-gateway-tcp -n "${namespace}" \
     -o jsonpath="{.spec.ports[?(@.name=='tcp')].nodePort}"
 )"
-if ! timeout 10 podman run --rm --network "${kind_network}" docker.io/library/busybox:1.36 \
+if ! timeout 10 docker run --rm --network "${kind_network}" docker.io/library/busybox:1.36 \
   sh -c "nc -vz -w 2 ${node_ip} ${node_port}"; then
   printf 'NodePort %s on %s is not reachable from cluster-external probe on network %s\n' \
     "${node_port}" "${node_ip}" "${kind_network}" >&2

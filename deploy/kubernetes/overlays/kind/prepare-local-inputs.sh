@@ -10,7 +10,7 @@ compose_project="${MOCHAT_KIND_COMPOSE_PROJECT:-ddd-demo}"
 
 resolve_compose_container_name() {
   local service_name="$1"
-  podman ps \
+  docker ps \
     --filter "label=com.docker.compose.project=${compose_project}" \
     --filter "label=com.docker.compose.service=${service_name}" \
     --format '{{.Names}}' \
@@ -19,7 +19,7 @@ resolve_compose_container_name() {
 
 container_ipv4() {
   local container_name="$1"
-  podman inspect "${container_name}" \
+  docker inspect "${container_name}" \
     | jq -r '.[0].NetworkSettings.Networks | to_entries[] | .value.IPAddress | select(length > 0)' \
     | head -n 1
 }
@@ -48,7 +48,7 @@ do
   key="${required_value%%:*}"
   value="${required_value#*:}"
   if [[ -z "${value}" ]]; then
-    printf 'Unable to determine %s; ensure the local Podman compose dependency is running or override it explicitly\n' "${key}" >&2
+    printf 'Unable to determine %s; ensure the local Docker Compose dependency is running or override it explicitly\n' "${key}" >&2
     exit 1
   fi
 done
@@ -75,8 +75,8 @@ if [[ ! -s "${tls_dir}/tls.crt" || ! -s "${tls_dir}/tls.key" || "${FORCE_REGENER
   openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days "${TLS_VALID_DAYS:-30}" \
     -keyout "${tls_dir}/tls.key" \
     -out "${tls_dir}/tls.crt" \
-    -subj "/CN=host.containers.internal" \
-    -addext "subjectAltName=DNS:host.containers.internal,DNS:localhost,IP:127.0.0.1,DNS:access-gateway-tcp.mochat.svc,DNS:access-gateway-tcp.mochat.svc.cluster.local" \
+    -subj "/CN=host.docker.internal" \
+    -addext "subjectAltName=DNS:host.docker.internal,DNS:host.containers.internal,DNS:localhost,IP:127.0.0.1,DNS:access-gateway-tcp.mochat.svc,DNS:access-gateway-tcp.mochat.svc.cluster.local" \
     >/dev/null 2>&1
 fi
 

@@ -1,0 +1,13 @@
+groups:
+  - name: mochat-smoke
+    rules:
+      - alert: MoChatPrometheusSmoke
+        expr: up{job="prometheus"} == 1
+        for: 1m
+        labels:
+          severity: info
+          service: prometheus
+          project_id: mochat-local
+        annotations:
+          summary: "MoChat Prometheus smoke alert"
+          description: "Prometheus is running and can evaluate alert rules."

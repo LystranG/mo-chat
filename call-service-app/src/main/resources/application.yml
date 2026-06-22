@@ -21,9 +21,9 @@ mochat:
       topic: ${MOCHAT_CALL_OFFLINE_TOPIC:mochat.call.offline-notifications}
       consumer-group: ${MOCHAT_CALL_OFFLINE_CONSUMER_GROUP:mochat-call-offline-consumer}
   livekit:
-    url: ${MOCHAT_LIVEKIT_URL:wss://easy-chat-xgexhw94.livekit.cloud}
-    api-key: ${MOCHAT_LIVEKIT_API_KEY:APIguXWPL8HYFPV}
-    api-secret: ${MOCHAT_LIVEKIT_API_SECRET:o0901cxw4N3LVTczFXx3CK46onuaasFQUH5uBo9R4fK}
+    url: ${MOCHAT_LIVEKIT_URL}
+    api-key: ${MOCHAT_LIVEKIT_API_KEY}
+    api-secret: ${MOCHAT_LIVEKIT_API_SECRET}
   call-service:
     http:
       host: ${MOCHAT_CALL_SERVICE_HTTP_HOST:0.0.0.0}

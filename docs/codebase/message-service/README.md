@@ -23,6 +23,7 @@
 - dedicated runtime 默认不拥有 receipt-state fallback；`MessageCommandGrpcService#acknowledgeReceipt` 当前是 skeleton，临时返回 accepted。
 - 默认不启用 legacy event-bus inbound consumer；`mochat.message-service.inbound-consumer.enabled` 在 dedicated app 配置里默认是 `false`。
 - 不拥有 session authority；发送策略校验走 `api-service` 的 social/group policy，不等同于 session authority 校验。
+- 不负责音视频通话信令或 LiveKit token；这些属于 `call-service`。
 
 ## 主要代码路径
 
@@ -43,7 +44,7 @@
 4. 查 `IdempotencyStore.find(senderUid, clientMsgId)`；幂等命中时复用旧 `msgId/seq`，重新发 sender ACK，不重新 publish MQ。
 5. 幂等未命中时校验 payload 和参与人，通过 `GrpcMessageSendPolicyGateway` 调 `api-service` 校验私聊关系或群成员上下文。
 6. `ConversationSeqGenerator.next(conversationId)` 分配 seq，`IdGenerator.nextId()` 分配 msgId。
-7. 转成 `MessageAcceptedEvent`，由 `RocketMqProducer.publishOrdered` 同步写 RocketMQ。
+7. 转成 `MessageAcceptedEvent`，由 `RocketMqProducer.publishOrdered` 按 `acceptedEvent.shardingKey()` 做 ordered publish，同步写 RocketMQ。
 8. MQ 成功后才写入 Redis 幂等窗口并发布 sender ACK。
 9. 私聊或群聊尝试在线投递；在线投递失败时最多刷新一次 Redis route。
 10. 仍失败则写 Redis offline queue。

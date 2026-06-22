@@ -65,7 +65,7 @@ class KubernetesKindOverlayAssetsTest {
 
         String prepareScript = Files.readString(overlayRoot().resolve("prepare-local-inputs.sh"));
         assertTrue(prepareScript.contains("external-dependencies.env"));
-        assertTrue(prepareScript.contains("podman inspect"));
+        assertTrue(prepareScript.contains("docker inspect"));
         assertTrue(prepareScript.contains("ddd-demo-postgres-1"));
         assertTrue(prepareScript.contains("ddd-demo-redis"));
         assertTrue(prepareScript.contains("ddd-demo-rocketmq-namesrv"));
@@ -82,7 +82,7 @@ class KubernetesKindOverlayAssetsTest {
         assertTrue(prepareScript.contains("openssl req -x509"));
 
         String topologyScript = Files.readString(overlayRoot().resolve("verify-minimal-topology.sh"));
-        assertTrue(topologyScript.contains("podman save"));
+        assertTrue(topologyScript.contains("docker save"));
         assertTrue(topologyScript.contains("kind load image-archive"));
         assertTrue(topologyScript.contains("kubectl apply -k"));
         assertTrue(topologyScript.contains("kubectl rollout restart deployment/api-service"));
@@ -103,6 +103,7 @@ class KubernetesKindOverlayAssetsTest {
         assertFalse(topologyScript.contains("host.containers.internal:5432"));
         assertFalse(topologyScript.contains("host.containers.internal:6379"));
         assertFalse(topologyScript.contains("host.containers.internal:9876"));
+        assertFalse(topologyScript.contains("pod" + "man"));
         assertFalse(topologyScript.contains("/dev/tcp"));
 
         String routingScript = Files.readString(overlayRoot().resolve("verify-routing-and-drain.sh"));
@@ -126,14 +127,14 @@ class KubernetesKindOverlayAssetsTest {
         assertTrue(runbook.contains("bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh"));
         assertTrue(runbook.contains("verify-routing-and-drain.sh"));
         assertTrue(runbook.contains("external-dependencies.env"));
-        assertTrue(runbook.contains("podman inspect"));
+        assertTrue(runbook.contains("docker inspect"));
         assertTrue(runbook.contains("kind load image-archive"));
         assertTrue(runbook.contains("MOCHAT_RUNTIME_POD_NAME"));
         assertTrue(runbook.contains("MOCHAT_RUNTIME_POD_NAMESPACE"));
         assertTrue(runbook.contains("GRADLE_USER_HOME=\"$PWD/.gradle-user-home\""));
         assertTrue(runbook.contains("ConfigMap"));
         assertTrue(runbook.contains("Secret"));
-        assertTrue(runbook.contains("Rollback to the Current Static-Address Topology"));
+        assertTrue(runbook.contains("回滚到当前静态地址拓扑"));
         assertTrue(runbook.contains("mochat.message-service.route.gateway-targets"));
         assertFalse(runbook.contains("does not yet contain committed `k8s/` manifests or `kind` automation scripts"));
     }

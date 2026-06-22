@@ -1,0 +1,66 @@
+{{- if .Values.messageService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: message-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: message-service
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+    - name: grpc
+      port: {{ .Values.messageService.ports.grpc }}
+      targetPort: {{ .Values.messageService.ports.grpc }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: message-service
+spec:
+  replicas: {{ .Values.messageService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: message-service
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mochat.labels" . | nindent 8 }}
+        app.kubernetes.io/name: message-service
+    spec:
+      serviceAccountName: {{ include "mochat.serviceAccountName" . }}
+      containers:
+        - name: message-service
+          image: {{ include "mochat.image" (list . .Values.messageService.image) | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+            - configMapRef:
+                name: mochat-observability
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: message-service
+            - name: MOCHAT_RUNTIME_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MOCHAT_RUNTIME_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.messageService.ports.grpc }}
+{{- end }}
