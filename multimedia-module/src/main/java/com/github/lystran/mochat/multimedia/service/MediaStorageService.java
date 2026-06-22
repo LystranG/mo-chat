@@ -91,7 +91,7 @@ public class MediaStorageService {
                 throw new RuntimeException("Failed to create RustFS bucket: " + bucketName, createException);
             }
         } catch (Exception e) {
-            System.err.println("Warning: Failed to check/create RustFS bucket: " + e.getMessage());
+            log.warn("Failed to check/create RustFS bucket: {}", e.getMessage(), e);
         }
     }
 
@@ -200,8 +200,24 @@ public class MediaStorageService {
                 log.info("Processing audio file, transcoding to MP3 and generating waveform");
                 
                 try {
-                    byte[] transcodedData = audioProcessingService.transcodeAudio(data, mimeType);
-                    if (transcodedData.length != data.length) {
+                    // 如果已经是 MP3，直接上传原数据
+                    if (mimeType.equals("audio/mpeg")) {
+                        s3Client.putObject(PutObjectRequest.builder()
+                                .bucket(bucketName)
+                                .key(objectName)
+                                .contentType(mimeType)
+                                .contentLength((long) data.length)
+                                .build(), RequestBody.fromBytes(data)
+                        );
+                        log.info("Audio uploaded without transcoding (already MP3)");
+                        
+                        // 生成波形数据
+                        waveformData = audioProcessingService.generateWaveformData(data, mimeType);
+                        log.info("Audio waveform generated, waveformDataSize={} bytes", waveformData.length());
+                        
+                    } else {
+                        // 需要转码为 MP3
+                        byte[] transcodedData = audioProcessingService.transcodeAudio(data, mimeType);
                         processedData = transcodedData;
                         
                         // 上传转码后的 MP3
@@ -212,22 +228,13 @@ public class MediaStorageService {
                                 .contentLength((long) processedData.length)
                                 .build(), RequestBody.fromBytes(processedData)
                         );
-                        log.info("Audio transcoded and uploaded, newSize={} bytes", processedData.length);
-                    } else {
-                        // 如果已经是 MP3，直接上传原数据
-                        s3Client.putObject(PutObjectRequest.builder()
-                                .bucket(bucketName)
-                                .key(objectName)
-                                .contentType(mimeType)
-                                .contentLength((long) data.length)
-                                .build(), RequestBody.fromBytes(data)
-                        );
-                        log.info("Audio uploaded without transcoding");
-                    }
+                        log.info("Audio transcoded and uploaded, originalSize={} bytes, mp3Size={} bytes", 
+                                data.length, processedData.length);
 
-                    // 生成波形数据
-                    waveformData = audioProcessingService.generateWaveformData(processedData, "audio/mpeg");
-                    log.info("Audio waveform generated, waveformDataSize={} bytes", waveformData.length());
+                        // 生成波形数据
+                        waveformData = audioProcessingService.generateWaveformData(processedData, "audio/mpeg");
+                        log.info("Audio waveform generated, waveformDataSize={} bytes", waveformData.length());
+                    }
                     
                 } catch (IOException e) {
                     log.error("Failed to process audio", e);

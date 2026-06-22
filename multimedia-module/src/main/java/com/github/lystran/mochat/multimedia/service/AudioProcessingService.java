@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 音频处理服务（基于 FFmpeg）
@@ -24,6 +25,9 @@ public class AudioProcessingService {
     private static final int TARGET_SAMPLE_RATE = 44100;
     private static final int TARGET_BIT_RATE = 128000;
     private static final int WAVEFORM_POINTS = 100;
+    
+    // FFmpeg 进程超时时间（秒）
+    private static final int FFMPEG_TIMEOUT_SECONDS = 60;
 
     /**
      * 将音频转码为 MP3 格式
@@ -67,7 +71,14 @@ public class AudioProcessingService {
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
-            int exitCode = process.waitFor();
+            boolean completed = process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.error("FFmpeg audio transcoding timeout after {} seconds", FFMPEG_TIMEOUT_SECONDS);
+                throw new RuntimeException("FFmpeg process timeout while transcoding audio");
+            }
+            
+            int exitCode = process.exitValue();
             if (exitCode != 0) {
                 String error = new String(process.getInputStream().readAllBytes());
                 log.error("FFmpeg audio transcoding failed: {}", error);
@@ -86,10 +97,18 @@ public class AudioProcessingService {
         } finally {
             // 清理临时文件
             if (inputFile != null && inputFile.exists()) {
-                inputFile.delete();
+                try {
+                    Files.deleteIfExists(inputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp input file: {}", inputFile.getAbsolutePath(), e);
+                }
             }
             if (outputFile != null && outputFile.exists()) {
-                outputFile.delete();
+                try {
+                    Files.deleteIfExists(outputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp output file: {}", outputFile.getAbsolutePath(), e);
+                }
             }
         }
     }
@@ -135,7 +154,14 @@ public class AudioProcessingService {
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
-            int exitCode = process.waitFor();
+            boolean completed = process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.error("FFmpeg waveform extraction timeout after {} seconds", FFMPEG_TIMEOUT_SECONDS);
+                throw new RuntimeException("FFmpeg process timeout while extracting waveform data");
+            }
+            
+            int exitCode = process.exitValue();
             if (exitCode != 0) {
                 String error = new String(process.getInputStream().readAllBytes());
                 log.error("FFmpeg waveform extraction failed: {}", error);
@@ -162,10 +188,18 @@ public class AudioProcessingService {
         } finally {
             // 清理临时文件
             if (inputFile != null && inputFile.exists()) {
-                inputFile.delete();
+                try {
+                    Files.deleteIfExists(inputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp input file: {}", inputFile.getAbsolutePath(), e);
+                }
             }
             if (outputFile != null && outputFile.exists()) {
-                outputFile.delete();
+                try {
+                    Files.deleteIfExists(outputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp output file: {}", outputFile.getAbsolutePath(), e);
+                }
             }
         }
     }

@@ -79,6 +79,12 @@ public final class MediaController {
      */
     @Get("/download/{objectName+}")
     public HttpResponse<byte[]> download(@PathVariable String objectName) {
+        // 安全校验：防止路径遍历攻击
+        if (!isValidObjectName(objectName)) {
+            log.warn("Invalid object name rejected: {}", objectName);
+            throw new IllegalArgumentException("Invalid object name format");
+        }
+        
         log.info("Downloading media file: objectName={}", objectName);
 
         try {
@@ -108,6 +114,12 @@ public final class MediaController {
     @Get("/presigned-url/{objectName+}")
     public ApiResponse<Map<String, Object>> presignedUrl(@PathVariable String objectName,
                                                          @QueryValue(defaultValue = "3600") int expirySeconds) {
+        // 安全校验：防止路径遍历攻击
+        if (!isValidObjectName(objectName)) {
+            log.warn("Invalid object name rejected for presigned URL: {}", objectName);
+            throw new IllegalArgumentException("Invalid object name format");
+        }
+        
         log.info("Generating presigned URL: objectName={}, expirySeconds={}", objectName, expirySeconds);
 
         try {
@@ -133,6 +145,12 @@ public final class MediaController {
      */
     @Delete("/{objectName+}")
     public ApiResponse<Map<String, Object>> delete(@PathVariable String objectName) {
+        // 安全校验：防止路径遍历攻击
+        if (!isValidObjectName(objectName)) {
+            log.warn("Invalid object name rejected for deletion: {}", objectName);
+            throw new IllegalArgumentException("Invalid object name format");
+        }
+        
         log.info("Deleting media file: objectName={}", objectName);
 
         try {
@@ -147,6 +165,22 @@ public final class MediaController {
             log.error("Failed to delete media file: objectName={}, error={}", objectName, e.getMessage(), e);
             throw e;
         }
+    }
+
+    /**
+     * 校验对象名称是否合法（防止路径遍历攻击）
+     * 只允许字母、数字、点、下划线、连字符和斜杠
+     */
+    private boolean isValidObjectName(String objectName) {
+        if (objectName == null || objectName.isEmpty()) {
+            return false;
+        }
+        // 不允许以斜杠开头或结尾，不允许连续斜杠
+        if (objectName.startsWith("/") || objectName.endsWith("/") || objectName.contains("//")) {
+            return false;
+        }
+        // 白名单校验：只允许安全字符
+        return objectName.matches("^[a-zA-Z0-9._\\-/]+$");
     }
 
     /**

@@ -8,6 +8,7 @@ import ws.schild.jave.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 缩略图生成服务（基于 FFmpeg）
@@ -27,6 +28,9 @@ public class ThumbnailService {
     
     // 视频缩略图提取时间点（秒）
     private static final int VIDEO_THUMBNAIL_TIME = 5;
+    
+    // FFmpeg 进程超时时间（秒）
+    private static final int FFMPEG_TIMEOUT_SECONDS = 30;
 
     /**
      * 生成缩略图
@@ -78,7 +82,14 @@ public class ThumbnailService {
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
-            int exitCode = process.waitFor();
+            boolean completed = process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.error("FFmpeg image thumbnail generation timeout after {} seconds", FFMPEG_TIMEOUT_SECONDS);
+                throw new RuntimeException("FFmpeg process timeout while generating image thumbnail");
+            }
+            
+            int exitCode = process.exitValue();
             if (exitCode != 0) {
                 String error = new String(process.getInputStream().readAllBytes());
                 log.error("FFmpeg image thumbnail generation failed: {}", error);
@@ -95,10 +106,18 @@ public class ThumbnailService {
         } finally {
             // 清理临时文件
             if (inputFile != null && inputFile.exists()) {
-                inputFile.delete();
+                try {
+                    Files.deleteIfExists(inputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp input file: {}", inputFile.getAbsolutePath(), e);
+                }
             }
             if (outputFile != null && outputFile.exists()) {
-                outputFile.delete();
+                try {
+                    Files.deleteIfExists(outputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp output file: {}", outputFile.getAbsolutePath(), e);
+                }
             }
         }
     }
@@ -138,7 +157,14 @@ public class ThumbnailService {
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
-            int exitCode = process.waitFor();
+            boolean completed = process.waitFor(FFMPEG_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.error("FFmpeg video thumbnail extraction timeout after {} seconds", FFMPEG_TIMEOUT_SECONDS);
+                throw new RuntimeException("FFmpeg process timeout while extracting video thumbnail");
+            }
+            
+            int exitCode = process.exitValue();
             if (exitCode != 0) {
                 String error = new String(process.getInputStream().readAllBytes());
                 log.error("FFmpeg video thumbnail extraction failed: {}", error);
@@ -155,10 +181,18 @@ public class ThumbnailService {
         } finally {
             // 清理临时文件
             if (inputFile != null && inputFile.exists()) {
-                inputFile.delete();
+                try {
+                    Files.deleteIfExists(inputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp input file: {}", inputFile.getAbsolutePath(), e);
+                }
             }
             if (outputFile != null && outputFile.exists()) {
-                outputFile.delete();
+                try {
+                    Files.deleteIfExists(outputFile.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete temp output file: {}", outputFile.getAbsolutePath(), e);
+                }
             }
         }
     }
