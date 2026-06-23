@@ -76,7 +76,7 @@
 - 旧 kind 脚本未覆盖 call-service；Helm 路径 `deploy/helm/mochat` 覆盖 call-service。
 - `deploy/kubernetes/base/persistence-service.yaml` 没有 Service，这与 runbook 一致；后续若加探针 sidecar 或入站 API 会改变边界。
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
-- `docker-compose.yml` 的 compose name 是 `ddd-demo`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-ddd-demo`。
+- `docker-compose.yml` 的 compose name 是 `mochat`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-mochat`。
 - `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
 - `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
 - `observability.prometheus.scrape` 默认关闭。chart 只预留 Prometheus annotations 和 scrape 示例；启用前需确认目标镜像实际暴露 `/prometheus`，并保证 Prometheus 可以访问对应端口。

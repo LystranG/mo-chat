@@ -66,10 +66,10 @@ class KubernetesKindOverlayAssetsTest {
         String prepareScript = Files.readString(overlayRoot().resolve("prepare-local-inputs.sh"));
         assertTrue(prepareScript.contains("external-dependencies.env"));
         assertTrue(prepareScript.contains("docker inspect"));
-        assertTrue(prepareScript.contains("ddd-demo-postgres-1"));
-        assertTrue(prepareScript.contains("ddd-demo-redis"));
-        assertTrue(prepareScript.contains("ddd-demo-rocketmq-namesrv"));
-        assertTrue(prepareScript.contains("ddd-demo-rocketmq-broker"));
+        assertTrue(prepareScript.contains("mochat-postgres-1"));
+        assertTrue(prepareScript.contains("mochat-redis"));
+        assertTrue(prepareScript.contains("mochat-rocketmq-namesrv"));
+        assertTrue(prepareScript.contains("mochat-rocketmq-broker"));
         assertTrue(prepareScript.contains("MOCHAT_KIND_POSTGRES_HOST"));
         assertTrue(prepareScript.contains("MOCHAT_KIND_REDIS_HOST"));
         assertTrue(prepareScript.contains("MOCHAT_KIND_ROCKETMQ_NAMESRV_HOST"));

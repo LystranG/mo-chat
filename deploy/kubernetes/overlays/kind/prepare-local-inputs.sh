@@ -6,7 +6,7 @@ local_dir="${overlay_dir}/.local"
 tls_dir="${local_dir}/access-gateway-tls"
 external_env="${local_dir}/external-dependencies.env"
 secret_env="${local_dir}/external-dependency-secrets.env"
-compose_project="${MOCHAT_KIND_COMPOSE_PROJECT:-ddd-demo}"
+compose_project="${MOCHAT_KIND_COMPOSE_PROJECT:-mochat}"
 
 resolve_compose_container_name() {
   local service_name="$1"
@@ -29,10 +29,10 @@ redis_container="${MOCHAT_KIND_REDIS_CONTAINER:-$(resolve_compose_container_name
 rocketmq_namesrv_container="${MOCHAT_KIND_ROCKETMQ_NAMESRV_CONTAINER:-$(resolve_compose_container_name rocketmq-namesrv)}"
 rocketmq_broker_container="${MOCHAT_KIND_ROCKETMQ_BROKER_CONTAINER:-$(resolve_compose_container_name rocketmq-broker)}"
 
-postgres_container="${postgres_container:-ddd-demo-postgres-1}"
-redis_container="${redis_container:-ddd-demo-redis}"
-rocketmq_namesrv_container="${rocketmq_namesrv_container:-ddd-demo-rocketmq-namesrv}"
-rocketmq_broker_container="${rocketmq_broker_container:-ddd-demo-rocketmq-broker}"
+postgres_container="${postgres_container:-mochat-postgres-1}"
+redis_container="${redis_container:-mochat-redis}"
+rocketmq_namesrv_container="${rocketmq_namesrv_container:-mochat-rocketmq-namesrv}"
+rocketmq_broker_container="${rocketmq_broker_container:-mochat-rocketmq-broker}"
 
 postgres_host="${MOCHAT_KIND_POSTGRES_HOST:-$(container_ipv4 "${postgres_container}")}"
 redis_host="${MOCHAT_KIND_REDIS_HOST:-$(container_ipv4 "${redis_container}")}"

@@ -1,4 +1,4 @@
-name: ddd-demo
+name: mochat
 
 services:
   postgres:
@@ -15,7 +15,7 @@ services:
 
   redis:
     image: docker.1ms.run/redis:7.2
-    container_name: ddd-demo-redis
+    container_name: mochat-redis
     ports:
       - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
@@ -24,14 +24,14 @@ services:
 
   rocketmq-namesrv:
     image: docker.1ms.run/apache/rocketmq:5.3.2
-    container_name: ddd-demo-rocketmq-namesrv
+    container_name: mochat-rocketmq-namesrv
     command: sh mqnamesrv
     ports:
       - "9876:9876"
 
   rocketmq-broker:
     image: docker.1ms.run/apache/rocketmq:5.3.2
-    container_name: ddd-demo-rocketmq-broker
+    container_name: mochat-rocketmq-broker
     command: sh mqbroker -n rocketmq-namesrv:9876
     environment:
       - NAMESRV_ADDR=rocketmq-namesrv:9876
@@ -44,7 +44,7 @@ services:
 
   rustfs:
     image: docker.1ms.run/rustfs/rustfs:latest
-    container_name: ddd-demo-rustfs
+    container_name: mochat-rustfs
     ports:
       - "9002:9000"
       - "9001:9001"
@@ -57,4 +57,3 @@ services:
       - ./docker/rustfs/data:/data
       - ./docker/rustfs/logs:/logs
     restart: unless-stopped
-
