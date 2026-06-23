@@ -74,11 +74,13 @@ history/read-side：
 ## 配置和运行入口
 
 - 本地运行：`./gradlew :api-service-app:run`
+- 本机 `local` profile：`application-local.yml`，通过 `MICRONAUT_ENVIRONMENTS=local` 激活。
 - main class：`com.github.lystran.mochat.apiservice.ApiServiceApplication`
 - HTTP：`MOCHAT_API_SERVICE_HTTP_HOST=0.0.0.0`、`MOCHAT_API_SERVICE_HTTP_PORT=8080`
 - gRPC：`MOCHAT_API_SERVICE_GRPC_PORT=19091`
 - Redis：`MOCHAT_REDIS_URI`、`MOCHAT_API_SERVICE_REDIS_ENABLED=true`
 - message-service gRPC client：`MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
+- `local` 下 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS` 默认 `127.0.0.1:19092`。
 - legacy inbound consumer 过渡开关：`MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=false`
 - Dockerfile：`api-service-app/Dockerfile`，暴露 `8080` 和 `19091`
 

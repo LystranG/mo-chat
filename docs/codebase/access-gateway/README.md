@@ -51,6 +51,7 @@
 ## 配置和运行入口
 
 - 本地运行：`./gradlew :access-gateway-app:run`
+- 本机 `local` profile：`application-local.yml`，通过 `MICRONAUT_ENVIRONMENTS=local` 激活。
 - main class：`com.github.lystran.mochat.accessgateway.AccessGatewayApplication`
 - 默认 HTTP lifecycle 端口：`MOCHAT_ACCESS_GATEWAY_HTTP_PORT=18080`
 - 默认 TCP：`MOCHAT_ACCESS_GATEWAY_TCP_HOST=0.0.0.0`、`MOCHAT_ACCESS_GATEWAY_TCP_PORT=9000`
@@ -59,6 +60,7 @@
 - Redis：`MOCHAT_REDIS_URI`
 - session authority 上游：`MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
 - message-service channel 也被装配：`MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`；当前生产主线尚未看到 gateway 实际调用 message command stub。
+- `local` 下 gateway identity 默认 `gateway-a`，上游 api/message gRPC 默认使用 `127.0.0.1`。
 - Kubernetes identity 优先来自 `MOCHAT_RUNTIME_POD_NAME` / `MOCHAT_RUNTIME_POD_NAMESPACE`。
 - 静态回滚 identity 使用 `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD`，peer kick target 使用 `mochat.access-gateway.route.peer-targets.*`。
 - lifecycle endpoint：`/internal/lifecycle/livez`、`/internal/lifecycle/readyz`、`/internal/lifecycle/drain`。
@@ -92,4 +94,3 @@
 - 修改 `connection-module` TCP pipeline 顺序、限流、心跳、inbound/outbound topic 或本地写回行为。
 - 将 access-gateway 对 `message-service` stub 从“仅装配”变成实际生产调用。
 - 改变默认端口或 README / runbook 中的多 gateway 本地拓扑约定。
-

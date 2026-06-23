@@ -76,7 +76,36 @@ class HelmMoChatChartContractTest {
         assertNoManifest(manifests, "Namespace", "mochat");
     }
 
+    @Test
+    void devValuesRenderK3sDevelopmentEnvironmentLabelsAndRuntimeConfig() throws Exception {
+        List<Map<String, Object>> manifests = renderChartWithValues("values-dev.yaml");
+
+        Map<String, Object> apiDeployment = manifest(manifests, "Deployment", "api-service");
+        Map<String, Object> labels = nestedMap(apiDeployment, "spec", "template", "metadata", "labels");
+        assertEquals("mochat-dev", labels.get("mochat.lystran.io/project-id"));
+        assertEquals("dev", labels.get("mochat.lystran.io/environment"));
+
+        Map<String, Object> runtimeConfig = manifest(manifests, "ConfigMap", "mochat-runtime-config");
+        Map<String, Object> runtimeData = nestedMap(runtimeConfig, "data");
+        assertEquals("api-service:19091", runtimeData.get("MOCHAT_API_SERVICE_GRPC_ADDRESS"));
+        assertEquals("message-service:19092", runtimeData.get("MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS"));
+        assertEquals("access-gateway-headless", runtimeData.get("MOCHAT_GATEWAY_HEADLESS_SERVICE"));
+
+        Map<String, Object> gateway = manifest(manifests, "StatefulSet", "access-gateway");
+        Map<String, Object> gatewayContainer = firstContainer(gateway);
+        List<Map<String, Object>> env = nestedList(gatewayContainer, "env");
+        assertTrue(env.stream().anyMatch(entry -> Objects.equals("MOCHAT_RUNTIME_POD_NAME", entry.get("name"))));
+        assertTrue(env.stream().anyMatch(entry -> Objects.equals("MOCHAT_RUNTIME_POD_NAMESPACE", entry.get("name"))));
+
+        Map<String, Object> callServiceContainer = firstContainer(manifest(manifests, "Deployment", "call-service"));
+        assertEnvFromSecret(callServiceContainer, "mochat-livekit");
+    }
+
     private List<Map<String, Object>> renderChart(String... extraArgs) throws Exception {
+        return renderChartWithValues("values-local.yaml", extraArgs);
+    }
+
+    private List<Map<String, Object>> renderChartWithValues(String valuesFileName, String... extraArgs) throws Exception {
         Path root = repositoryRoot();
         List<String> command = new ArrayList<>(List.of(
             "helm",
@@ -84,7 +113,7 @@ class HelmMoChatChartContractTest {
             "mochat",
             root.resolve("deploy/helm/mochat").toString(),
             "-f",
-            root.resolve("deploy/helm/mochat/values-local.yaml").toString()
+            root.resolve("deploy/helm/mochat").resolve(valuesFileName).toString()
         ));
         command.addAll(List.of(extraArgs));
         Process process = new ProcessBuilder(command)

@@ -16,6 +16,12 @@
 - runtime ConfigMap / Secret / 环境变量
 - 本地 kind 验证脚本
 
+## 环境语义
+
+- `local`：直接运行五个 Gradle 进程；推荐入口是 `scripts/run-local.sh`；服务配置来自各 app 的 `application-local.yml` 和根目录 `.env`。
+- `dev`：本地 k3s Helm 部署；推荐 values 是 `deploy/helm/mochat/values-dev.yaml`；服务发现使用 Kubernetes Service/headless Service。
+- `prod`：当前只预留命名，尚未交付生产 values 或 overlay。
+
 ## 非职责
 
 - 当前不包含生产 overlay；`docs/runbook.md` 明确没有 `deploy/kubernetes/overlays/prod`。
@@ -72,7 +78,7 @@
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
 - `docker-compose.yml` 的 compose name 是 `ddd-demo`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-ddd-demo`。
 - `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
-- `values-local.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
+- `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
 - `observability.prometheus.scrape` 默认关闭。chart 只预留 Prometheus annotations 和 scrape 示例；启用前需确认目标镜像实际暴露 `/prometheus`，并保证 Prometheus 可以访问对应端口。
 
 ## 配置和运行入口
@@ -97,11 +103,19 @@ docker compose down
 本地 dedicated services：
 
 ```bash
-./gradlew :api-service-app:run
-./gradlew :message-service-app:run
-./gradlew :persistence-service-app:run
-./gradlew :access-gateway-app:run
-./gradlew :call-service-app:run
+scripts/run-local.sh start
+scripts/run-local.sh status
+scripts/run-local.sh stop
+```
+
+如果手动运行单个 Gradle 进程，必须显式设置 `MICRONAUT_ENVIRONMENTS=local`，并加载根目录 `.env` 中的 LiveKit 配置：
+
+```bash
+MICRONAUT_ENVIRONMENTS=local ./gradlew :api-service-app:run
+MICRONAUT_ENVIRONMENTS=local ./gradlew :message-service-app:run
+MICRONAUT_ENVIRONMENTS=local ./gradlew :persistence-service-app:run
+MICRONAUT_ENVIRONMENTS=local ./gradlew :access-gateway-app:run
+MICRONAUT_ENVIRONMENTS=local ./gradlew :call-service-app:run
 ```
 
 旧 Podman-based Kubernetes/kind fallback：
@@ -117,11 +131,11 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/ku
 镜像构建：
 
 ```bash
-docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
-docker build -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
+docker buildx build --load -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker buildx build --load -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker buildx build --load -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker buildx build --load -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker buildx build --load -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
 ```
 
 Helm 部署：
@@ -135,7 +149,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 helm upgrade --install mochat deploy/helm/mochat \
   --namespace mochat --create-namespace \
-  -f deploy/helm/mochat/values-local.yaml \
+  -f deploy/helm/mochat/values-dev.yaml \
   --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
   --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
 ```

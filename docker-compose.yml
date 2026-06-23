@@ -57,3 +57,4 @@ services:
       - ./docker/rustfs/data:/data
       - ./docker/rustfs/logs:/logs
     restart: unless-stopped
+

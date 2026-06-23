@@ -218,6 +218,45 @@ class AccessGatewayApplicationContextTest {
         }
     }
 
+    @Test
+    void localProfileUsesConfiguredGatewayIdentityAndLoopbackUpstreams() {
+        try (ApplicationContext context = ApplicationContext.builder()
+            .environments("local")
+            .properties(Map.of(
+                "spec.name", "access-gateway-local-profile",
+                "mochat.access-gateway.runtime.enabled", false,
+                "mochat.access-gateway.tcp.enabled", false,
+                "mochat.access-gateway.dependencies.api-grpc-enabled", false,
+                "mochat.access-gateway.dependencies.redis-enabled", false
+            ))
+            .start()) {
+            assertEquals(
+                "127.0.0.1:19091",
+                context.getRequiredProperty("grpc.channels.api-service.address", String.class)
+            );
+            assertEquals(
+                "127.0.0.1:19092",
+                context.getRequiredProperty("grpc.channels.message-service.address", String.class)
+            );
+            assertEquals(
+                "CONFIGURED",
+                context.getRequiredProperty("mochat.runtime.gateway.identity-mode", String.class)
+            );
+            assertEquals(
+                "gateway-a",
+                context.getRequiredProperty("mochat.runtime.gateway.identity-value", String.class)
+            );
+            assertEquals(
+                "STATIC_MAP",
+                context.getRequiredProperty("mochat.runtime.gateway.discovery-mode", String.class)
+            );
+            assertEquals(
+                "gateway-a",
+                context.getRequiredProperty("mochat.access-gateway.route.gateway-pod", String.class)
+            );
+        }
+    }
+
     @Factory
     @Requires(property = "spec.name", value = "access-gateway-runtime-context")
     static final class ConnectionRuntimeTestFactory {

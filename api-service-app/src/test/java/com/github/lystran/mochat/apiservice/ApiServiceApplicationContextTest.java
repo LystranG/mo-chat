@@ -27,6 +27,21 @@ class ApiServiceApplicationContextTest {
     }
 
     @Test
+    void localProfilePointsMessageServiceGrpcClientAtLoopback() {
+        try (ApplicationContext context = ApplicationContext.builder()
+            .environments("local")
+            .properties(Map.of(
+                "mochat.api-service.dependencies.postgres-enabled", false
+            ))
+            .start()) {
+            assertEquals(
+                "127.0.0.1:19092",
+                context.getRequiredProperty("grpc.channels.message-service.address", String.class)
+            );
+        }
+    }
+
+    @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void dedicatedRuntimeDoesNotMaterializeReceiptStateFallbackOwner() throws Exception {
         try (ApplicationContext context = ApplicationContext.run(Map.of(

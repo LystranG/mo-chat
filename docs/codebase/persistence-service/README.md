@@ -65,12 +65,14 @@
 ## 配置和运行入口
 
 - 本地运行：`./gradlew :persistence-service-app:run`
+- 本机 `local` profile：`application-local.yml`，通过 `MICRONAUT_ENVIRONMENTS=local` 激活。
 - main class：`com.github.lystran.mochat.persistenceservice.PersistenceServiceApplication`
 - 配置文件：`persistence-service-app/src/main/resources/application.yml`
 - Flyway：`mochat.flyway.locations=classpath:db/migration`、`MOCHAT_PERSISTENCE_SERVICE_FLYWAY_MIGRATE_ON_START`
 - Redis：`MOCHAT_REDIS_URI`、`MOCHAT_PERSISTENCE_SERVICE_REDIS_ENABLED`
 - PostgreSQL：`MOCHAT_POSTGRES_URL`、`MOCHAT_POSTGRES_USERNAME`、`MOCHAT_POSTGRES_PASSWORD`、`MOCHAT_PERSISTENCE_SERVICE_POSTGRES_ENABLED`
 - RocketMQ：`MOCHAT_ROCKETMQ_NAME_SERVER`、`MOCHAT_PERSISTENCE_SERVICE_ROCKETMQ_CONSUMER_GROUP`、`MOCHAT_ROCKETMQ_TOPIC`、`MOCHAT_PERSISTENCE_SERVICE_MQ_ENABLED`
+- `local` 下 PostgreSQL、Redis、RocketMQ 默认使用本机 Docker Compose 暴露的 `127.0.0.1` 地址。
 - Consumer 开关：`MOCHAT_PERSISTENCE_SERVICE_QUEUE_CONSUMER_ENABLED`
 
 ## 测试入口

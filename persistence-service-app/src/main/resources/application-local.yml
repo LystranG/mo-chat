@@ -1,0 +1,9 @@
+mochat:
+  redis:
+    uri: '${MOCHAT_REDIS_URI:`redis://127.0.0.1:6379`}'
+  postgres:
+    url: ${MOCHAT_POSTGRES_URL:`jdbc:postgresql://127.0.0.1:5432/mochat`}
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+  rocketmq:
+    name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:`127.0.0.1:9876`}

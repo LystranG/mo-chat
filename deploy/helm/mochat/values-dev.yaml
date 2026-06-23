@@ -1,0 +1,107 @@
+global:
+  namespace: mochat
+  createNamespace: false
+  imageRegistry: localhost/mochat
+  imagePullPolicy: IfNotPresent
+  projectId: mochat-dev
+  environment: dev
+  clusterDomain: cluster.local
+  serviceAccountName: mochat
+  commonLabels: {}
+
+externalDependencies:
+  redisUri: redis://host.k3d.internal:6379
+  postgresUrl: jdbc:postgresql://host.k3d.internal:5432/mochat
+  rocketmqNameServer: host.k3d.internal:9876
+  rocketmqTopic: mochat.messages
+  secret:
+    create: true
+    name: mochat-external-dependency-secrets
+    postgresUsername: mochat
+    postgresPassword: mochat
+
+observability:
+  prometheus:
+    scrape: false
+    path: /prometheus
+  otel:
+    enabled: false
+    endpoint: ""
+    resourceAttributes: ""
+  logFormat: text
+
+accessGatewayTls:
+  create: true
+  secretName: access-gateway-tls
+  certificate: ""
+  privateKey: ""
+
+livekit:
+  createSecret: true
+  secretName: mochat-livekit
+  url: ""
+  apiKey: ""
+  apiSecret: ""
+
+apiService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: api-service
+    tag: dev
+  ports:
+    http: 8080
+    grpc: 19091
+  resources: {}
+  probes:
+    enabled: true
+    path: /health
+
+messageService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: message-service
+    tag: dev
+  ports:
+    grpc: 19092
+  resources: {}
+
+persistenceService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: persistence-service
+    tag: dev
+  queueConsumerEnabled: true
+  resources: {}
+
+accessGateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: access-gateway
+    tag: dev
+  ports:
+    admin: 18080
+    tcp: 9000
+    grpc: 19093
+    nodePort: 32000
+  drainGracePeriod: 30s
+  terminationGracePeriodSeconds: 45
+  resources: {}
+
+callService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: call-service
+    tag: dev
+  ports:
+    http: 8090
+  flywayMigrateOnStart: true
+  queueConsumerEnabled: true
+  resources: {}
+  probes:
+    enabled: true
+    path: /health

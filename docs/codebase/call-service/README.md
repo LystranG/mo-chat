@@ -89,6 +89,7 @@
 ## 配置和运行入口
 
 - 本地运行：`./gradlew :call-service-app:run`
+- 本机 `local` profile：`application-local.yml`，通过 `MICRONAUT_ENVIRONMENTS=local` 激活。
 - main class：`com.github.lystran.mochat.callservice.CallServiceApplication`
 - HTTP/WebSocket：`MOCHAT_CALL_SERVICE_HTTP_HOST=0.0.0.0`、`MOCHAT_CALL_SERVICE_HTTP_PORT=8090`
 - WebSocket：`/calls/ws/{sessionId}`
@@ -98,6 +99,8 @@
 - RocketMQ：`MOCHAT_ROCKETMQ_NAME_SERVER`、`MOCHAT_CALL_SERVICE_ROCKETMQ_PRODUCER_GROUP`、`MOCHAT_CALL_OFFLINE_TOPIC`、`MOCHAT_CALL_OFFLINE_CONSUMER_GROUP`、`MOCHAT_CALL_SERVICE_MQ_ENABLED`
 - Consumer 开关：`MOCHAT_CALL_SERVICE_QUEUE_CONSUMER_ENABLED`
 - LiveKit：`MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`
+- `local` 下 PostgreSQL、Redis、RocketMQ 默认使用本机 Docker Compose 暴露的 `127.0.0.1` 地址。
+- `local` 启动脚本要求根目录 `.env` 提供 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
 - id worker：`MOCHAT_CALL_SERVICE_ID_WORKER_ID`
 
 HTTP endpoints：
