@@ -60,8 +60,7 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
                     .setConversationId(request.getConversationId())
                     .setClientMsgId(request.getClientMsgId())
                     .setToUid(request.getRecipientUid())
-                    .setNonce(request.getNonce())
-                    .setCiphertext(request.getCiphertext())
+                    .addAllContents(request.getContentsList())
                     .build()
                     .toByteArray())
             ));
@@ -103,7 +102,7 @@ public final class MessageCommandGrpcService extends MessageCommandApiGrpc.Messa
                     .setConversationId(request.getConversationId())
                     .setClientMsgId(request.getClientMsgId())
                     .setGroupId(request.getGroupId())
-                    .setText(request.getText())
+                    .addAllContents(request.getContentsList())
                     .build()
                     .toByteArray())
             ));

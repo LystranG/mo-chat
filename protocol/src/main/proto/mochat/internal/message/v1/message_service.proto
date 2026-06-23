@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package mochat.internal.message.v1;
 
+import "mochat/v1/chat.proto";
+
 option java_multiple_files = true;
 option java_package = "com.github.lystran.mochat.protocol.internal.message.v1";
 
@@ -19,8 +21,7 @@ message SendPrivateMessageCommand {
   int64 client_msg_id = 4;
   int64 conversation_id = 5;
   int64 recipient_uid = 6;
-  bytes nonce = 7;
-  bytes ciphertext = 8;
+  repeated mochat.v1.MessageContent contents = 7;
 }
 
 message SendPrivateMessageAck {
@@ -39,7 +40,7 @@ message SendGroupMessageCommand {
   int64 client_msg_id = 4;
   int64 conversation_id = 5;
   int64 group_id = 6;
-  string text = 7;
+  repeated mochat.v1.MessageContent contents = 7;
 }
 
 message SendGroupMessageAck {

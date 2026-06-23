@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package mochat.internal.common.v1;
 
+import "mochat/v1/chat.proto";
+
 option java_multiple_files = true;
 option java_package = "com.github.lystran.mochat.protocol.internal.common.v1";
 
@@ -13,13 +15,12 @@ message SessionPrincipal {
 
 message PrivateDeliveryContent {
   int64 to_uid = 1;
-  bytes nonce = 2;
-  bytes ciphertext = 3;
+  repeated mochat.v1.MessageContent contents = 2;
 }
 
 message GroupDeliveryContent {
   int64 group_id = 1;
-  string text = 2;
+  repeated mochat.v1.MessageContent contents = 2;
 }
 
 message DeliveryEnvelope {

@@ -173,7 +173,6 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
     private static DeliveryEnvelope buildPrivateEnvelope(PrivateMessageDelivery delivery) {
         try {
             var request = Mochat.PrivateMessageReq.parseFrom(Base64.getDecoder().decode(delivery.payloadBase64()));
-            // 这里不是原样透传客户端请求，而是只保留 gateway 真正要写给对方的内容。
             return DeliveryEnvelope.newBuilder()
                 .setConversationId(delivery.conversationId())
                 .setMsgId(delivery.msgId())
@@ -182,8 +181,7 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
                 .setFromUid(delivery.senderUid())
                 .setPrivateContent(PrivateDeliveryContent.newBuilder()
                     .setToUid(delivery.recipientUid())
-                    .setNonce(request.getNonce())
-                    .setCiphertext(request.getCiphertext())
+                    .addAllContents(request.getContentsList())
                     .build())
                 .build();
         } catch (IllegalArgumentException | InvalidProtocolBufferException invalidPayload) {
@@ -205,7 +203,7 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
                 .setFromUid(delivery.senderUid())
                 .setGroupContent(GroupDeliveryContent.newBuilder()
                     .setGroupId(delivery.groupId())
-                    .setText(request.getText())
+                    .addAllContents(request.getContentsList())
                     .build())
                 .build();
         } catch (IllegalArgumentException | InvalidProtocolBufferException invalidPayload) {

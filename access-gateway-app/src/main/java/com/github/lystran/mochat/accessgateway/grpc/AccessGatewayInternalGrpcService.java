@@ -229,8 +229,7 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
                 MsgType.PRIVATE_MESSAGE,
                 delivery.setPrivatePayload(Mochat.PrivatePayload.newBuilder()
                     .setToUid(envelope.getPrivateContent().getToUid())
-                    .setNonce(envelope.getPrivateContent().getNonce())
-                    .setCiphertext(envelope.getPrivateContent().getCiphertext())
+                    .addAllContents(envelope.getPrivateContent().getContentsList())
                     .build()).build().toByteArray()
             );
         }
@@ -239,7 +238,7 @@ public final class AccessGatewayInternalGrpcService extends AccessGatewayDispatc
                 MsgType.GROUP_MESSAGE,
                 delivery.setGroupPayload(Mochat.GroupPayload.newBuilder()
                     .setGroupId(envelope.getGroupContent().getGroupId())
-                    .setText(envelope.getGroupContent().getText())
+                    .addAllContents(envelope.getGroupContent().getContentsList())
                     .build()).build().toByteArray()
             );
         }
