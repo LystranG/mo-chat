@@ -1,0 +1,15 @@
+# src/test/resources/application-test.yml
+micronaut:
+  server:
+    port: -1  # 随机端口
+
+mochat:
+  multimedia:
+    storage:
+      max-file-size: 104857600  # 100MB
+      rustfs:
+        endpoint: http://localhost:9002
+        region: us-east-1
+        access-key: rustfsadmin
+        secret-key: rustfsadmin
+        bucket: mochat-media

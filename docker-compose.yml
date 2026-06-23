@@ -45,6 +45,7 @@ services:
   rustfs:
     image: docker.1ms.run/rustfs/rustfs:latest
     container_name: mochat-rustfs
+    user: "root"
     ports:
       - "9002:9000"
       - "9001:9001"
@@ -54,6 +55,11 @@ services:
       - RUSTFS_CONSOLE_ENABLE=true
       - RUSTFS_CONSOLE_ADDRESS=:9001
     volumes:
-      - ./docker/rustfs/data:/data
-      - ./docker/rustfs/logs:/logs
+      - rustfs-data:/data
+      - rustfs-logs:/logs
     restart: unless-stopped
+
+volumes:
+  rustfs-data:
+  rustfs-logs:
+
