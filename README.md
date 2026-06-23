@@ -79,6 +79,14 @@ tail -f .local/logs/api-service-app.log
 scripts/run-local.sh stop
 ```
 
+如果在 IntelliJ IDEA 里直接运行各 `*-app` 的 main class 或 Gradle `:*-app:run`，只需要在 Run Configuration 中设置：
+
+```text
+MICRONAUT_ENVIRONMENTS=local
+```
+
+`application-local.yml` 已内置 Redis、PostgreSQL、RocketMQ 和本机 gRPC 地址默认值，避免 IDEA 继承空的 `MOCHAT_*` 环境变量后覆盖默认配置。只有需要真实通话 token 时，才需要额外覆盖 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+
 ### dev: 本地 k3s Helm 部署
 
 `dev` 环境使用 `deploy/helm/mochat/values-dev.yaml` 部署到本地 k3s。Pod 必须能访问 PostgreSQL、Redis、RocketMQ 和 LiveKit，真实凭据通过 Helm values、`--set-file` 或预建 Secret 注入。详细步骤见 [docs/runbook.md](docs/runbook.md)。
@@ -159,7 +167,7 @@ bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh
 GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh
 ```
 
-裸 `./gradlew :*-app:run` 是低层手动入口；直接运行时必须设置 `MICRONAUT_ENVIRONMENTS=local`，并加载根目录 `.env` 中的 LiveKit 配置。日常本机五进程启动优先使用 `scripts/run-local.sh`。
+裸 `./gradlew :*-app:run` 是低层手动入口；直接运行时必须设置 `MICRONAUT_ENVIRONMENTS=local`。日常本机五进程启动优先使用 `scripts/run-local.sh`。
 
 `deploy/kubernetes/overlays/kind` 脚本是旧 kustomize/kind 验证路径，不是 Helm dev 主路径。
 

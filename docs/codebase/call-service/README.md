@@ -99,8 +99,8 @@
 - RocketMQ：`MOCHAT_ROCKETMQ_NAME_SERVER`、`MOCHAT_CALL_SERVICE_ROCKETMQ_PRODUCER_GROUP`、`MOCHAT_CALL_OFFLINE_TOPIC`、`MOCHAT_CALL_OFFLINE_CONSUMER_GROUP`、`MOCHAT_CALL_SERVICE_MQ_ENABLED`
 - Consumer 开关：`MOCHAT_CALL_SERVICE_QUEUE_CONSUMER_ENABLED`
 - LiveKit：`MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`
-- `local` 下 PostgreSQL、Redis、RocketMQ 默认使用本机 Docker Compose 暴露的 `127.0.0.1` 地址。
-- `local` 启动脚本要求根目录 `.env` 提供 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- `local` 下 PostgreSQL、Redis、RocketMQ 默认使用本机 Docker Compose 暴露的 `127.0.0.1` 地址，LiveKit 使用本机占位值以便 IDE 直接启动。
+- `local` 启动脚本仍要求根目录 `.env` 提供 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`；IDEA/手动 Gradle 入口可以先用 `application-local.yml` 占位值启动，真实签发通话 token 前再覆盖成有效 LiveKit 配置。
 - id worker：`MOCHAT_CALL_SERVICE_ID_WORKER_ID`
 
 HTTP endpoints：

@@ -1,9 +1,13 @@
 mochat:
   redis:
-    uri: '${MOCHAT_REDIS_URI:`redis://127.0.0.1:6379`}'
+    uri: redis://127.0.0.1:6379
   postgres:
-    url: ${MOCHAT_POSTGRES_URL:`jdbc:postgresql://127.0.0.1:5432/mochat`}
-    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
-    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
+    url: jdbc:postgresql://127.0.0.1:5432/mochat
+    username: mochat
+    password: mochat
   rocketmq:
-    name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:`127.0.0.1:9876`}
+    name-server: 127.0.0.1:9876
+  livekit:
+    url: ws://127.0.0.1:7880
+    api-key: local-key
+    api-secret: local-secret

@@ -1,16 +1,20 @@
 mochat:
+  redis:
+    uri: redis://127.0.0.1:6379
+  rocketmq:
+    name-server: 127.0.0.1:9876
   runtime:
     gateway:
-      identity-mode: ${MOCHAT_GATEWAY_IDENTITY_MODE:CONFIGURED}
-      identity-value: ${MOCHAT_RUNTIME_GATEWAY_IDENTITY_VALUE:gateway-a}
-      discovery-mode: ${MOCHAT_GATEWAY_DISCOVERY_MODE:STATIC_MAP}
+      identity-mode: CONFIGURED
+      identity-value: gateway-a
+      discovery-mode: STATIC_MAP
   message-service:
     route:
       gateway-targets:
-        gateway-a: ${MOCHAT_LOCAL_GATEWAY_A_GRPC_ADDRESS:`127.0.0.1:19093`}
+        gateway-a: 127.0.0.1:19093
 
 grpc:
   channels:
     api-service:
-      address: ${MOCHAT_API_SERVICE_GRPC_ADDRESS:`127.0.0.1:19091`}
+      address: 127.0.0.1:19091
       plaintext: true

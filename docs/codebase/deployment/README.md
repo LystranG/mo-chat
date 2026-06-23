@@ -18,7 +18,7 @@
 
 ## 环境语义
 
-- `local`：直接运行五个 Gradle 进程；推荐入口是 `scripts/run-local.sh`；服务配置来自各 app 的 `application-local.yml` 和根目录 `.env`。
+- `local`：直接运行五个 Gradle 进程；推荐入口是 `scripts/run-local.sh`；IDEA/手动 Gradle 入口主要依赖各 app 的 `application-local.yml` 字面量本机默认值，脚本入口仍会加载根目录 `.env`。
 - `dev`：本地 k3s Helm 部署；推荐 values 是 `deploy/helm/mochat/values-dev.yaml`；服务发现使用 Kubernetes Service/headless Service。
 - `prod`：当前只预留命名，尚未交付生产 values 或 overlay。
 
@@ -108,7 +108,7 @@ scripts/run-local.sh status
 scripts/run-local.sh stop
 ```
 
-如果手动运行单个 Gradle 进程，必须显式设置 `MICRONAUT_ENVIRONMENTS=local`，并加载根目录 `.env` 中的 LiveKit 配置：
+如果手动运行单个 Gradle 进程，必须显式设置 `MICRONAUT_ENVIRONMENTS=local`；`application-local.yml` 已内置本机 Redis、PostgreSQL、RocketMQ、gRPC 和 LiveKit 占位默认值：
 
 ```bash
 MICRONAUT_ENVIRONMENTS=local ./gradlew :api-service-app:run

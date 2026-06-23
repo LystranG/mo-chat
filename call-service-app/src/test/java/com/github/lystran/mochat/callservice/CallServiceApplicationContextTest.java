@@ -3,7 +3,6 @@ package com.github.lystran.mochat.callservice;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Requires;
-import io.micronaut.context.env.PropertySource;
 import jakarta.inject.Singleton;
 import org.junit.jupiter.api.Test;
 
@@ -21,20 +20,9 @@ class CallServiceApplicationContextTest {
     private static final String LOCAL_PROFILE_SPEC = "call-service-local-profile-config";
 
     @Test
-    void localProfileUsesLoopbackInfrastructureAddressesAndEnvironmentDrivenLivekit() {
-        PropertySource localEnvPropertySource = PropertySource.of(
-            "call-service-local-env",
-            Map.of(
-                "MOCHAT_LIVEKIT_URL", "ws://livekit.local",
-                "MOCHAT_LIVEKIT_API_KEY", "local-key",
-                "MOCHAT_LIVEKIT_API_SECRET", "local-secret"
-            ),
-            PropertySource.PropertyConvention.ENVIRONMENT_VARIABLE
-        );
-
+    void localProfileUsesLoopbackInfrastructureAddressesAndLocalLivekitPlaceholders() {
         try (ApplicationContext context = ApplicationContext.builder()
             .environments("local")
-            .propertySources(localEnvPropertySource)
             .properties(Map.of(
                 "spec.name", LOCAL_PROFILE_SPEC,
                 "mochat.call-service.flyway.migrate-on-start", false,
@@ -50,7 +38,7 @@ class CallServiceApplicationContextTest {
                 context.getRequiredProperty("mochat.postgres.url", String.class)
             );
             assertEquals("127.0.0.1:9876", context.getRequiredProperty("mochat.rocketmq.name-server", String.class));
-            assertEquals("ws://livekit.local", context.getRequiredProperty("mochat.livekit.url", String.class));
+            assertEquals("ws://127.0.0.1:7880", context.getRequiredProperty("mochat.livekit.url", String.class));
             assertEquals("local-key", context.getRequiredProperty("mochat.livekit.api-key", String.class));
             assertEquals("local-secret", context.getRequiredProperty("mochat.livekit.api-secret", String.class));
         }

@@ -1,5 +1,13 @@
+mochat:
+  redis:
+    uri: redis://127.0.0.1:6379
+  postgres:
+    url: jdbc:postgresql://127.0.0.1:5432/mochat
+    username: mochat
+    password: mochat
+
 grpc:
   channels:
     message-service:
-      address: ${MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS:`127.0.0.1:19092`}
+      address: 127.0.0.1:19092
       plaintext: true
