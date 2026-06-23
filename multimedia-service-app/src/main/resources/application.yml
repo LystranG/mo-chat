@@ -1,0 +1,27 @@
+micronaut:
+  application:
+    name: multimedia-service
+  server:
+    port: 8083
+
+mochat:
+  media:
+    storage:
+      type: rustfs
+      rustfs:
+        endpoint: ${RUSTFS_ENDPOINT:http://localhost:9002}
+        access-key: ${RUSTFS_ACCESS_KEY:rustfsadmin}
+        secret-key: ${RUSTFS_SECRET_KEY:rustfsadmin}
+        bucket: ${RUSTFS_BUCKET:mochat-media}
+        region: ${RUSTFS_REGION:us-east-1}
+      max-file-size: ${MOCHAT_MEDIA_MAX_FILE_SIZE:104857600}
+      allowed-types: image/jpeg,image/png,image/gif,image/webp,audio/mpeg,audio/wav,video/mp4,application/pdf
+  message-service:
+    inbound-consumer:
+      enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.github.lystran.mochat.multimedia: DEBUG
+    com.github.lystran.mochat.logic: DEBUG

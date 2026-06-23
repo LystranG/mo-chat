@@ -45,6 +45,17 @@ mochat:
     private-key-path: ${MOCHAT_TLS_KEY_PATH:}
   id:
     worker-id: ${MOCHAT_ID_WORKER_ID:1}
+  media:
+    storage:
+      type: rustfs
+      rustfs:
+        endpoint: ${RUSTFS_ENDPOINT:http://localhost:9000}
+        access-key: ${RUSTFS_ACCESS_KEY:rustfsadmin}
+        secret-key: ${RUSTFS_SECRET_KEY:rustfsadmin}
+        bucket: ${RUSTFS_BUCKET:mochat-media}
+        region: ${RUSTFS_REGION:cn-local}
+      max-file-size: ${MOCHAT_MEDIA_MAX_FILE_SIZE:10485760}
+      allowed-types: image/jpeg,image/png,image/gif,image/webp,audio/mpeg,audio/wav,video/mp4,application/pdf,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document
   legacy:
     persistence:
       enabled: ${MOCHAT_LEGACY_PERSISTENCE_ENABLED:false}

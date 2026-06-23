@@ -11,6 +11,8 @@ import com.github.lystran.mochat.logic.repository.AllowAllMessageRelationshipRep
 import com.github.lystran.mochat.logic.repository.MessageRelationshipRepository;
 import com.github.lystran.mochat.message.contract.MessageAcceptedEvent;
 import com.github.lystran.mochat.protocol.ErrorCode;
+import com.github.lystran.mochat.protocol.MsgType;
+import com.github.lystran.mochat.protocol.SerializerType;
 import com.github.lystran.mochat.protocol.proto.Mochat;
 import com.google.protobuf.InvalidProtocolBufferException;
 import jakarta.inject.Inject;
@@ -19,6 +21,7 @@ import jakarta.inject.Singleton;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -514,15 +517,37 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(request.payloadBase64());
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
-            // 私聊正文里至少要带固定长度的 nonce 和真正的密文内容。
-            if (privateRequest.getNonce().size() != 12) {
-                throw new IllegalArgumentException("private message nonce must be exactly 12 bytes");
+            
+            // 适配新的 repeated MessageContent 结构
+            if (privateRequest.getContentsCount() == 0) {
+                throw new IllegalArgumentException("private message requires at least one content item");
             }
-            if (privateRequest.getCiphertext().isEmpty()) {
-                throw new IllegalArgumentException("private message ciphertext is required");
+            
+            // 验证每个内容项
+            for (Mochat.MessageContent content : privateRequest.getContentsList()) {
+                if (content.hasEncryptedText()) {
+                    var encryptedText = content.getEncryptedText();
+                    if (encryptedText.getNonce().size() != 12) {
+                        throw new IllegalArgumentException("private message nonce must be exactly 12 bytes");
+                    }
+                    if (encryptedText.getCiphertext().isEmpty()) {
+                        throw new IllegalArgumentException("private message ciphertext is required");
+                    }
+                } else if (content.hasMedia()) {
+                    var media = content.getMedia();
+                    if (media.getMediaUrl().isEmpty()) {
+                        throw new IllegalArgumentException("media message requires mediaUrl");
+                    }
+                }
+                // PlainText 不应该出现在私聊中（私聊应该用 EncryptedText）
+                if (content.hasPlainText()) {
+                    throw new IllegalArgumentException("private message should use encryptedText, not plainText");
+                }
             }
         } catch (InvalidProtocolBufferException exception) {
             throw new IllegalArgumentException("invalid private message payload", exception);
+        } catch (IllegalArgumentException exception) {
+            throw exception;
         }
     }
 
@@ -537,15 +562,40 @@ public class MessageIngestService {
         try {
             byte[] body = Base64.getDecoder().decode(request.payloadBase64());
             var groupRequest = Mochat.GroupMessageReq.parseFrom(body);
-            // 这里要防止“请求头说一回事，消息正文里又是另一回事”的串线情况。
-            if (!Objects.equals(request.groupId(), groupRequest.getGroupId())) {
+            
+            // 适配新的 repeated MessageContent 结构
+            if (groupRequest.getContentsCount() == 0) {
+                throw new IllegalArgumentException("group message requires at least one content item");
+            }
+            
+            if (request.groupId() != null && request.groupId() != groupRequest.getGroupId()) {
                 throw new IllegalArgumentException("group message groupId mismatch");
             }
             if (request.conversationId() != groupRequest.getConversationId()) {
                 throw new IllegalArgumentException("group message conversationId mismatch");
             }
+            
+            // 验证每个内容项
+            for (Mochat.MessageContent content : groupRequest.getContentsList()) {
+                if (content.hasPlainText()) {
+                    if (content.getPlainText().getText().isEmpty()) {
+                        throw new IllegalArgumentException("plain text content cannot be empty");
+                    }
+                } else if (content.hasMedia()) {
+                    var media = content.getMedia();
+                    if (media.getMediaUrl().isEmpty()) {
+                        throw new IllegalArgumentException("media message requires mediaUrl");
+                    }
+                }
+                // 私聊的 EncryptedText 不应该出现在群聊中
+                if (content.hasEncryptedText()) {
+                    throw new IllegalArgumentException("group message should not use encryptedText");
+                }
+            }
         } catch (InvalidProtocolBufferException exception) {
             throw new IllegalArgumentException("invalid group message payload", exception);
+        } catch (IllegalArgumentException exception) {
+            throw exception;
         }
     }
 
@@ -577,6 +627,46 @@ public class MessageIngestService {
             throw runtimeException;
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to release conversation lock", exception);
+        }
+    }
+
+    /**
+     * 构建私聊投递的 PrivatePayload，适配 repeated MessageContent 结构。
+     */
+    private Mochat.PrivatePayload.Builder buildPrivatePayloadBuilder(String requestPayloadBase64, long recipientUid) {
+        try {
+            byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
+            var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
+            
+            var builder = Mochat.PrivatePayload.newBuilder()
+                .setToUid(recipientUid);
+            
+            // 适配新的 repeated MessageContent 结构
+            builder.addAllContents(privateRequest.getContentsList());
+            
+            return builder;
+        } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
+            throw new IllegalStateException("Unable to build private delivery payload", parseFailure);
+        }
+    }
+
+    /**
+     * 构建群聊投递的 GroupPayload，适配 repeated MessageContent 结构。
+     */
+    private Mochat.GroupPayload.Builder buildGroupPayloadBuilder(String requestPayloadBase64, long groupId) {
+        try {
+            byte[] body = Base64.getDecoder().decode(requestPayloadBase64);
+            var groupRequest = Mochat.GroupMessageReq.parseFrom(body);
+            
+            var builder = Mochat.GroupPayload.newBuilder()
+                .setGroupId(groupId);
+            
+            // 适配新的 repeated MessageContent 结构
+            builder.addAllContents(groupRequest.getContentsList());
+            
+            return builder;
+        } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
+            throw new IllegalStateException("Unable to build group delivery payload", parseFailure);
         }
     }
 }
