@@ -44,6 +44,7 @@ bin/
 
 ### Local Runtime Data ###
 docker/
+.local/
 
 ### AI ###
 .opencode
@@ -51,5 +52,6 @@ docker/
 .serena/
 .codex
 .sisyphus/
+.superpowers/
 
 tmp.txt

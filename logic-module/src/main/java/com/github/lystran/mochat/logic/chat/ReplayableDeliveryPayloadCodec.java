@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 负责把“离线补发要用的消息”编码成字符串，并在需要时再还原出来。
+ * 负责把"离线补发要用的消息"编码成字符串，并在需要时再还原出来。
  */
 final class ReplayableDeliveryPayloadCodec {
     /**
@@ -34,7 +34,7 @@ final class ReplayableDeliveryPayloadCodec {
     }
 
     /**
-     * 用“消息类型 + 竖线 + 序列化方式 + 竖线 + Base64 消息正文”的格式编码。
+     * 用"消息类型 + 竖线 + 序列化方式 + 竖线 + Base64 消息正文"的格式编码。
      */
     private static String encode(MsgType msgType, byte[] payloadBytes) {
         return msgType.name()
@@ -120,53 +120,64 @@ final class ReplayableDeliveryPayloadCodec {
     }
 
     /**
-     * 从私聊原始消息正文里提取在线投递需要的字段。
+     * 从私聊原始消息正文里提取在线投递需要的字段，适配 repeated MessageContent 结构。
      */
     private static Mochat.PrivatePayload buildPrivatePayload(PrivateMessageDelivery delivery) {
         try {
             // 这里拿到的是去掉 sessionId 后的消息正文，只保留真正投递给对方需要的内容。
             byte[] body = Base64.getDecoder().decode(delivery.payloadBase64());
             var privateRequest = Mochat.PrivateMessageReq.parseFrom(body);
-            return Mochat.PrivatePayload.newBuilder()
-                .setToUid(delivery.recipientUid())
-                .setNonce(privateRequest.getNonce())
-                .setCiphertext(privateRequest.getCiphertext())
-                .build();
+            
+            var builder = Mochat.PrivatePayload.newBuilder()
+                .setToUid(delivery.recipientUid());
+            
+            // 适配新的 repeated MessageContent 结构
+            builder.addAllContents(privateRequest.getContentsList());
+            
+            return builder.build();
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build private delivery payload", parseFailure);
         }
     }
 
     /**
-     * 从群聊原始消息正文里提取在线投递需要的字段。
+     * 从群聊原始消息正文里提取在线投递需要的字段，适配 repeated MessageContent 结构。
      */
     private static Mochat.GroupPayload buildGroupPayload(GroupMessageDelivery delivery) {
         try {
             byte[] body = Base64.getDecoder().decode(delivery.payloadBase64());
             var groupRequest = Mochat.GroupMessageReq.parseFrom(body);
-            return Mochat.GroupPayload.newBuilder()
-                .setGroupId(delivery.groupId())
-                .setText(groupRequest.getText())
-                .build();
+            
+            var builder = Mochat.GroupPayload.newBuilder()
+                .setGroupId(delivery.groupId());
+            
+            // 适配新的 repeated MessageContent 结构
+            builder.addAllContents(groupRequest.getContentsList());
+            
+            return builder.build();
         } catch (IllegalArgumentException | InvalidProtocolBufferException parseFailure) {
             throw new IllegalStateException("Unable to build group delivery payload", parseFailure);
         }
     }
 
     /**
-     * 把离线字符串里的私聊消息还原成可再次投递的私聊对象。
+     * 把离线字符串里的私聊消息还原成可再次投递的私聊对象，适配 repeated MessageContent 结构。
      */
     private static PrivateMessageDelivery decodePrivate(Mochat.ChatMessageDelivery delivery, long recipientUid) {
         if (!delivery.hasPrivatePayload()) {
             throw new IllegalArgumentException("missing private payload");
         }
+        
         // 重新补发时，消息正文会重新打包成接收方能理解的私聊请求格式。
-        var request = Mochat.PrivateMessageReq.newBuilder()
+        var requestBuilder = Mochat.PrivateMessageReq.newBuilder()
             .setConversationId(delivery.getConversationId())
-            .setToUid(recipientUid)
-            .setNonce(delivery.getPrivatePayload().getNonce())
-            .setCiphertext(delivery.getPrivatePayload().getCiphertext())
-            .build();
+            .setToUid(recipientUid);
+        
+        // 适配新的 repeated MessageContent 结构
+        requestBuilder.addAllContents(delivery.getPrivatePayload().getContentsList());
+        
+        var request = requestBuilder.build();
+        
         return new PrivateMessageDelivery(
             delivery.getConversationId(),
             delivery.getMsgId(),
@@ -179,18 +190,23 @@ final class ReplayableDeliveryPayloadCodec {
     }
 
     /**
-     * 把离线字符串里的群消息还原成只投给当前用户的一条群消息。
+     * 把离线字符串里的群消息还原成只投给当前用户的一条群消息，适配 repeated MessageContent 结构。
      */
     private static GroupMessageDelivery decodeGroup(Mochat.ChatMessageDelivery delivery, long recipientUid) {
         if (!delivery.hasGroupPayload()) {
             throw new IllegalArgumentException("missing group payload");
         }
+        
         // 群消息补发时，会把收件人列表收窄成当前这一个用户。
-        var request = Mochat.GroupMessageReq.newBuilder()
+        var requestBuilder = Mochat.GroupMessageReq.newBuilder()
             .setConversationId(delivery.getConversationId())
-            .setGroupId(delivery.getGroupPayload().getGroupId())
-            .setText(delivery.getGroupPayload().getText())
-            .build();
+            .setGroupId(delivery.getGroupPayload().getGroupId());
+        
+        // 适配新的 repeated MessageContent 结构
+        requestBuilder.addAllContents(delivery.getGroupPayload().getContentsList());
+        
+        var request = requestBuilder.build();
+        
         return new GroupMessageDelivery(
             delivery.getConversationId(),
             delivery.getMsgId(),

@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mochat-runtime-config
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+data:
+  MOCHAT_API_SERVICE_GRPC_ADDRESS: api-service:{{ .Values.apiService.ports.grpc }}
+  MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS: message-service:{{ .Values.messageService.ports.grpc }}
+  MOCHAT_GATEWAY_HEADLESS_SERVICE: access-gateway-headless
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mochat-external-dependencies
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+data:
+  MOCHAT_REDIS_URI: {{ .Values.externalDependencies.redisUri | quote }}
+  MOCHAT_POSTGRES_URL: {{ .Values.externalDependencies.postgresUrl | quote }}
+  MOCHAT_ROCKETMQ_NAME_SERVER: {{ .Values.externalDependencies.rocketmqNameServer | quote }}
+  MOCHAT_ROCKETMQ_TOPIC: {{ .Values.externalDependencies.rocketmqTopic | quote }}

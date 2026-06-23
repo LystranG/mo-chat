@@ -1,0 +1,80 @@
+{{- if .Values.callService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: call-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: call-service
+  {{- if .Values.observability.prometheus.scrape }}
+  annotations:
+    {{- include "mochat.prometheusAnnotations" . | nindent 4 }}
+    prometheus.io/port: {{ .Values.callService.ports.http | quote }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: call-service
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.callService.ports.http }}
+      targetPort: {{ .Values.callService.ports.http }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: call-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: call-service
+spec:
+  replicas: {{ .Values.callService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: call-service
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mochat.labels" . | nindent 8 }}
+        app.kubernetes.io/name: call-service
+      {{- if .Values.observability.prometheus.scrape }}
+      annotations:
+        {{- include "mochat.prometheusAnnotations" . | nindent 8 }}
+        prometheus.io/port: {{ .Values.callService.ports.http | quote }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "mochat.serviceAccountName" . }}
+      containers:
+        - name: call-service
+          image: {{ include "mochat.image" (list . .Values.callService.image) | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+            - secretRef:
+                name: {{ .Values.externalDependencies.secret.name }}
+            - secretRef:
+                name: {{ .Values.livekit.secretName }}
+            - configMapRef:
+                name: mochat-observability
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: call-service
+            - name: MOCHAT_CALL_SERVICE_HTTP_HOST
+              value: "0.0.0.0"
+            - name: MOCHAT_CALL_SERVICE_HTTP_PORT
+              value: {{ .Values.callService.ports.http | quote }}
+            - name: MOCHAT_CALL_SERVICE_FLYWAY_MIGRATE_ON_START
+              value: {{ .Values.callService.flywayMigrateOnStart | quote }}
+            - name: MOCHAT_CALL_SERVICE_QUEUE_CONSUMER_ENABLED
+              value: {{ .Values.callService.queueConsumerEnabled | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.callService.ports.http }}
+{{- end }}

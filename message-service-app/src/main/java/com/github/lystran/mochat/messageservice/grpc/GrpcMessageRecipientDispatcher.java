@@ -152,6 +152,9 @@ public final class GrpcMessageRecipientDispatcher implements MessageRecipientDis
             if (separatorIndex <= 0) {
                 continue;
             }
+            /*
+            * gatewayPod=YWNjZXNzLWdhdGV3YXktMA==;connectionId=Y29ubi0xMjM0NTY3;sessionId=c2VzLTQy;sessionVersion=7;routeEpoch=3;             22% used
+     leaseDurationSeconds=60;leaseExpiresAtEpochMilli=1900000000000 */
             String key = entry.substring(0, separatorIndex);
             String value = entry.substring(separatorIndex + 1);
             if ("gatewayPod".equals(key) || "connectionId".equals(key) || "sessionId".equals(key)) {

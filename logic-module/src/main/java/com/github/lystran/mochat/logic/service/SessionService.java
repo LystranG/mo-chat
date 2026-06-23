@@ -159,7 +159,7 @@ public final class SessionService implements SessionResolver {
         ActiveSessionPointer activeSessionPointer = readActiveSessionPointer(storedSession.userId());
         // 新格式 session 必须配套存在“当前活跃 session 指针”，缺了就说明这条记录已经不能再当真。
         if (storedSession.requiresActivePointer() && activeSessionPointer == null) {
-            return replaceStoredSession(storedSession);
+            return replaceStoredSession(storedSession);//旧版本直接replace
         }
         if (activeSessionPointer != null
             && (!sessionId.equals(activeSessionPointer.sessionId())
@@ -220,6 +220,7 @@ public final class SessionService implements SessionResolver {
         }
         try {
             // 旧格式只存了 userId，没有版本和过期时间，这里按兼容模式补齐默认值。
+            //版本标识、状态、userId、sessionVersion、过期时间
             long legacyUserId = Long.parseLong(redisValue);
             return StoredSession.active(sessionId, legacyUserId, 1L, Long.MAX_VALUE, false);
         } catch (NumberFormatException ignored) {

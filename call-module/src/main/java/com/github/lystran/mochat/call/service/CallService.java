@@ -79,7 +79,8 @@ public final class CallService {
             callRoomManager.endRoom(room.roomName());
         }
         String token = callInvite ? callTokenService.issueToken(fromUserId, room.roomName()):null;
-        return new PrivateCallInviteResult(callId, room.roomName(), fromUserId, toUserId, token, callTokenService.livekitUrl());
+        String livekitUrl = callInvite ? callTokenService.livekitUrl():null;
+        return new PrivateCallInviteResult(callId, room.roomName(), fromUserId, toUserId, token, livekitUrl);
     }
 
     public PrivateSignalResult forwardPrivateSignal(long fromUserId, long toUserId, String type, String roomName) {

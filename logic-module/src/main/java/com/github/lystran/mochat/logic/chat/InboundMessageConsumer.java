@@ -137,7 +137,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
     private void consumePrivate(Long routingUserId, byte[] body) {
         try {
             var request = Mochat.PrivateMessageReq.parseFrom(body);
-            var senderUid = sessionService.resolveUserId(request.getSessionId());
+            var senderUid = sessionService.resolveUserId(request.getSessionId());//从redis中获取
             if (senderUid.isEmpty()) {
                 emitInvalidSessionIfRouted(routingUserId);
                 return;

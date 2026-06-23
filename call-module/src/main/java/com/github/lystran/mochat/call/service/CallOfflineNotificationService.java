@@ -116,8 +116,13 @@ public final class CallOfflineNotificationService {
     }
 
     private boolean isStillDeliverable(CallOfflineNotification notification) {
-        return callRoomManager.isActive(notification.getRoomName(), notification.getCallId())
-            && relationshipService.isActiveGroupMember(notification.getGroupId(), notification.getUserId());
+        if (notification.getGroupId() != null && notification.getGroupId() > 0) {
+            // 群聊：房间还活跃且用户还是群成员时才补推
+            return callRoomManager.isActive(notification.getRoomName(), notification.getCallId())
+                && relationshipService.isActiveGroupMember(notification.getGroupId(), notification.getUserId());
+        }
+        // 私聊：房间已关闭，用户上线后直接推送漏接通知
+        return true;
     }
 
     private void markDelivered(CallOfflineNotificationMapper mapper, CallOfflineNotification notification, OffsetDateTime deliveredAt) {

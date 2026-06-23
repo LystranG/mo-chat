@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":infra-redis"))
     implementation(project(":logic-module"))
     implementation(project(":protocol"))
+    implementation(project(":multimedia-module"))
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     implementation("io.micronaut.grpc:micronaut-grpc-runtime:4.9.0")
