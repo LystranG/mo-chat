@@ -13,8 +13,12 @@ class ProtoRoundTripTest {
             .setClientMsgId(11L)
             .setConversationId(22L)
             .setToUid(33L)
-            .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-            .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                    .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                    .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                    .build())
+                .build())
             .build();
 
         assertEquals(request, Mochat.PrivateMessageReq.parseFrom(request.toByteArray()));
@@ -27,7 +31,11 @@ class ProtoRoundTripTest {
             .setClientMsgId(11L)
             .setConversationId(22L)
             .setGroupId(44L)
-            .setText("hello")
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setPlainText(Mochat.PlainText.newBuilder()
+                    .setText("hello")
+                    .build())
+                .build())
             .build();
 
         assertEquals(request, Mochat.GroupMessageReq.parseFrom(request.toByteArray()));

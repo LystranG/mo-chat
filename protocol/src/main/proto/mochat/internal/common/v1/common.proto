@@ -13,6 +13,7 @@ message SessionPrincipal {
   int64 session_version = 3;
 }
 
+// 保留旧的消息类型用于向后兼容
 message PrivateDeliveryContent {
   int64 to_uid = 1;
   repeated mochat.v1.MessageContent contents = 2;
@@ -30,8 +31,12 @@ message DeliveryEnvelope {
   int64 server_time_ms = 4;
   int64 from_uid = 5;
 
-  oneof payload {
-    PrivateDeliveryContent private_content = 10;
-    GroupDeliveryContent group_content = 11;
+  // 新增：使用统一的 MessageContent 列表（支持多媒体）
+  repeated mochat.v1.MessageContent contents = 10;
+
+  // 保留旧的 oneof 用于向后兼容（可选）
+  oneof legacy_payload {
+    PrivateDeliveryContent private_content = 11;
+    GroupDeliveryContent group_content = 12;
   }
 }

@@ -488,17 +488,21 @@ class SessionBindingHandlerTest {
     @Test
     void firstPrivateMessageWithInvalidSessionReturnsAuthFailureAndStopsRouting() throws Exception {
         assertFirstInvalidSessionReturnsAuthFailure(new InboundRouterHandler.InboundMessage(
-            MsgType.PRIVATE_MESSAGE,
-            SerializerType.PROTOBUF,
-            Mochat.PrivateMessageReq.newBuilder()
-                .setSessionId("invalid-session")
-                .setClientMsgId(1001L)
-                .setConversationId(200L)
-                .setToUid(88L)
-                .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-                .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
-                .build()
-                .toByteArray()
+                MsgType.PRIVATE_MESSAGE,
+                SerializerType.PROTOBUF,
+                Mochat.PrivateMessageReq.newBuilder()
+                        .setSessionId("invalid-session")
+                        .setClientMsgId(1001L)
+                        .setConversationId(200L)
+                        .setToUid(88L)
+                        .addContents(Mochat.MessageContent.newBuilder()
+                                .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                                        .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                                        .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                                        .build())
+                                .build())
+                        .build()
+                        .toByteArray()
         ));
     }
 
@@ -535,17 +539,21 @@ class SessionBindingHandlerTest {
         assertNull(channel.readOutbound());
 
         channel.writeInbound(new InboundRouterHandler.InboundMessage(
-            MsgType.PRIVATE_MESSAGE,
-            SerializerType.PROTOBUF,
-            Mochat.PrivateMessageReq.newBuilder()
-                .setSessionId("invalid-session")
-                .setClientMsgId(1002L)
-                .setConversationId(201L)
-                .setToUid(89L)
-                .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-                .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
-                .build()
-                .toByteArray()
+                MsgType.PRIVATE_MESSAGE,
+                SerializerType.PROTOBUF,
+                Mochat.PrivateMessageReq.newBuilder()
+                        .setSessionId("session-42")
+                        .setClientMsgId(1001L)
+                        .setConversationId(200L)
+                        .setToUid(88L)
+                        .addContents(Mochat.MessageContent.newBuilder()
+                                .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                                        .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                                        .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                                        .build())
+                                .build())
+                        .build()
+                        .toByteArray()
         ));
 
         assertEquals(1, downstream.messageCount);
@@ -559,16 +567,20 @@ class SessionBindingHandlerTest {
     @Test
     void firstGroupMessageWithInvalidSessionReturnsAuthFailureAndStopsRouting() throws Exception {
         assertFirstInvalidSessionReturnsAuthFailure(new InboundRouterHandler.InboundMessage(
-            MsgType.GROUP_MESSAGE,
-            SerializerType.PROTOBUF,
-            Mochat.GroupMessageReq.newBuilder()
-                .setSessionId("invalid-session")
-                .setClientMsgId(2002L)
-                .setConversationId(300L)
-                .setGroupId(300L)
-                .setText("hello-group")
-                .build()
-                .toByteArray()
+                MsgType.GROUP_MESSAGE,
+                SerializerType.PROTOBUF,
+                Mochat.GroupMessageReq.newBuilder()
+                        .setSessionId("invalid-session")
+                        .setClientMsgId(2002L)
+                        .setConversationId(300L)
+                        .setGroupId(300L)
+                        .addContents(Mochat.MessageContent.newBuilder()
+                                .setPlainText(Mochat.PlainText.newBuilder()
+                                        .setText("hello-group")
+                                        .build())
+                                .build())
+                        .build()
+                        .toByteArray()
         ));
     }
 
@@ -1187,14 +1199,18 @@ class SessionBindingHandlerTest {
             MsgType.PRIVATE_MESSAGE,
             SerializerType.PROTOBUF,
             Mochat.PrivateMessageReq.newBuilder()
-                .setSessionId(sessionId)
-                .setClientMsgId(1001L)
-                .setConversationId(conversationId)
-                .setToUid(toUid)
-                .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-                .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
-                .build()
-                .toByteArray()
+                    .setSessionId(sessionId)
+                    .setClientMsgId(1001L)
+                    .setConversationId(conversationId)
+                    .setToUid(toUid)
+                    .addContents(Mochat.MessageContent.newBuilder()
+                            .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                                    .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                                    .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                                    .build())
+                            .build())
+                    .build()
+                    .toByteArray()
         );
     }
 
@@ -1203,13 +1219,17 @@ class SessionBindingHandlerTest {
             MsgType.GROUP_MESSAGE,
             SerializerType.PROTOBUF,
             Mochat.GroupMessageReq.newBuilder()
-                .setSessionId(sessionId)
-                .setClientMsgId(2002L)
-                .setConversationId(conversationId)
-                .setGroupId(groupId)
-                .setText("hello-group")
-                .build()
-                .toByteArray()
+                    .setSessionId(sessionId)
+                    .setClientMsgId(2002L)
+                    .setConversationId(conversationId)
+                    .setGroupId(groupId)
+                    .addContents(Mochat.MessageContent.newBuilder()
+                            .setPlainText(Mochat.PlainText.newBuilder()
+                                    .setText("hello-group")
+                                    .build())
+                            .build())
+                    .build()
+                    .toByteArray()
         );
     }
 

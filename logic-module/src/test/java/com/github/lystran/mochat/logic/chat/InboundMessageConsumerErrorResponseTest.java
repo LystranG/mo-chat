@@ -227,8 +227,12 @@ class InboundMessageConsumerErrorResponseTest {
             .setClientMsgId(1001L)
             .setConversationId(200L)
             .setToUid(88L)
-            .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-            .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                    .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                    .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                    .build())
+                .build())
             .build();
         return MsgType.PRIVATE_MESSAGE.name()
             + "|"
@@ -260,8 +264,12 @@ class InboundMessageConsumerErrorResponseTest {
             .setClientMsgId(3001L)
             .setConversationId(200L)
             .setToUid(88L)
-            .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-            .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                    .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                    .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                    .build())
+                .build())
             .build()
             .toByteArray();
     }
@@ -272,7 +280,11 @@ class InboundMessageConsumerErrorResponseTest {
             .setClientMsgId(3002L)
             .setConversationId(300L)
             .setGroupId(300L)
-            .setText("hello-group")
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setPlainText(Mochat.PlainText.newBuilder()
+                    .setText("hello-group")
+                    .build())
+                .build())
             .build()
             .toByteArray();
     }
@@ -301,7 +313,11 @@ class InboundMessageConsumerErrorResponseTest {
             .setClientMsgId(2002L)
             .setConversationId(300L)
             .setGroupId(300L)
-            .setText("hello-group")
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setPlainText(Mochat.PlainText.newBuilder()
+                    .setText("hello-group")
+                    .build())
+                .build())
             .build();
         return MsgType.GROUP_MESSAGE.name()
             + "|"

@@ -231,8 +231,12 @@ class ChatChannelInitializerTest {
             .setClientMsgId(1001L)
             .setConversationId(conversationId)
             .setToUid(toUid)
-            .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
-            .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+            .addContents(Mochat.MessageContent.newBuilder()
+                .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                    .setNonce(com.google.protobuf.ByteString.copyFrom(new byte[12]))
+                    .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("ciphertext"))
+                    .build())
+                .build())
             .build()
             .toByteArray();
     }

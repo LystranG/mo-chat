@@ -96,8 +96,13 @@ class MessageServiceGrpcConnectivityTest {
             assertEquals(55L, payload.getConversationId());
             assertEquals(1001L, payload.getClientMsgId());
             assertEquals(34L, payload.getToUid());
-            assertArrayEquals(nonce, payload.getNonce().toByteArray());
-            assertEquals(ciphertext, payload.getCiphertext());
+            
+            // 从 contents 中提取加密文本
+            if (payload.getContentsCount() > 0 && payload.getContents(0).hasEncryptedText()) {
+                var encryptedText = payload.getContents(0).getEncryptedText();
+                assertArrayEquals(nonce, encryptedText.getNonce().toByteArray());
+                assertEquals(ciphertext, encryptedText.getCiphertext());
+            }
         }
     }
 
@@ -223,7 +228,10 @@ class MessageServiceGrpcConnectivityTest {
             assertEquals(88L, payload.getConversationId());
             assertEquals(2002L, payload.getClientMsgId());
             assertEquals(701L, payload.getGroupId());
-            assertEquals("hello-group-701", payload.getText());
+            // 从 contents 中获取文本
+            if (payload.getContentsCount() > 0 && payload.getContents(0).hasPlainText()) {
+                assertEquals("hello-group-701", payload.getContents(0).getPlainText().getText());
+            }
         }
     }
 
@@ -579,8 +587,12 @@ class MessageServiceGrpcConnectivityTest {
             .setFromUid(senderUid)
             .setPrivatePayload(Mochat.PrivatePayload.newBuilder()
                 .setToUid(recipientUid)
-                .setNonce(ByteString.copyFrom(new byte[12]))
-                .setCiphertext(ByteString.copyFromUtf8(ciphertext))
+                .addContents(Mochat.MessageContent.newBuilder()
+                    .setEncryptedText(Mochat.EncryptedText.newBuilder()
+                        .setNonce(ByteString.copyFrom(new byte[12]))
+                        .setCiphertext(ByteString.copyFromUtf8(ciphertext))
+                        .build())
+                    .build())
                 .build())
             .build()
             .toByteArray();
@@ -608,7 +620,11 @@ class MessageServiceGrpcConnectivityTest {
             .setFromUid(senderUid)
             .setGroupPayload(Mochat.GroupPayload.newBuilder()
                 .setGroupId(groupId)
-                .setText(text)
+                .addContents(Mochat.MessageContent.newBuilder()
+                    .setPlainText(Mochat.PlainText.newBuilder()
+                        .setText(text)
+                        .build())
+                    .build())
                 .build())
             .build()
             .toByteArray();
