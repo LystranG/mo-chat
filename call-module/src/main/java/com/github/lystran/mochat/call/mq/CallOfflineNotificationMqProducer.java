@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.lystran.mochat.call.dto.CallSignalMessage;
 
 import io.micronaut.context.annotation.Property;
+import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Singleton;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.client.producer.SendResult;
@@ -17,6 +18,7 @@ import java.util.Objects;
 
 /** 群通话离线通知的 MQ 生产者。 */
 @Singleton
+@Requires(property = "mochat.call-service.dependencies.mq-enabled", notEquals = "false", defaultValue = "true")
 public final class CallOfflineNotificationMqProducer {
     public static final String DEFAULT_TOPIC = "mochat.call.offline-notifications";
 

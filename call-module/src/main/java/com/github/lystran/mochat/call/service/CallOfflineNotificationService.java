@@ -21,6 +21,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /** 处理群通话离线通知的入库和上线补推。 */
 @Singleton
@@ -41,7 +42,7 @@ public final class CallOfflineNotificationService {
         CallRoomManager callRoomManager,
         CallRelationshipService relationshipService,
         CallSignalGateway signalGateway,
-        CallOfflineNotificationMqProducer mqProducer
+        Optional<CallOfflineNotificationMqProducer> mqProducer
     ) {
         this.sqlSessionFactory = Objects.requireNonNull(sqlSessionFactory, "sqlSessionFactory");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
@@ -49,7 +50,7 @@ public final class CallOfflineNotificationService {
         this.callRoomManager = Objects.requireNonNull(callRoomManager, "callRoomManager");
         this.relationshipService = Objects.requireNonNull(relationshipService, "relationshipService");
         this.signalGateway = Objects.requireNonNull(signalGateway, "signalGateway");
-        this.mqProducer = Objects.requireNonNull(mqProducer, "mqProducer");
+        this.mqProducer = mqProducer.orElse(null);
     }
 
     public void enqueue(CallSignalMessage message) {
@@ -76,7 +77,7 @@ public final class CallOfflineNotificationService {
         if (messages == null || messages.isEmpty()) {
             return;
         }
-        if (mqProducer.sendBatch(messages)) {
+        if (mqProducer != null && mqProducer.sendBatch(messages)) {
             return;
         }
         // MQ 发送失败，同步兜底
