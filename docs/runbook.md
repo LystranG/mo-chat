@@ -1,6 +1,15 @@
-# MoChat Kubernetes 与 AIOps 部署操作手册
+# MoChat local / dev 部署操作手册
 
-这份 runbook 记录 MoChat 当前推荐部署路径：
+这份 runbook 区分两个开发环境：
+
+- `local`：本机直接运行五个 Gradle 进程，使用根目录 Docker Compose 提供 PostgreSQL、Redis、RocketMQ。
+- `dev`：部署到本地 k3s，使用 Helm chart `deploy/helm/mochat` 和 `deploy/helm/mochat/values-dev.yaml`。
+
+`prod` 环境只预留命名，尚未在仓库中交付。
+
+## 当前推荐 dev 部署路径
+
+MoChat 当前推荐 dev 部署路径：
 
 - MoChat 五个业务服务使用 Helm 部署到 Kubernetes。
 - PostgreSQL、Redis、RocketMQ 使用 Docker Compose。
@@ -26,12 +35,14 @@ docker compose -f deploy/observability/docker-compose.yml up -d
 
 ### 3. 构建镜像
 
+本地 Kubernetes 或 `kind load docker-image` 路径需要镜像进入本机 Docker image store，因此使用 `docker buildx build --load`：
+
 ```bash
-docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
-docker build -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
+docker buildx build --load -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker buildx build --load -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker buildx build --load -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker buildx build --load -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker buildx build --load -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
 ```
 
 ### 4. 准备 Kubernetes 集群和镜像可见性
@@ -54,13 +65,27 @@ kind load docker-image localhost/mochat/call-service:dev --name "$KIND_CLUSTER_N
 
 可用 `kind get clusters` 查看实际集群名；默认 kind 集群通常是 `kind`。
 
-远端集群应先把镜像推送到集群可访问的 registry，并使用独立 values 文件，例如 `values-prod.yaml` 或环境专属 values，不要直接复用面向本地 `host.docker.internal` 和占位 Secret 的 `deploy/helm/mochat/values-local.yaml`。远端 values 至少需要提供：
+`deploy/helm/mochat/values-dev.yaml` 是本地 k3s/k3d dev 示例，默认把集群外依赖指向 k3d 访问宿主机的地址：Redis `redis://host.k3d.internal:6379`、PostgreSQL `jdbc:postgresql://host.k3d.internal:5432/mochat`、RocketMQ NameServer `host.k3d.internal:9876`。如果使用 Docker Desktop Kubernetes、kind、minikube 或其他 Kubernetes runtime，应按实际 Pod 可达地址覆盖 `externalDependencies.*`。
+
+远端集群应先把镜像推送到集群可访问的 registry，并使用独立 values 文件，例如 `values-prod.yaml` 或环境专属 values，不要直接复用面向本地 k3s/k3d 和占位 Secret 的 `deploy/helm/mochat/values-dev.yaml`。远端 values 至少需要提供：
 
 - `externalDependencies.*`
 - PostgreSQL Secret 或凭据管理策略
 - LiveKit Secret 或 values
 - access-gateway TLS Secret 或 values
 - 集群可访问的 registry 和 image tag
+
+远端 registry 构建示例：
+
+```bash
+REGISTRY=registry.example.com/mochat
+IMAGE_TAG=dev
+docker buildx build --push -f access-gateway-app/Dockerfile -t "$REGISTRY/access-gateway:$IMAGE_TAG" .
+docker buildx build --push -f api-service-app/Dockerfile -t "$REGISTRY/api-service:$IMAGE_TAG" .
+docker buildx build --push -f message-service-app/Dockerfile -t "$REGISTRY/message-service:$IMAGE_TAG" .
+docker buildx build --push -f persistence-service-app/Dockerfile -t "$REGISTRY/persistence-service:$IMAGE_TAG" .
+docker buildx build --push -f call-service-app/Dockerfile -t "$REGISTRY/call-service:$IMAGE_TAG" .
+```
 
 远端集群示例：
 
@@ -80,7 +105,7 @@ helm upgrade --install mochat deploy/helm/mochat \
 
 ### 5. 准备 Helm 必需 Secret/values
 
-`access-gateway` TLS 证书和私钥是启动必需配置。当前 chart 会创建 `access-gateway-tls` Secret 并挂载给 `access-gateway`；`deploy/helm/mochat/values-local.yaml` 中的 `accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 默认为空，直接部署会得到不可用的 TLS Secret。
+`access-gateway` TLS 证书和私钥是启动必需配置。当前 chart 会创建 `access-gateway-tls` Secret 并挂载给 `access-gateway`；`deploy/helm/mochat/values-dev.yaml` 中的 `accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 默认为空，直接部署会得到不可用的 TLS Secret。
 
 本地联调可以生成自签名证书。仓库根 `.gitignore` 已忽略 `.local/`，该目录只作为本地临时路径使用：
 
@@ -121,7 +146,7 @@ chart 默认 `livekit.createSecret=true`，会尝试创建 `mochat-livekit` Secr
 ```bash
 helm upgrade --install mochat deploy/helm/mochat \
   --namespace mochat --create-namespace \
-  -f deploy/helm/mochat/values-local.yaml \
+  -f deploy/helm/mochat/values-dev.yaml \
   --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
   --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
 ```
@@ -155,7 +180,7 @@ helm -n mochat status mochat
 - Alertmanager webhook 示例。
 - Kubernetes labels 和 annotations。
 
-Docker Compose 中的 Prometheus 示例 target 使用 `host.docker.internal:18080`。如果启用应用指标并使用该示例，需要先把 access-gateway admin 端口转发到宿主机：
+Docker Compose 中的 Prometheus 示例 target 使用 `host.docker.internal:18080`，这是观测栈容器访问宿主机端口的地址，和 Helm dev values 的 `host.k3d.internal` 外部依赖地址不同。如果启用应用指标并使用该示例，需要先把 access-gateway admin 端口转发到宿主机：
 
 ```bash
 kubectl -n mochat port-forward pod/access-gateway-0 18080:18080
@@ -327,13 +352,13 @@ env:
 
 ### 1. 构建服务镜像
 
-在仓库根目录执行：
+在仓库根目录执行。旧 kind 验证脚本只覆盖四个历史服务，不包含 `call-service`：
 
 ```bash
-docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker buildx build --load -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker buildx build --load -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker buildx build --load -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker buildx build --load -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
 ```
 
 ### 2. 创建 `kind` 集群
@@ -511,15 +536,18 @@ docker compose ps
 
 ### 3. 恢复基于静态目标映射的服务启动方式
 
+下面命令是手动 fallback，不是当前推荐 `local` 入口；日常本机五进程启动优先使用 `scripts/run-local.sh`。手动执行前必须加载或提供根目录 `.env` 中的 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`，并设置 `MICRONAUT_ENVIRONMENTS=local`，否则 dedicated services 不会使用 `application-local.yml`。
+
 `api-service`：
 
 ```bash
-./gradlew :api-service-app:run
+MICRONAUT_ENVIRONMENTS=local ./gradlew :api-service-app:run
 ```
 
 `message-service`：
 
 ```bash
+MICRONAUT_ENVIRONMENTS=local \
 JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
   -Dmochat.message-service.route.gateway-targets.gateway-a=127.0.0.1:19093 \
   -Dmochat.message-service.route.gateway-targets.gateway-b=127.0.0.1:19094' \
@@ -529,12 +557,13 @@ JAVA_TOOL_OPTIONS='-Dgrpc.channels.api-service.address=127.0.0.1:19091 \
 `persistence-service`：
 
 ```bash
-./gradlew :persistence-service-app:run
+MICRONAUT_ENVIRONMENTS=local ./gradlew :persistence-service-app:run
 ```
 
 `access-gateway-a`：
 
 ```bash
+MICRONAUT_ENVIRONMENTS=local \
 MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-a \
 MOCHAT_ACCESS_GATEWAY_GRPC_PORT=19093 \
 MOCHAT_ACCESS_GATEWAY_TCP_PORT=9000 \
@@ -547,6 +576,7 @@ JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-b=127.0.0.
 `access-gateway-b`：
 
 ```bash
+MICRONAUT_ENVIRONMENTS=local \
 MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD=gateway-b \
 MOCHAT_ACCESS_GATEWAY_GRPC_PORT=19094 \
 MOCHAT_ACCESS_GATEWAY_TCP_PORT=9001 \
@@ -567,6 +597,7 @@ JAVA_TOOL_OPTIONS='-Dmochat.access-gateway.route.peer-targets.gateway-a=127.0.0.
 如果连“按独立服务拆分运行”这条路径也需要绕开，就回退到旧的单体壳层：
 
 ```bash
+MICRONAUT_ENVIRONMENTS=local \
 MOCHAT_LEGACY_PERSISTENCE_ENABLED=true \
 MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=true \
   ./gradlew :app:run

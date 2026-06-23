@@ -44,25 +44,44 @@ MoChat 是一个以 IM 场景为核心的 Java 后端项目。当前默认拓扑
 
 ## Quick Start
 
+### local: 本机直接运行五个 Gradle 进程
+
 1. 启动共享基础设施：
 
 ```bash
 docker compose up -d
 ```
 
-2. 在独立终端中启动核心服务：
+2. 准备本地环境变量：
 
 ```bash
-./gradlew :api-service-app:run
-./gradlew :message-service-app:run
-./gradlew :persistence-service-app:run
-./gradlew :access-gateway-app:run
-./gradlew :call-service-app:run
+cp .env.example .env
 ```
 
-3. 如果你要验证默认推荐的双 gateway 本地拓扑，再额外启动第二个 `access-gateway` 实例，并按 runbook 配置不同的 `gateway-pod`、gRPC 端口和 TCP 端口。
+编辑 `.env`，填写 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
 
-精确的多进程启动命令、Kubernetes 资源结构、`kind` 验证步骤、ConfigMap/Secret 约定、TLS 覆盖、回滚步骤和排障说明见 [docs/runbook.md](docs/runbook.md)。
+3. 启动五个 dedicated services：
+
+```bash
+scripts/run-local.sh start
+```
+
+4. 查看状态和日志：
+
+```bash
+scripts/run-local.sh status
+tail -f .local/logs/api-service-app.log
+```
+
+5. 停止本地服务：
+
+```bash
+scripts/run-local.sh stop
+```
+
+### dev: 本地 k3s Helm 部署
+
+`dev` 环境使用 `deploy/helm/mochat/values-dev.yaml` 部署到本地 k3s。Pod 必须能访问 PostgreSQL、Redis、RocketMQ 和 LiveKit，真实凭据通过 Helm values、`--set-file` 或预建 Secret 注入。详细步骤见 [docs/runbook.md](docs/runbook.md)。
 
 ## Default Ports
 
@@ -71,7 +90,7 @@ docker compose up -d
 | `api-service` | HTTP `8080`, gRPC `19091` |
 | `message-service` | gRPC `19092` |
 | `access-gateway-a` | TCP `9000`, gRPC `19093` |
-| `access-gateway-b` | TCP `9001`, gRPC `19094` |
+| `access-gateway-b` | TCP `9001`, gRPC `19094`，仅用于手工双 gateway / legacy 验证；默认 `scripts/run-local.sh start` 不启动第二个 gateway |
 | `persistence-service` | 无公开 HTTP/TCP listener |
 | `call-service` | HTTP/WebSocket `8090` |
 | PostgreSQL | `5432` |
@@ -129,15 +148,24 @@ Kubernetes 运行时身份与发现：
 ```bash
 docker compose up -d
 docker compose down
+cp .env.example .env
+scripts/run-local.sh print-commands
+scripts/run-local.sh start
+scripts/run-local.sh status
+scripts/run-local.sh stop
 ./gradlew test
-./gradlew :api-service-app:run
-./gradlew :message-service-app:run
-./gradlew :persistence-service-app:run
-./gradlew :access-gateway-app:run
-./gradlew :call-service-app:run
 bash deploy/kubernetes/overlays/kind/prepare-local-inputs.sh
 bash deploy/kubernetes/overlays/kind/verify-minimal-topology.sh
 GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/kubernetes/overlays/kind/verify-routing-and-drain.sh
+```
+
+裸 `./gradlew :*-app:run` 是低层手动入口；直接运行时必须设置 `MICRONAUT_ENVIRONMENTS=local`，并加载根目录 `.env` 中的 LiveKit 配置。日常本机五进程启动优先使用 `scripts/run-local.sh`。
+
+`deploy/kubernetes/overlays/kind` 脚本是旧 kustomize/kind 验证路径，不是 Helm dev 主路径。
+
+Legacy compatibility shell 仅作为手动兜底，不是默认 `local` / `dev` 入口：
+
+```bash
 ./gradlew :app:run
 ```
 

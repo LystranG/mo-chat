@@ -61,9 +61,11 @@
 ## 配置和运行入口
 
 - 本地运行：`./gradlew :message-service-app:run`
+- 本机 `local` profile：`application-local.yml`，通过 `MICRONAUT_ENVIRONMENTS=local` 激活。
 - main class：`com.github.lystran.mochat.messageservice.MessageServiceApplication`
 - gRPC：`MOCHAT_MESSAGE_SERVICE_GRPC_PORT=19092`
 - api-service client：`MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
+- `local` 下 `MOCHAT_API_SERVICE_GRPC_ADDRESS` 默认 `127.0.0.1:19091`，`gateway-a` 默认 `127.0.0.1:19093`。
 - Redis：`MOCHAT_REDIS_URI`
 - RocketMQ：`MOCHAT_ROCKETMQ_NAME_SERVER`、`MOCHAT_ROCKETMQ_PRODUCER_GROUP`、`MOCHAT_ROCKETMQ_TOPIC`
 - id worker：`MOCHAT_MESSAGE_SERVICE_ID_WORKER_ID`

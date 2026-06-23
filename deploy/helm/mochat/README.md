@@ -30,11 +30,11 @@ docker compose -f deploy/observability/docker-compose.yml up -d
 构建本地镜像：
 
 ```bash
-docker build -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-docker build -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-docker build -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-docker build -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
-docker build -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
+docker buildx build --load -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
+docker buildx build --load -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
+docker buildx build --load -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
+docker buildx build --load -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
+docker buildx build --load -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
 ```
 
 准备 access-gateway TLS 证书。`accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 是启动必需配置，本地联调可以使用自签名证书：
@@ -62,12 +62,12 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 ```bash
 helm upgrade --install mochat deploy/helm/mochat \
   --namespace mochat --create-namespace \
-  -f deploy/helm/mochat/values-local.yaml \
+  -f deploy/helm/mochat/values-dev.yaml \
   --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
   --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
 ```
 
-`values.yaml` 和 `values-local.yaml` 中 `global.createNamespace` 均为 `false`。推荐使用 Helm CLI 的 `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
+`values.yaml` 和 `values-dev.yaml` 中 `global.createNamespace` 均为 `false`。推荐使用 Helm CLI 的 `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
 完整部署手册见 `docs/runbook.md`。
 
 检查部署状态：
@@ -81,11 +81,15 @@ helm -n mochat status mochat
 
 ## 默认值和外部依赖
 
-本地联调推荐使用 `deploy/helm/mochat/values-local.yaml`。它会把 Redis、PostgreSQL 和 RocketMQ 指向宿主机的 Docker Compose 服务：
+本地 k3s/k3d dev 联调推荐使用 `deploy/helm/mochat/values-dev.yaml`。它会把 Redis、PostgreSQL 和 RocketMQ 指向 k3d 集群访问宿主机 Docker Compose 服务的默认地址：
 
-- Redis: `redis://host.docker.internal:6379`
-- PostgreSQL: `jdbc:postgresql://host.docker.internal:5432/mochat`
-- RocketMQ NameServer: `host.docker.internal:9876`
+- Redis: `redis://host.k3d.internal:6379`
+- PostgreSQL: `jdbc:postgresql://host.k3d.internal:5432/mochat`
+- RocketMQ NameServer: `host.k3d.internal:9876`
+
+如果使用 Docker Desktop Kubernetes、kind、minikube 或远端集群，应按实际 Pod 可达地址覆盖 `externalDependencies.*`。
+
+`values-local.yaml` 是旧兼容命名，不再作为 canonical 推荐路径；新增或更新文档时应引用 `values-dev.yaml`。
 
 生产或共享环境应使用独立 values 文件覆盖外部依赖、镜像仓库、镜像 tag、资源限制和 Secret 管理方式，不要把真实凭据提交到 chart 默认 values。
 
@@ -107,7 +111,7 @@ MoChat 默认 native-first 部署，不默认启用 OpenTelemetry Java Agent。n
 
 ## AIOps 标识
 
-默认项目标识是 `mochat-local`，来自 `global.projectId`。Helm 模板会把它写入 labels 和观测相关环境变量，便于 Prometheus 规则、Alertmanager 和外部 AIOps 按项目归集数据。
+使用 `values-dev.yaml` 时，默认项目标识是 `mochat-dev`，来自 `global.projectId`。Helm 模板会把它写入 labels 和观测相关环境变量，便于 Prometheus 规则、Alertmanager 和外部 AIOps 按项目归集数据。
 
 ## Prometheus 指标
 
