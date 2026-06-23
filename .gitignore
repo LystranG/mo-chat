@@ -43,6 +43,7 @@ bin/
 .worktrees/
 
 ### Local Runtime Data ###
+/.env
 docker/
 .local/
 

@@ -1,0 +1,5 @@
+grpc:
+  channels:
+    message-service:
+      address: ${MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS:`127.0.0.1:19092`}
+      plaintext: true

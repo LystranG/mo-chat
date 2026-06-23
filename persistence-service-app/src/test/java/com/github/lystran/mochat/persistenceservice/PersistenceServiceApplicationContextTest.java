@@ -48,6 +48,27 @@ class PersistenceServiceApplicationContextTest {
     }
 
     @Test
+    void localProfileUsesLoopbackInfrastructureAddresses() {
+        try (ApplicationContext context = ApplicationContext.builder()
+            .environments("local")
+            .properties(Map.of(
+                "mochat.persistence-service.flyway.migrate-on-start", false,
+                "mochat.persistence-service.queue.consumer-enabled", false,
+                "mochat.persistence-service.dependencies.postgres-enabled", false,
+                "mochat.persistence-service.dependencies.redis-enabled", false,
+                "mochat.persistence-service.dependencies.mq-enabled", false
+            ))
+            .start()) {
+            assertEquals("redis://127.0.0.1:6379", context.getRequiredProperty("mochat.redis.uri", String.class));
+            assertEquals(
+                "jdbc:postgresql://127.0.0.1:5432/mochat",
+                context.getRequiredProperty("mochat.postgres.url", String.class)
+            );
+            assertEquals("127.0.0.1:9876", context.getRequiredProperty("mochat.rocketmq.name-server", String.class));
+        }
+    }
+
+    @Test
     void assemblesDedicatedPersistenceRuntimeBeanGraphWhenInfrastructureBeansProvided() {
         RecordingPushConsumer.resetCounts();
 
