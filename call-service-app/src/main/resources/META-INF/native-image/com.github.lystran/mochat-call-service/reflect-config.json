@@ -1,0 +1,6 @@
+[
+  {
+    "name": "org.apache.ibatis.logging.nologging.NoLoggingImpl",
+    "allPublicConstructors": true
+  }
+]
