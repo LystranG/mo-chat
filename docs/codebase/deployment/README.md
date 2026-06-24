@@ -118,6 +118,18 @@ scripts/run-local.sh status
 scripts/run-local.sh stop
 ```
 
+本地 k3s/Colima Helm 演示环境：
+
+```bash
+scripts/run-local-k8s.sh start
+scripts/run-local-k8s.sh status
+scripts/run-local-k8s.sh stop
+scripts/run-local-k8s.sh restart
+scripts/run-local-k8s.sh verify-native
+```
+
+`run-local-k8s.sh start` 默认构建 JVM 镜像、确保 access-gateway TLS、执行 Helm upgrade，并部署 `deploy/observability/kubernetes`。需要宿主机 native 编译时使用 `scripts/run-local-k8s.sh --native start`，它保持 `scripts/build-local-images.sh` 的默认语义。需要部署到本地 k3s 的 Linux native 容器镜像时使用 `scripts/run-local-k8s.sh --native-docker start`，它会调用 `scripts/build-local-images.sh --docker-compile`，默认使用 `dev-native` tag，并在 Helm upgrade 后重启 Pod。部署后可用 `scripts/run-local-k8s.sh verify-native` 检查 `api-service`、`message-service`、`call-service`、`access-gateway` 是否仍在 JVM 上运行；`persistence-service` 当前仍预期是 JVM。`stop` 默认卸载 MoChat Helm release 并删除 k3s 观测栈，不管理根目录 Docker Compose 基础设施。可用 `--skip-compile` 跳过 Gradle 编译和 Docker 打包，也可用 `MOCHAT_K8S_BUILD_IMAGES=0` 达到同样效果；用 `MOCHAT_K8S_OBSERVABILITY=0` 跳过观测栈操作。
+
 如果手动运行单个 Gradle 进程，必须显式设置 `MICRONAUT_ENVIRONMENTS=local`；`application-local.yml` 已内置本机 Redis、PostgreSQL、RocketMQ、gRPC 和 LiveKit 占位默认值：
 
 ```bash
@@ -146,7 +158,7 @@ scripts/build-local-images.sh
 
 默认构建并加载 `localhost/mochat/{access-gateway,api-service,message-service,persistence-service,call-service}:dev`。可通过 `IMAGE_REGISTRY`、`IMAGE_NAMESPACE`、`IMAGE_TAG`、`DOCKER_BUILDER` 覆盖默认值。
 
-`scripts/build-local-images.sh` 默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行四个 native app 的 `nativeCompile` 和 `persistence-service-app:installDist`，再生成临时 packaging Dockerfile，把这些 Linux 产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
+`scripts/build-local-images.sh` 默认使用 `LOCAL_IMAGE_MODE=native-host`，即保持宿主机 native 编译语义。需要生成本地 k3s 可运行的 Linux native 容器镜像时，使用 `scripts/build-local-images.sh --docker-compile`，它会切到 `LOCAL_IMAGE_MODE=native-container`，用 Linux GraalVM builder 容器编译 native 产物并打包镜像。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像。
 
 如果只需要本地 k3s 快速演示，不想触发 native-image 编译，使用 JVM 镜像入口：
 

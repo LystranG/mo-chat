@@ -7,7 +7,7 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:-localhost}"
 IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-mochat}"
 IMAGE_TAG="${IMAGE_TAG:-dev}"
 DOCKER_BUILDER="${DOCKER_BUILDER:-docker}"
-LOCAL_IMAGE_MODE="${LOCAL_IMAGE_MODE:-native-container}"
+LOCAL_IMAGE_MODE="${LOCAL_IMAGE_MODE:-native-host}"
 NATIVE_BUILDER_IMAGE="${NATIVE_BUILDER_IMAGE:-ghcr.1ms.run/graalvm/native-image-community:25}"
 NATIVE_CONTAINER_MEMORY="${NATIVE_CONTAINER_MEMORY:-8g}"
 docker_build_dir="$repo_root/build/docker/local-images"
@@ -89,7 +89,6 @@ build_host_artifacts() {
   fi
 
   if [[ "$LOCAL_IMAGE_MODE" == "native-host" ]]; then
-    require_linux_native_host
     ./gradlew --no-daemon \
       :access-gateway-app:nativeCompile \
       :api-service-app:nativeCompile \
@@ -99,22 +98,8 @@ build_host_artifacts() {
     return
   fi
 
-  echo "Unsupported LOCAL_IMAGE_MODE=$LOCAL_IMAGE_MODE. Use LOCAL_IMAGE_MODE=native-container, LOCAL_IMAGE_MODE=jvm, or LOCAL_IMAGE_MODE=native-host." >&2
+  echo "Unsupported LOCAL_IMAGE_MODE=$LOCAL_IMAGE_MODE. Use LOCAL_IMAGE_MODE=native-host, LOCAL_IMAGE_MODE=native-container, or LOCAL_IMAGE_MODE=jvm." >&2
   exit 2
-}
-
-require_linux_native_host() {
-  local host_os
-  host_os="$(uname -s)"
-  if [[ "$host_os" == "Darwin" ]]; then
-    echo "LOCAL_IMAGE_MODE=native-host cannot package macOS native binaries into Linux container images." >&2
-    echo "Use the default LOCAL_IMAGE_MODE=jvm on macOS/Colima." >&2
-    exit 2
-  fi
-  if [[ "$host_os" != "Linux" ]]; then
-    echo "LOCAL_IMAGE_MODE=native-host requires a Linux host. Current host OS: $host_os" >&2
-    exit 2
-  fi
 }
 
 native_binary_for() {
@@ -142,7 +127,7 @@ write_native_dockerfile() {
   {
     printf 'FROM gcr.1ms.run/distroless/cc\n\n'
     printf 'WORKDIR /app\n\n'
-    printf 'COPY --chown=65532:65532 . /app/%s\n\n' "$image_name"
+    printf 'COPY --chown=65532:65532 %s /app/%s\n\n' "$image_name" "$image_name"
     printf 'USER 65532:65532\n\n'
     if [[ -n "$ports" ]]; then
       printf 'EXPOSE %s\n\n' "$ports"
@@ -184,23 +169,49 @@ write_packaging_dockerfile() {
 }
 
 main() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --docker-compile)
+        LOCAL_IMAGE_MODE="native-container"
+        shift
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        echo "Usage: $0 [--docker-compile]" >&2
+        exit 2
+        ;;
+    esac
+  done
+
   cd "$repo_root"
   build_host_artifacts
 
+  local host_os
+  host_os="$(uname -s)"
   for image in "${images[@]}"; do
     local image_name
     local app_dir
     local ports
-    local dockerfile
-    local build_context
     local image_ref
     image_name="${image%%:*}"
     local remaining="${image#*:}"
     app_dir="${remaining%%:*}"
     ports="${remaining#*:}"
+    image_ref="$(image_ref_for "$image_name")"
+
+    if [[ "$LOCAL_IMAGE_MODE" == "native-host" && "$host_os" != "Linux" && "$app_dir" != "persistence-service-app" ]]; then
+      local native_bin
+      native_bin="$(native_binary_for "$app_dir" "$image_name")"
+      echo "Skipping Docker packaging for $image_ref (native binary not Linux-compatible)"
+      echo "  Native binary: $repo_root/$native_bin"
+      echo "  Run directly:  $repo_root/$native_bin   or   ./gradlew :$app_dir:run"
+      continue
+    fi
+
+    local dockerfile
+    local build_context
     dockerfile="$(write_packaging_dockerfile "$image_name" "$app_dir" "$ports")"
     build_context="$(build_context_for "$app_dir" "$image_name")"
-    image_ref="$(image_ref_for "$image_name")"
 
     echo "Building $image_ref from $dockerfile context=$build_context"
     run_buildx --load -f "$dockerfile" -t "$image_ref" "$build_context"
