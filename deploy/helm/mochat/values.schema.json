@@ -226,12 +226,23 @@
         {
           "type": "object",
           "properties": {
+            "service": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["ClusterIP", "NodePort"]
+                }
+              },
+              "required": ["type"]
+            },
             "ports": {
               "type": "object",
               "properties": {
-                "http": { "$ref": "#/definitions/port" }
+                "http": { "$ref": "#/definitions/port" },
+                "nodePort": { "$ref": "#/definitions/nodePort" }
               },
-              "required": ["http"]
+              "required": ["http", "nodePort"]
             },
             "flywayMigrateOnStart": { "type": "boolean" },
             "queueConsumerEnabled": { "type": "boolean" },
@@ -243,7 +254,7 @@
               }
             }
           },
-          "required": ["ports"]
+          "required": ["service", "ports"]
         }
       ]
     }

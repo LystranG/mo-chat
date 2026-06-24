@@ -24,3 +24,9 @@ livekit:
   url: ""
   apiKey: ""
   apiSecret: ""
+
+callService:
+  service:
+    type: NodePort
+  ports:
+    nodePort: 32090

@@ -49,6 +49,17 @@ class HelmMoChatChartContractTest {
         assertEnvFromSecret(container, "mochat-external-dependency-secrets");
 
         Map<String, Object> service = manifest(manifests, "Service", "call-service");
+        assertServiceType(service, "NodePort");
+        assertHasServicePort(service, "http", 8090);
+        assertHasServiceNodePort(service, "http", 32090);
+    }
+
+    @Test
+    void devValuesKeepCallServiceInternalOnly() throws Exception {
+        List<Map<String, Object>> manifests = renderChartWithValues("values-dev.yaml");
+        Map<String, Object> service = manifest(manifests, "Service", "call-service");
+
+        assertServiceType(service, "ClusterIP");
         assertHasServicePort(service, "http", 8090);
     }
 
@@ -219,6 +230,18 @@ class HelmMoChatChartContractTest {
             ports.stream().anyMatch(entry -> Objects.equals(name, entry.get("name")) && Objects.equals(port, entry.get("port"))),
             () -> "Missing service port " + name + "=" + port
         );
+    }
+
+    private void assertHasServiceNodePort(Map<String, Object> service, String name, int nodePort) {
+        List<Map<String, Object>> ports = nestedList(nestedMap(service, "spec"), "ports");
+        assertTrue(
+            ports.stream().anyMatch(entry -> Objects.equals(name, entry.get("name")) && Objects.equals(nodePort, entry.get("nodePort"))),
+            () -> "Missing service nodePort " + name + "=" + nodePort
+        );
+    }
+
+    private void assertServiceType(Map<String, Object> service, String type) {
+        assertEquals(type, nestedMap(service, "spec").get("type"));
     }
 
     private Path repositoryRoot() {

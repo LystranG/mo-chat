@@ -50,7 +50,7 @@
 - `message-service`：Deployment + ClusterIP Service，gRPC `19092`。
 - `persistence-service`：Deployment，无 Service，消费 RocketMQ 并写 PostgreSQL。
 - `access-gateway`：StatefulSet，`access-gateway-headless` 用于 Pod DNS/gRPC，`access-gateway-tcp` NodePort 暴露 TCP `9000`。
-- `call-service`：Micronaut HTTP/WebSocket app，默认 HTTP `8090`；`call-service-app/Dockerfile` 已支持 native-first 镜像构建，Helm chart 已模板化 Deployment + ClusterIP Service，默认单副本。
+- `call-service`：Micronaut HTTP/WebSocket app，默认 HTTP `8090`；`call-service-app/Dockerfile` 已支持 native-first 镜像构建，Helm chart 已模板化 Deployment + Service，默认单副本。默认 Service 是 `ClusterIP`；Colima/k3s `values-local.yaml` 会改为 NodePort `32090` 供外部演示客户端访问。
 - `mochat-runtime-config` 放集群内发现：
   - `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
   - `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
@@ -78,7 +78,7 @@
 - `deploy/kubernetes/base/persistence-service.yaml` 没有 Service，这与 runbook 一致；后续若加探针 sidecar 或入站 API 会改变边界。
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
 - `docker-compose.yml` 的 compose name 是 `mochat`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-mochat`。
-- `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。根目录 `.env` 不会被 k3s 自动读取，本地 Helm 演示需要先 `source .env`，再通过 `--set-string livekit.*` 创建 `mochat-livekit` Secret，或预建同名 Secret。
 - `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。Colima/k3s 本地演示命令应同时使用 `-f deploy/helm/mochat/values-dev.yaml -f deploy/helm/mochat/values-local.yaml --set accessGateway.replicaCount=1`。
 - `observability.prometheus.scrape` 默认关闭。chart 只预留 Prometheus annotations 和 scrape 示例；启用前需确认目标镜像实际暴露 `/prometheus`，并保证 Prometheus 可以访问对应端口。
 
@@ -167,7 +167,7 @@ helm upgrade --install mochat deploy/helm/mochat \
 
 `accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 是 access-gateway TLS 启动必需配置，不能让 chart 创建空 `access-gateway-tls` Secret。使用预建 TLS Secret 时设置 `accessGatewayTls.create=false` 和 `accessGatewayTls.secretName=access-gateway-tls`。
 
-通话功能还需要 `mochat-livekit` Secret 或 `livekit.url`、`livekit.apiKey`、`livekit.apiSecret` values；只验证非通话链路时可以暂时保留 LiveKit 空值。使用预建 LiveKit Secret 时设置 `livekit.createSecret=false` 和 `livekit.secretName=mochat-livekit`。
+通话功能还需要 `mochat-livekit` Secret 或 `livekit.url`、`livekit.apiKey`、`livekit.apiSecret` values；只验证非通话链路时可以暂时保留 LiveKit 空值。使用预建 LiveKit Secret 时设置 `livekit.createSecret=false` 和 `livekit.secretName=mochat-livekit`。根目录 `.env` 只对本机 shell 有效，不会自动进入 Kubernetes。
 
 旧 kind 脚本未覆盖 call-service；Helm 路径覆盖 call-service。不要把旧 kind runbook 写成已验证 call-service，除非先补齐对应脚本和测试。
 

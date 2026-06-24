@@ -97,8 +97,11 @@ callService:
   image:
     repository: call-service
     tag: dev
+  service:
+    type: ClusterIP
   ports:
     http: 8090
+    nodePort: 32090
   flywayMigrateOnStart: true
   queueConsumerEnabled: true
   resources: {}

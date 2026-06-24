@@ -13,7 +13,7 @@ metadata:
     prometheus.io/port: {{ .Values.callService.ports.http | quote }}
   {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.callService.service.type }}
   selector:
     app.kubernetes.io/name: call-service
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
@@ -21,6 +21,9 @@ spec:
     - name: http
       port: {{ .Values.callService.ports.http }}
       targetPort: {{ .Values.callService.ports.http }}
+      {{- if eq .Values.callService.service.type "NodePort" }}
+      nodePort: {{ .Values.callService.ports.nodePort }}
+      {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment

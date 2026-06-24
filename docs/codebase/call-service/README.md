@@ -80,8 +80,8 @@
 - 私聊离线邀请会落库时使用 `groupId=-1`，但 `V4__call_offline_notifications.sql` 的 `group_id` 是 `NOT NULL`。
 - `call-service-app/Dockerfile` 优先使用 native image 构建，执行 `:call-service-app:nativeCompile`，distroless 运行镜像默认暴露 `8090`。
 - `call-service` 已纳入 Helm 部署，默认 `replicaCount: 1`。
-- Kubernetes Service 端口为 HTTP/WebSocket `8090`。
-- LiveKit 配置通过 `mochat-livekit` Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
+- Kubernetes Service 端口为 HTTP/WebSocket `8090`；默认 `ClusterIP`，Colima/k3s `values-local.yaml` 下为 NodePort `32090`，用于外部演示客户端访问。
+- LiveKit 配置通过 `mochat-livekit` Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`；k3s 不会自动读取根目录 `.env`，本地 Helm 部署需要显式 `--set-string livekit.*` 或预建 Secret。
 - 当前活跃房间状态仍在 JVM 内存中，不能直接多副本无状态扩容。
 - 旧 `deploy/kubernetes/overlays/kind` 脚本仍未覆盖 call-service。
 - 当前没有专门测试目录；不要把 call-service 写成已纳入旧 kind 验证。
@@ -100,7 +100,7 @@
 - Consumer 开关：`MOCHAT_CALL_SERVICE_QUEUE_CONSUMER_ENABLED`
 - LiveKit：`MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`
 - `local` 下 PostgreSQL、Redis、RocketMQ 默认使用本机 Docker Compose 暴露的 `127.0.0.1` 地址，LiveKit 使用本机占位值以便 IDE 直接启动。
-- `local` 启动脚本仍要求根目录 `.env` 提供 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`；IDEA/手动 Gradle 入口可以先用 `application-local.yml` 占位值启动，真实签发通话 token 前再覆盖成有效 LiveKit 配置。
+- `local` 启动脚本仍要求根目录 `.env` 提供 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`；IDEA/手动 Gradle 入口可以先用 `application-local.yml` 占位值启动，真实签发通话 token 前再覆盖成有效 LiveKit 配置。k3s/Helm 部署不会自动读取 `.env`，需要把这些值写入 `mochat-livekit` Secret。
 - id worker：`MOCHAT_CALL_SERVICE_ID_WORKER_ID`
 
 HTTP endpoints：

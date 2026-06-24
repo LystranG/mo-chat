@@ -61,17 +61,28 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ### 4. Helm 部署
 
-Colima/k3s 使用 `values-local.yaml` 覆盖宿主机访问地址。演示环境先保持单个 `access-gateway` 副本：
+Colima/k3s 使用 `values-local.yaml` 覆盖宿主机访问地址，并把 `call-service` 以 NodePort 暴露到 `32090`。演示环境先保持单个 `access-gateway` 副本。
+
+通话演示需要 LiveKit 配置。根目录 `.env` 不会被 k3s 自动读取，部署前先把它加载到当前 shell，再通过 Helm values 创建 `mochat-livekit` Secret：
 
 ```bash
+set -a
+source .env
+set +a
+
 helm upgrade --install mochat deploy/helm/mochat \
   --namespace mochat --create-namespace \
   -f deploy/helm/mochat/values-dev.yaml \
   -f deploy/helm/mochat/values-local.yaml \
   --set accessGateway.replicaCount=1 \
+  --set-string livekit.url="$MOCHAT_LIVEKIT_URL" \
+  --set-string livekit.apiKey="$MOCHAT_LIVEKIT_API_KEY" \
+  --set-string livekit.apiSecret="$MOCHAT_LIVEKIT_API_SECRET" \
   --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
   --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
 ```
+
+如果只验证非通话链路，可以暂时省略三个 `livekit.*` 参数；这时 `call-service` 能启动，但真正请求 LiveKit token 时会失败。
 
 `values-local.yaml` 会把外部依赖配置为：
 
@@ -139,7 +150,7 @@ secret "access-gateway-tls" not found
 secret "mochat-livekit" not found
 ```
 
-不要把 `accessGatewayTls.create=false` 或 `livekit.createSecret=false` 用在没有预建 Secret 的本地环境。重新执行本文 Helm 命令，让 chart 创建本地占位 Secret，并通过 `--set-file` 注入 access-gateway TLS。
+不要把 `accessGatewayTls.create=false` 或 `livekit.createSecret=false` 用在没有预建 Secret 的本地环境。重新执行本文 Helm 命令，让 chart 创建 Secret，并通过 `--set-file` 注入 access-gateway TLS，通过 `--set-string livekit.*` 注入 LiveKit 配置。
 
 ### ImagePullBackOff
 
@@ -168,17 +179,22 @@ NATIVE_CONTAINER_MEMORY=12g scripts/build-local-images.sh
 
 ## 访问入口
 
-`access-gateway-tcp` 是 NodePort：
+本地 Colima/k3s 演示入口：
 
-```bash
-kubectl -n mochat get svc access-gateway-tcp
+```text
+IM TCP:              localhost:32000
+Call HTTP/WebSocket: localhost:32090
 ```
 
-默认 TCP 端口映射为 `9000:32000/TCP`。本机客户端演示时访问 Colima 节点 IP 的 `32000` 端口。节点 IP 可用：
+对应 Kubernetes Service：
 
 ```bash
-kubectl get nodes -o wide
+kubectl -n mochat get svc access-gateway-tcp call-service
 ```
+
+`access-gateway-tcp` 默认映射 `9000:32000/TCP`，客户端 TCP 长连接访问 `localhost:32000`。`call-service` 在 `values-local.yaml` 下映射 `8090:32090/TCP`，HTTP 调用访问 `http://localhost:32090`，WebSocket 信令访问 `ws://localhost:32090/calls/ws/{sessionId}`。
+
+如果客户端不在本机，而是从其他机器访问 Kubernetes 节点，需要把 `localhost` 换成可从客户端访问到的节点 IP 或负载均衡地址。Colima 的本地节点 IP 通常只适合本机演示，不一定对局域网其他机器开放。
 
 ## 远端或其他 Kubernetes
 

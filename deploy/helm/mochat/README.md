@@ -57,12 +57,16 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 部署前先确认当前 `kubectl` context 指向目标 Kubernetes 集群，并且 Pod 能访问 `localhost/mochat/*:dev` 镜像。Docker Desktop Kubernetes 通常可以直接使用本机 Docker daemon 中的镜像；kind、minikube 或远端集群不能默认看到本机 Docker 镜像。kind 可使用 `kind load docker-image ...` 或本地 registry，远端集群需要把镜像推送到可访问 registry，并覆盖 `global.imageRegistry` 和各服务 image tag。完整镜像可见性和远端 values 说明见 `docs/runbook.md`。
 
-非通话链路本地验证可以暂留空 LiveKit values。验证 `/calls/**` 通话 token 签发时，必须提供 `livekit.url` / `livekit.apiKey` / `livekit.apiSecret`，或使用预建 `mochat-livekit` Secret 并设置 `livekit.createSecret=false` 和 `livekit.secretName=mochat-livekit`：
+非通话链路本地验证可以暂留空 LiveKit values。验证 `/calls/**` 通话 token 签发时，必须提供 `livekit.url` / `livekit.apiKey` / `livekit.apiSecret`，或使用预建 `mochat-livekit` Secret 并设置 `livekit.createSecret=false` 和 `livekit.secretName=mochat-livekit`。根目录 `.env` 不会被 Kubernetes 自动读取；本地演示推荐先加载 `.env`，再让 Helm 创建 Secret：
 
 ```bash
---set livekit.url=https://livekit.example.com \
---set livekit.apiKey=REPLACE_WITH_API_KEY \
---set livekit.apiSecret=REPLACE_WITH_API_SECRET
+set -a
+source .env
+set +a
+
+--set-string livekit.url="$MOCHAT_LIVEKIT_URL" \
+--set-string livekit.apiKey="$MOCHAT_LIVEKIT_API_KEY" \
+--set-string livekit.apiSecret="$MOCHAT_LIVEKIT_API_SECRET"
 ```
 
 部署到 Kubernetes：
@@ -71,6 +75,11 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 helm upgrade --install mochat deploy/helm/mochat \
   --namespace mochat --create-namespace \
   -f deploy/helm/mochat/values-dev.yaml \
+  -f deploy/helm/mochat/values-local.yaml \
+  --set accessGateway.replicaCount=1 \
+  --set-string livekit.url="$MOCHAT_LIVEKIT_URL" \
+  --set-string livekit.apiKey="$MOCHAT_LIVEKIT_API_KEY" \
+  --set-string livekit.apiSecret="$MOCHAT_LIVEKIT_API_SECRET" \
   --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
   --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
 ```
@@ -89,21 +98,23 @@ helm -n mochat status mochat
 
 ## 默认值和外部依赖
 
-本地 k3s/k3d dev 联调推荐使用 `deploy/helm/mochat/values-dev.yaml`。它会把 Redis、PostgreSQL 和 RocketMQ 指向 k3d 集群访问宿主机 Docker Compose 服务的默认地址：
+本地 k3d dev 联调可以直接使用 `deploy/helm/mochat/values-dev.yaml`。它会把 Redis、PostgreSQL 和 RocketMQ 指向 k3d 集群访问宿主机 Docker Compose 服务的默认地址：
 
 - Redis: `redis://host.k3d.internal:6379`
 - PostgreSQL: `jdbc:postgresql://host.k3d.internal:5432/mochat`
 - RocketMQ NameServer: `host.k3d.internal:9876`
 
-如果使用 Docker Desktop Kubernetes、kind、minikube 或远端集群，应按实际 Pod 可达地址覆盖 `externalDependencies.*`。
+Colima/k3s 本地演示需要叠加 `deploy/helm/mochat/values-local.yaml`。它会把外部依赖改为 `host.docker.internal`，并把 `call-service` 以 NodePort 暴露到 `32090`。
 
-`values-local.yaml` 是旧兼容命名，不再作为 canonical 推荐路径；新增或更新文档时应引用 `values-dev.yaml`。
+如果使用 Docker Desktop Kubernetes、kind、minikube 或远端集群，应按实际 Pod 可达地址覆盖 `externalDependencies.*` 和需要暴露的 Service 类型。
 
 生产或共享环境应使用独立 values 文件覆盖外部依赖、镜像仓库、镜像 tag、资源限制和 Secret 管理方式，不要把真实凭据提交到 chart 默认 values。
 
 ## call-service 限制
 
 `call-service` 默认 `replicaCount: 1`。它当前把活跃通话房间保存在进程内内存中，不能直接按无状态服务方式横向扩容。需要多副本时，先设计粘性路由或把房间状态外部化。
+
+默认 values 下 `call-service` 是 `ClusterIP`，只供集群内访问；Colima/k3s 演示叠加 `values-local.yaml` 后变为 `NodePort 32090`，宿主机可通过 `http://localhost:32090` 和 `ws://localhost:32090/calls/ws/{sessionId}` 访问。
 
 `call-service-app/Dockerfile` 已使用 native-first 构建路径，`nativeCompile` 已通过。这个结论只表示镜像构建路径可用，不改变当前单副本和进程内房间状态限制。
 
