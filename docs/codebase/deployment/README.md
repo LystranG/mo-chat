@@ -8,7 +8,7 @@
 - 旧 `deploy/kubernetes` kustomize/kind manifest 仍只覆盖 `api-service`、`message-service`、`access-gateway`、`persistence-service`
 - 新 Helm chart `deploy/helm/mochat` 覆盖五个 dedicated services，包含 `call-service`
 - 共享基础设施：PostgreSQL、Redis、RocketMQ
-- 本地观测栈：Prometheus、Loki、Tempo、Alertmanager
+- 本地 Compose 观测栈和 k3s 内部观测栈：Prometheus、Loki、Promtail、Tempo、Alertmanager
 - 外部音视频基础设施：LiveKit
 - 外部 AIOps 接入示例
 - Kubernetes base 和 kind overlay
@@ -37,7 +37,8 @@
 - Kubernetes base：`deploy/kubernetes/base/shared-runtime.yaml`、`runtime-secrets.yaml`、`api-service.yaml`、`message-service.yaml`、`persistence-service.yaml`、`access-gateway.yaml`、`kustomization.yaml`
 - kind overlay：`deploy/kubernetes/overlays/kind/kustomization.yaml`、`prepare-local-inputs.sh`、`verify-minimal-topology.sh`、`verify-routing-and-drain.sh`
 - Helm chart：`deploy/helm/mochat/**`
-- 本地观测栈：`deploy/observability/**`
+- 本地 Compose 观测栈：`deploy/observability/docker-compose.yml`、`deploy/observability/{prometheus,loki,promtail,tempo,alertmanager}/**`
+- k3s 内部观测栈：`deploy/observability/kubernetes/**`
 - 本地基础设施：`docker-compose.yml`
 - Dockerfile：`access-gateway-app/Dockerfile`、`api-service-app/Dockerfile`、`message-service-app/Dockerfile`、`persistence-service-app/Dockerfile`
 - call-service 镜像：`call-service-app/Dockerfile`
@@ -67,7 +68,8 @@
 当前注意点：
 
 - 推荐部署路径新增 `deploy/helm/mochat`，用于部署 `api-service`、`message-service`、`persistence-service`、`access-gateway`、`call-service`。
-- 本地观测栈新增 `deploy/observability`，使用 Docker Compose 管理 Prometheus、Loki、Tempo、Alertmanager。
+- 本地 Compose 观测栈保留在 `deploy/observability/docker-compose.yml`，主要用于本机 `local` 进程联调。
+- k3s 内部观测栈新增 `deploy/observability/kubernetes`，使用 plain YAML + kustomization 管理 `mochat-observability` namespace 内的 Prometheus、Alertmanager、Loki、Promtail、Tempo，供集群内 MoChat Pod 访问。
 - 命令文档默认使用 Docker CLI；Podman 不再是 runbook 推荐主路径的默认命令。
 - AIOps 是外部服务，本项目只提供 metrics、logs、trace 预留、Alertmanager webhook 示例、Kubernetes labels 和 `projects.yaml.example`。
 - `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind` 保留为旧版 Podman-based kustomize/kind 验证路径；脚本当前仍调用 Podman，不是 Helm 推荐路径的一部分。
@@ -80,7 +82,8 @@
 - `docker-compose.yml` 的 compose name 是 `mochat`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-mochat`。
 - `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。根目录 `.env` 不会被 k3s 自动读取，本地 Helm 演示需要先 `source .env`，再通过 `--set-string livekit.*` 创建 `mochat-livekit` Secret，或预建同名 Secret。
 - `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。Colima/k3s 本地演示命令应同时使用 `-f deploy/helm/mochat/values-dev.yaml -f deploy/helm/mochat/values-local.yaml --set accessGateway.replicaCount=1`。
-- `observability.prometheus.scrape` 默认关闭。chart 只预留 Prometheus annotations 和 scrape 示例；启用前需确认目标镜像实际暴露 `/prometheus`，并保证 Prometheus 可以访问对应端口。
+- `observability.prometheus.scrape` 默认关闭；开启后为 `api-service`、`access-gateway`、`call-service` 渲染 Prometheus annotations。这三个 HTTP 服务已通过 Micronaut management/micrometer 暴露 `/prometheus`；`message-service` 和 `persistence-service` 暂无 HTTP metrics endpoint。
+- `observability.otel.enabled` 默认关闭；开启后只注入 OTEL 环境变量，应用侧尚未接入 tracing exporter 或 Java Agent，不能把它写成已完整上报 trace。
 
 ## 配置和运行入口
 
@@ -99,6 +102,12 @@ docker compose -f deploy/observability/docker-compose.yml up -d
 ```bash
 docker compose -f deploy/observability/docker-compose.yml down
 docker compose down
+```
+
+k3s 内部观测栈：
+
+```bash
+kubectl apply -k deploy/observability/kubernetes
 ```
 
 本地 dedicated services：

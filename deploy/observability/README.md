@@ -8,7 +8,7 @@
 - Tempo
 - Alertmanager
 
-MoChat 业务服务不在这个 Compose 文件中运行；业务服务由本地进程、Kubernetes kustomize 或 `deploy/helm/mochat` 管理。
+MoChat 业务服务不在这个 Compose 文件中运行；业务服务由本地进程、Kubernetes kustomize 或 `deploy/helm/mochat` 管理。Compose 观测栈主要用于本机 `local` 进程联调；k3s 内部观测栈见 `deploy/observability/kubernetes`。
 
 ## 启停
 
@@ -77,7 +77,7 @@ deploy/observability/prometheus/prometheus.yml
 deploy/observability/prometheus/rules/mochat-alerts.yml
 ```
 
-本地 Helm 部署时，chart 预留 Prometheus annotations 和 `/prometheus` scrape 示例，但 `observability.prometheus.scrape` 默认关闭。启用前需要确认目标服务镜像实际暴露 `/prometheus`。
+本地 Helm 部署时，chart 可通过 `observability.prometheus.scrape=true` 渲染 Prometheus annotations。`api-service`、`access-gateway`、`call-service` 已接入 Micronaut Prometheus `/prometheus` endpoint；`message-service` 和 `persistence-service` 暂不暴露 HTTP metrics endpoint。
 
 当前 `prometheus.yml` 中的 `mochat-port-forward` target 指向 `host.docker.internal:18080`，用于配合本机 port-forward 联调 access-gateway admin 端口：
 
@@ -85,10 +85,10 @@ deploy/observability/prometheus/rules/mochat-alerts.yml
 kubectl -n mochat port-forward pod/access-gateway-0 18080:18080
 ```
 
-如果 Prometheus 运行在 Docker Compose 网络里，仍需按本机网络和集群类型调整 scrape target。
+如果 Prometheus 运行在 Docker Compose 网络里，仍需按本机网络和集群类型调整 scrape target。部署在 k3s 中时，使用 `deploy/observability/kubernetes`，由 Prometheus Kubernetes discovery 发现带 annotation 的 MoChat Pod/Service。
 
 ## 日志和 Trace
 
-Promtail 在 Docker Compose 中运行时，默认只能采集宿主机 `/var/log/*.log`。MoChat Pod 日志如果运行在 Kubernetes 中，生产或完整联调应改用 Kubernetes 内的日志采集器。
+Promtail 在 Docker Compose 中运行时，默认只能采集宿主机 `/var/log/*.log`。MoChat Pod 日志如果运行在 Kubernetes 中，使用 `deploy/observability/kubernetes` 里的 Promtail DaemonSet 采集 `/var/log/pods`。
 
-Tempo 默认暴露 OTLP gRPC `4317`、OTLP HTTP `4318` 和查询端口 `3200`。MoChat chart 预留 OTEL 环境变量，但默认 native-first 部署不保证第一阶段 trace 数据完整上报。
+Tempo 默认暴露 OTLP gRPC `4317`、OTLP HTTP `4318` 和查询端口 `3200`。k3s 内部 Tempo Service 地址是 `tempo.mochat-observability.svc.cluster.local:4317/4318`。MoChat chart 目前只在 `observability.otel.enabled=true` 时注入 OTEL 环境变量，应用侧还没有接入 tracing exporter 或 Java Agent。

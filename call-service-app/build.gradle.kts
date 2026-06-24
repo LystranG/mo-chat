@@ -13,6 +13,8 @@ dependencies {
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     implementation("io.micronaut:micronaut-runtime:4.9.0")
+    implementation("io.micronaut:micronaut-management:4.9.0")
+    implementation("io.micronaut.micrometer:micronaut-micrometer-registry-prometheus:5.12.0")
     implementation("io.micronaut:micronaut-http-server-netty:4.9.0")
     implementation("io.micronaut:micronaut-jackson-databind:4.9.0")
     implementation("io.micronaut:micronaut-websocket:4.9.0")

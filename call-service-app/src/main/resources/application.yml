@@ -5,6 +5,18 @@ micronaut:
     host: ${MOCHAT_CALL_SERVICE_HTTP_HOST:0.0.0.0}
     port: ${MOCHAT_CALL_SERVICE_HTTP_PORT:8090}
 
+  metrics:
+    enabled: true
+    export:
+      prometheus:
+        enabled: true
+        step: PT15S
+
+endpoints:
+  prometheus:
+    enabled: true
+    sensitive: false
+
 mochat:
   flyway:
     locations: classpath:db/migration

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mochat-observability
+  labels:
+    app.kubernetes.io/part-of: mochat
+    app.kubernetes.io/name: mochat-observability

@@ -7,5 +7,7 @@ metadata:
     {{- include "mochat.labels" . | nindent 4 }}
 data:
   MOCHAT_LOG_FORMAT: {{ .Values.observability.logFormat | quote }}
+  {{- if .Values.observability.otel.enabled }}
   OTEL_RESOURCE_ATTRIBUTES: {{ default (printf "service.namespace=%s,deployment.environment=%s,mochat.project_id=%s" (include "mochat.namespace" .) .Values.global.environment .Values.global.projectId) .Values.observability.otel.resourceAttributes | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.observability.otel.endpoint | quote }}
+  {{- end }}

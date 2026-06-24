@@ -16,12 +16,14 @@
 docker compose up -d
 ```
 
-可选启动观测栈：
+可选启动本机 Compose 观测栈；它主要服务 `local` 进程联调，不会自动发现 k3s 里的 Pod：
 
 ```bash
 cp deploy/observability/alertmanager/secrets/aiops-token.example deploy/observability/alertmanager/secrets/aiops-token
 docker compose -f deploy/observability/docker-compose.yml up -d
 ```
+
+k3s 内部观测栈在第 5 步后单独部署。
 
 ### 2. 构建本地镜像
 
@@ -115,6 +117,40 @@ message-service-*
 persistence-service-*
 call-service-*
 ```
+
+### 6. 部署 k3s 内部观测栈
+
+Compose 观测栈保留给本机 `local` 进程联调。MoChat 部署在 k3s 时，推荐把观测栈也部署进 k3s，Prometheus 才能通过 Kubernetes discovery 发现 Pod，Promtail 才能采集 Pod 日志。
+
+```bash
+kubectl apply -k deploy/observability/kubernetes
+```
+
+重新部署 MoChat 时打开 Prometheus annotation：
+
+```bash
+helm upgrade --install mochat deploy/helm/mochat \
+  --namespace mochat --create-namespace \
+  -f deploy/helm/mochat/values-dev.yaml \
+  -f deploy/helm/mochat/values-local.yaml \
+  --set accessGateway.replicaCount=1 \
+  --set observability.prometheus.scrape=true \
+  --set-string livekit.url="$MOCHAT_LIVEKIT_URL" \
+  --set-string livekit.apiKey="$MOCHAT_LIVEKIT_API_KEY" \
+  --set-string livekit.apiSecret="$MOCHAT_LIVEKIT_API_SECRET" \
+  --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
+  --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
+```
+
+当前 `/prometheus` 已接入 `api-service`、`access-gateway`、`call-service` 这三个有 HTTP listener 的服务。`message-service` 和 `persistence-service` 暂不暴露 HTTP metrics endpoint。Tempo 已部署 OTLP 接收端，但 MoChat 应用还没有接入 tracing exporter 或 Java Agent；`observability.otel.enabled` 目前只注入 OTEL 环境变量，不代表 trace 已上报。
+
+本机查看 Prometheus：
+
+```bash
+kubectl -n mochat-observability port-forward svc/prometheus 9090:9090
+```
+
+打开 `http://localhost:9090/targets`，应能看到 `mochat-annotated-pods` 或 `mochat-annotated-services` 下的 scrape target。
 
 ## 常见问题
 

@@ -64,6 +64,7 @@
 - Kubernetes identity 优先来自 `MOCHAT_RUNTIME_POD_NAME` / `MOCHAT_RUNTIME_POD_NAMESPACE`。
 - 静态回滚 identity 使用 `MOCHAT_ACCESS_GATEWAY_ROUTE_GATEWAY_POD`，peer kick target 使用 `mochat.access-gateway.route.peer-targets.*`。
 - lifecycle endpoint：`/internal/lifecycle/livez`、`/internal/lifecycle/readyz`、`/internal/lifecycle/drain`。
+- Prometheus metrics：Micronaut management/micrometer 在 HTTP lifecycle 端口暴露 `/prometheus`。
 
 ## 测试入口
 

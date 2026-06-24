@@ -81,6 +81,21 @@ class HelmMoChatChartContractTest {
     }
 
     @Test
+    void otelEndpointIsOnlyRenderedWhenEnabled() throws Exception {
+        List<Map<String, Object>> disabledManifests = renderChart();
+        Map<String, Object> disabledData = nestedMap(manifest(disabledManifests, "ConfigMap", "mochat-observability"), "data");
+        assertTrue(!disabledData.containsKey("OTEL_EXPORTER_OTLP_ENDPOINT"));
+
+        List<Map<String, Object>> enabledManifests = renderChart("--set", "observability.otel.enabled=true");
+        Map<String, Object> enabledData = nestedMap(manifest(enabledManifests, "ConfigMap", "mochat-observability"), "data");
+        assertEquals(
+            "http://tempo.mochat-observability.svc.cluster.local:4318",
+            enabledData.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+        );
+        assertTrue(enabledData.containsKey("OTEL_RESOURCE_ATTRIBUTES"));
+    }
+
+    @Test
     void localValuesDoNotRenderNamespaceWhenHelmCreateNamespaceIsUsed() throws Exception {
         List<Map<String, Object>> manifests = renderChart();
 

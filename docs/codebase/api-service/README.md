@@ -83,6 +83,7 @@ history/read-side：
 - `local` 下 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS` 默认 `127.0.0.1:19092`。
 - legacy inbound consumer 过渡开关：`MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED=false`
 - Dockerfile：`api-service-app/Dockerfile`，暴露 `8080` 和 `19091`
+- Prometheus metrics：Micronaut management/micrometer 在 HTTP 端口暴露 `/prometheus`
 
 ## 测试入口
 
