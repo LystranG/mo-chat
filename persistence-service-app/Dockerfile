@@ -1,10 +1,13 @@
+# syntax=docker/dockerfile:1.7
 FROM ghcr.1ms.run/graalvm/native-image-community:25 AS builder
 
 WORKDIR /workspace
+ENV GRADLE_USER_HOME=/workspace/.gradle-cache
 
 COPY . .
 
-RUN chmod +x ./gradlew \
+RUN --mount=type=cache,target=/workspace/.gradle-cache \
+    chmod +x ./gradlew \
     && ./gradlew --no-daemon :persistence-service-app:installDist
 
 FROM docker.io/eclipse-temurin:25-jre

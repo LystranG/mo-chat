@@ -19,7 +19,7 @@
 ## 环境语义
 
 - `local`：直接运行五个 Gradle 进程；推荐入口是 `scripts/run-local.sh`；IDEA/手动 Gradle 入口主要依赖各 app 的 `application-local.yml` 字面量本机默认值，脚本入口仍会加载根目录 `.env`。
-- `dev`：本地 k3s Helm 部署；推荐 values 是 `deploy/helm/mochat/values-dev.yaml`；服务发现使用 Kubernetes Service/headless Service。
+- `dev`：本地 k3s Helm 部署；推荐 Helm chart 是 `deploy/helm/mochat`。k3d 可直接使用 `values-dev.yaml`；Colima/k3s 需叠加 `values-local.yaml`，把外部依赖地址切到 `host.docker.internal`。服务发现使用 Kubernetes Service/headless Service。
 - `prod`：当前只预留命名，尚未交付生产 values 或 overlay。
 
 ## 非职责
@@ -72,13 +72,14 @@
 - AIOps 是外部服务，本项目只提供 metrics、logs、trace 预留、Alertmanager webhook 示例、Kubernetes labels 和 `projects.yaml.example`。
 - `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind` 保留为旧版 Podman-based kustomize/kind 验证路径；脚本当前仍调用 Podman，不是 Helm 推荐路径的一部分。
 - `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service`、`call-service` Dockerfile 使用 `nativeCompile` + distroless。
+- 五个服务 Dockerfile 都使用 BuildKit `RUN --mount=type=cache,target=/workspace/.gradle-cache` 和 `GRADLE_USER_HOME=/workspace/.gradle-cache` 缓存 Gradle wrapper、distribution 和依赖下载；推荐继续使用 `docker buildx build`。
 - `build.gradle.kts` 已把 `:call-service-app` 加入 `deployableNativeAppImages`；`call-service-app/Dockerfile` 使用 `:call-service-app:nativeCompile`。
 - 旧 kind 脚本未覆盖 call-service；Helm 路径 `deploy/helm/mochat` 覆盖 call-service。
 - `deploy/kubernetes/base/persistence-service.yaml` 没有 Service，这与 runbook 一致；后续若加探针 sidecar 或入站 API 会改变边界。
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
 - `docker-compose.yml` 的 compose name 是 `mochat`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-mochat`。
 - `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。
-- `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。
+- `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。Colima/k3s 本地演示命令应同时使用 `-f deploy/helm/mochat/values-dev.yaml -f deploy/helm/mochat/values-local.yaml --set accessGateway.replicaCount=1`。
 - `observability.prometheus.scrape` 默认关闭。chart 只预留 Prometheus annotations 和 scrape 示例；启用前需确认目标镜像实际暴露 `/prometheus`，并保证 Prometheus 可以访问对应端口。
 
 ## 配置和运行入口
@@ -131,12 +132,20 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" SKIP_MINIMAL_TOPOLOGY=1 bash deploy/ku
 镜像构建：
 
 ```bash
-docker buildx build --load -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-docker buildx build --load -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-docker buildx build --load -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-docker buildx build --load -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
-docker buildx build --load -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
+scripts/build-local-images.sh
 ```
+
+默认构建并加载 `localhost/mochat/{access-gateway,api-service,message-service,persistence-service,call-service}:dev`。可通过 `IMAGE_REGISTRY`、`IMAGE_NAMESPACE`、`IMAGE_TAG`、`DOCKER_BUILDER` 覆盖默认值。
+
+`scripts/build-local-images.sh` 默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行四个 native app 的 `nativeCompile` 和 `persistence-service-app:installDist`，再生成临时 packaging Dockerfile，把这些 Linux 产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
+
+如果只需要本地 k3s 快速演示，不想触发 native-image 编译，使用 JVM 镜像入口：
+
+```bash
+scripts/build-local-jvm-images.sh
+```
+
+该入口固定使用 `LOCAL_IMAGE_MODE=jvm`，只在宿主机执行五个 app 的 `installDist`，再复制 JVM 分发包进 JRE 镜像。
 
 Helm 部署：
 
@@ -150,6 +159,8 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 helm upgrade --install mochat deploy/helm/mochat \
   --namespace mochat --create-namespace \
   -f deploy/helm/mochat/values-dev.yaml \
+  -f deploy/helm/mochat/values-local.yaml \
+  --set accessGateway.replicaCount=1 \
   --set-file accessGatewayTls.certificate=.local/helm/access-gateway-tls/tls.crt \
   --set-file accessGatewayTls.privateKey=.local/helm/access-gateway-tls/tls.key
 ```

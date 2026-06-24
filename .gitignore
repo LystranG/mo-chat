@@ -57,3 +57,4 @@ docker/
 
 tmp.txt
 multimedia-module/src/test/resources/test-files
+.gradle-cache

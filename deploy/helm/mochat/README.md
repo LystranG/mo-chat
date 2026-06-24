@@ -30,12 +30,20 @@ docker compose -f deploy/observability/docker-compose.yml up -d
 构建本地镜像：
 
 ```bash
-docker buildx build --load -f access-gateway-app/Dockerfile -t localhost/mochat/access-gateway:dev .
-docker buildx build --load -f api-service-app/Dockerfile -t localhost/mochat/api-service:dev .
-docker buildx build --load -f message-service-app/Dockerfile -t localhost/mochat/message-service:dev .
-docker buildx build --load -f persistence-service-app/Dockerfile -t localhost/mochat/persistence-service:dev .
-docker buildx build --load -f call-service-app/Dockerfile -t localhost/mochat/call-service:dev .
+scripts/build-local-images.sh
 ```
+
+默认构建并加载 `localhost/mochat/{access-gateway,api-service,message-service,persistence-service,call-service}:dev`。需要切换 tag 或镜像前缀时，可覆盖 `IMAGE_TAG`、`IMAGE_REGISTRY`、`IMAGE_NAMESPACE`。
+
+脚本默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行四个 native app 的 `nativeCompile` 和 `persistence-service-app:installDist`，再把这些 Linux 产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
+
+如果只需要本地 k3s 快速演示，不想触发 native-image 编译，使用 JVM 镜像入口：
+
+```bash
+scripts/build-local-jvm-images.sh
+```
+
+该入口固定使用 `LOCAL_IMAGE_MODE=jvm`，只在宿主机执行五个 app 的 `installDist`，再复制 JVM 分发包进 JRE 镜像。
 
 准备 access-gateway TLS 证书。`accessGatewayTls.certificate` / `accessGatewayTls.privateKey` 是启动必需配置，本地联调可以使用自签名证书：
 
