@@ -211,6 +211,9 @@ public class MediaStorageService {
                         );
                         log.info("Audio uploaded without transcoding (already MP3)");
                         
+                        // ✅ 修复：给 processedData 赋值
+                        processedData = data;
+                        
                         // 生成波形数据
                         waveformData = audioProcessingService.generateWaveformData(data, mimeType);
                         log.info("Audio waveform generated, waveformDataSize={} bytes", waveformData.length());
@@ -342,7 +345,13 @@ public class MediaStorageService {
 
     private String generateThumbnailObjectName(String originalObjectName) {
         // 例如：images/uuid.jpg -> images/uuid_thumb.jpg
-        return originalObjectName.replaceFirst("\\.", "_thumb.");
+        //      videos/uuid.mp4 -> videos/uuid_thumb.jpg (注意：视频缩略图也是 jpg)
+        int lastDotIndex = originalObjectName.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            String baseName = originalObjectName.substring(0, lastDotIndex);
+            return baseName + "_thumb.jpg";  // 缩略图统一为 JPEG 格式
+        }
+        return originalObjectName + "_thumb.jpg";
     }
 
     private String buildMediaUrl(String objectName) {

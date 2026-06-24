@@ -358,11 +358,21 @@ class MediaStorageServiceIntegrationTest {
                 .contentLength((long) testData.length)
                 .build(), RequestBody.fromBytes(testData));
 
+        System.out.println("✓ File uploaded to RustFS: " + objectName);
+
         // 使用反射获取 download 方法并调用
         byte[] downloaded = invokePrivateMethod(mediaStorageService, "download", new Class[]{String.class}, objectName);
 
         assertNotNull(downloaded);
         assertArrayEquals(testData, downloaded);
+        
+        System.out.println("✓ File downloaded successfully, size: " + downloaded.length + " bytes");
+        
+        // 保存下载的文件到桌面
+        String desktopPath = System.getProperty("user.home") + "\\Desktop\\downloaded-test-file.txt";
+        java.nio.file.Files.write(java.nio.file.Paths.get(desktopPath), downloaded);
+        System.out.println("✓ Downloaded file saved to: " + desktopPath);
+        System.out.println("  Content: " + new String(downloaded));
     }
 
     /**
@@ -424,6 +434,80 @@ class MediaStorageServiceIntegrationTest {
         });
     }
 
+    /**
+     * 调试测试：将波形数据转换为 CSV 格式，方便用 Excel 打开查看
+     */
+    @Test
+    void debug_ConvertWaveformToCSV() throws Exception {
+        byte[] wavData = createTestAudio();
+        String filename = "voice.wav";
+        String mimeType = "audio/wav";
+
+        // ✅ 创建真实的 Base64 波形数据（模拟 100 个采样点）
+        // 生成 100 个随机浮点数并编码为 Base64
+        int numPoints = 100;
+        float[] testSamples = new float[numPoints];
+        for (int i = 0; i < numPoints; i++) {
+            // 生成 -1.0 到 1.0 之间的正弦波数据
+            testSamples[i] = (float) Math.sin(2 * Math.PI * i / 20);
+        }
+        
+        // 转换为字节数组并 Base64 编码
+        byte[] testBytes = floatsToBytes(testSamples);
+        String realBase64Waveform = java.util.Base64.getEncoder().encodeToString(testBytes);
+
+        // ✅ 配置 Mock 返回真实的 Base64 数据
+        byte[] mp3Data = createTestMp3();
+        when(audioProcessingService.transcodeAudio(eq(wavData), eq(mimeType))).thenReturn(mp3Data);
+        when(audioProcessingService.generateWaveformData(eq(mp3Data), eq("audio/mpeg"))).thenReturn(realBase64Waveform);
+
+        MediaUploadResult result = mediaStorageService.upload(wavData, filename, mimeType);
+        String waveformDataResult = result.waveformData();
+        
+        if (waveformDataResult == null || waveformDataResult.isEmpty()) {
+            System.out.println("⚠ 波形数据为空！");
+            return;
+        }
+        
+        // 解码 Base64 波形数据
+        byte[] decodedBytes = java.util.Base64.getDecoder().decode(waveformDataResult);
+        
+        // 转换为浮点数数组（每个采样点占 2 字节）
+        float[] samples = new float[decodedBytes.length / 2];
+        for (int i = 0; i < samples.length; i++) {
+            short s = (short) ((decodedBytes[i * 2] & 0xFF) | ((decodedBytes[i * 2 + 1] & 0xFF) << 8));
+            samples[i] = s / (float) Short.MAX_VALUE;
+        }
+        
+        // 保存为 CSV 文件
+        StringBuilder csv = new StringBuilder("index,value\n");
+        for (int i = 0; i < samples.length; i++) {
+            csv.append(i).append(",").append(samples[i]).append("\n");
+        }
+        
+        String desktopPath = System.getProperty("user.home") + "\\Desktop\\waveform.csv";
+        java.nio.file.Files.write(java.nio.file.Paths.get(desktopPath), csv.toString().getBytes());
+        
+        System.out.println("\n========== 波形数据已导出 ==========");
+        System.out.println("  采样点数量: " + samples.length);
+        System.out.println("  CSV 文件路径: " + desktopPath);
+        System.out.println("  ✓ 可以用 Excel 打开查看波形图");
+        System.out.println("====================================\n");
+    }
+
+    /**
+     * 辅助方法：将浮点数组转换为字节数组
+     */
+    private byte[] floatsToBytes(float[] floats) {
+        byte[] bytes = new byte[floats.length * 2];
+        for (int i = 0; i < floats.length; i++) {
+            short s = (short) (floats[i] * Short.MAX_VALUE);
+            bytes[i * 2] = (byte) (s & 0xFF);
+            bytes[i * 2 + 1] = (byte) ((s >> 8) & 0xFF);
+        }
+        return bytes;
+    }
+
     // ========== 辅助方法 ==========
 
     /**
@@ -464,7 +548,7 @@ class MediaStorageServiceIntegrationTest {
     }
 
     private byte[] createTestImage() throws IOException {
-        return readResourceFile("test-files/sample-image.jpg");
+        return readResourceFile("test-files/sample-thumbnail.jpg");
     }
 
     private byte[] createTestThumbnail() throws IOException {
@@ -480,7 +564,7 @@ class MediaStorageServiceIntegrationTest {
     }
 
     private byte[] createTestMp3() throws IOException {
-        return readResourceFile("test-files/sample-mp3.mp3");
+        return readResourceFile("test-files/sample-audio.wav");  // 使用现有的 WAV 文件代替 MP3
     }
 
     /**
