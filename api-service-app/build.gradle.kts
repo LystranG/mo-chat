@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":infra-redis"))
     implementation(project(":logic-module"))
+    implementation(project(":persistence-module"))
     implementation(project(":protocol"))
     implementation(project(":multimedia-module"))
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
@@ -16,6 +17,9 @@ dependencies {
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     implementation("io.micronaut:micronaut-http-server-netty:4.9.0")
     implementation("io.micronaut:micronaut-jackson-databind:4.9.0")
+    implementation("org.flywaydb:flyway-core:10.20.1")
+    implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
+    implementation("org.postgresql:postgresql:42.7.5")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
     runtimeOnly("org.yaml:snakeyaml:2.4")
 

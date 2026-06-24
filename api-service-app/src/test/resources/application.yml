@@ -1,0 +1,14 @@
+micronaut:
+  application:
+    name: api-service
+
+mochat:
+  redis:
+    uri: redis://127.0.0.1:6379
+  api-service:
+    dependencies:
+      redis-enabled: true
+      postgres-enabled: false
+  message-service:
+    inbound-consumer:
+      enabled: false

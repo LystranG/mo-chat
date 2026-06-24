@@ -6,6 +6,12 @@ micronaut:
     port: ${MOCHAT_API_SERVICE_HTTP_PORT:8080}
 
 mochat:
+  flyway:
+    locations: classpath:db/migration
+  postgres:
+    url: ${MOCHAT_POSTGRES_URL:`jdbc:postgresql://127.0.0.1:15432/mochat`}
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
   redis:
     uri: '${MOCHAT_REDIS_URI:`redis://127.0.0.1:6379`}'
   api-service:
@@ -14,6 +20,10 @@ mochat:
       port: ${MOCHAT_API_SERVICE_HTTP_PORT:8080}
     grpc:
       port: ${MOCHAT_API_SERVICE_GRPC_PORT:19091}
+    flyway:
+      migrate-on-start: ${MOCHAT_API_SERVICE_FLYWAY_MIGRATE_ON_START:true}
+    id:
+      worker-id: ${MOCHAT_API_SERVICE_ID_WORKER_ID:2}
     dependencies:
       redis-enabled: ${MOCHAT_API_SERVICE_REDIS_ENABLED:true}
       postgres-enabled: ${MOCHAT_API_SERVICE_POSTGRES_ENABLED:true}
