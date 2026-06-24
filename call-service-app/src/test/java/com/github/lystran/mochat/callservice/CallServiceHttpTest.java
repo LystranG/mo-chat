@@ -287,8 +287,9 @@ class CallServiceHttpTest {
         assertNotNull(result.roomName());
         assertEquals(fromUserId, result.fromUserId());
         assertEquals(toUserId, result.toUserId());
-        // 接收方不在线时 token 为 null，房间会被结束
-        // 在线时才会签发 token
+        assertNotNull(result.token());
+        assertNotNull(result.livekitUrl());
+        // 接收方不在线时也保留房间并签发发起方 token，等待离线邀请被接收方重连后消费。
     }
 
     @Test
@@ -331,6 +332,21 @@ class CallServiceHttpTest {
         @Primary
         CallRelationshipService callRelationshipService() {
             return Mockito.mock(CallRelationshipService.class);
+        }
+
+        @Singleton
+        @Primary
+        CallTokenService callTokenService() {
+            CallTokenService mock = Mockito.mock(CallTokenService.class);
+            when(mock.issueToken(anyLong(), anyString())).thenReturn("test-livekit-token");
+            when(mock.livekitUrl()).thenReturn("wss://test-livekit.example");
+            return mock;
+        }
+
+        @Singleton
+        @Primary
+        CallOfflineNotificationService callOfflineNotificationService() {
+            return Mockito.mock(CallOfflineNotificationService.class);
         }
 
         @Singleton

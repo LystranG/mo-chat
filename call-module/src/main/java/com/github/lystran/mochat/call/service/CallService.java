@@ -66,7 +66,7 @@ public final class CallService {
                 clock.millis()
         ));
         if(!callInvite){
-           //插入离线消息
+            // Keep the room alive so the callee can accept a queued invite after reconnecting.
             offlineNotificationService.enqueueBatch(List.of(new CallSignalMessage(
                     "call_invite",
                     callId,
@@ -76,10 +76,9 @@ public final class CallService {
                     room.roomName(),
                     clock.millis()
             )));
-            callRoomManager.endRoom(room.roomName());
         }
-        String token = callInvite ? callTokenService.issueToken(fromUserId, room.roomName()):null;
-        String livekitUrl = callInvite ? callTokenService.livekitUrl():null;
+        String token = callTokenService.issueToken(fromUserId, room.roomName());
+        String livekitUrl = callTokenService.livekitUrl();
         return new PrivateCallInviteResult(callId, room.roomName(), fromUserId, toUserId, token, livekitUrl);
     }
 
