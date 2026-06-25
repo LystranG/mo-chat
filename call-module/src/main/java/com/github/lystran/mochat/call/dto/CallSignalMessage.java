@@ -8,6 +8,7 @@ public record CallSignalMessage(
     long toUserId,
     long groupId,
     String roomName,
+    String callKind,
     long timestampMillis
 ) {
 }

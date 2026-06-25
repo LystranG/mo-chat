@@ -30,7 +30,7 @@ public final class CallController {
             return unauthorized();
         }
         try {
-            return HttpResponse.ok(ApiResponse.ok(callService.invitePrivateCall(userId.get(), request.toUserId())));
+            return HttpResponse.ok(ApiResponse.ok(callService.invitePrivateCall(userId.get(), request.toUserId(), request.callKind())));
         } catch (IllegalArgumentException | IllegalStateException exception) {
             return HttpResponse.badRequest(ApiResponse.error(exception.getMessage()));
         }
@@ -115,7 +115,7 @@ public final class CallController {
         }
     }
 
-    public record PrivateCallInviteRequest(String sessionId, long toUserId) {
+    public record PrivateCallInviteRequest(String sessionId, long toUserId, String callKind) {
     }
 
     public record PrivateCallSignalRequest(String sessionId, long toUserId, String type, String roomName) {

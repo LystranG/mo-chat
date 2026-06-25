@@ -97,6 +97,7 @@ public final class CallSignalGateway {
                 "toUserId", message.toUserId(),
                 "groupId", message.groupId(),
                 "roomName", message.roomName(),
+                "callKind", message.callKind(),
                 "timestampMillis", message.timestampMillis()
             ));
         } catch (JsonProcessingException e) {

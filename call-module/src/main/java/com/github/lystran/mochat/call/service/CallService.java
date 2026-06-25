@@ -50,8 +50,13 @@ public final class CallService {
     }
 
     public PrivateCallInviteResult invitePrivateCall(long fromUserId, long toUserId) {
+        return invitePrivateCall(fromUserId, toUserId, "voice");
+    }
+
+    public PrivateCallInviteResult invitePrivateCall(long fromUserId, long toUserId, String callKind) {
         requireDifferentPositiveUsers(fromUserId, toUserId);
         requireActivePrivateRelationship(fromUserId, toUserId);
+        String normalizedCallKind = normalizeCallKind(callKind);
 
         String callId = newCallId();
         CallRoomState room = callRoomManager.createPrivateRoom(fromUserId, toUserId, callId);
@@ -63,6 +68,7 @@ public final class CallService {
                 toUserId,
                 0L,
                 room.roomName(),
+                normalizedCallKind,
                 clock.millis()
         ));
         if(!callInvite){
@@ -74,12 +80,13 @@ public final class CallService {
                     toUserId,
                     -1,
                     room.roomName(),
+                    normalizedCallKind,
                     clock.millis()
             )));
         }
         String token = callTokenService.issueToken(fromUserId, room.roomName());
         String livekitUrl = callTokenService.livekitUrl();
-        return new PrivateCallInviteResult(callId, room.roomName(), fromUserId, toUserId, token, livekitUrl);
+        return new PrivateCallInviteResult(callId, room.roomName(), fromUserId, toUserId, normalizedCallKind, token, livekitUrl);
     }
 
     public PrivateSignalResult forwardPrivateSignal(long fromUserId, long toUserId, String type, String roomName) {
@@ -114,6 +121,7 @@ public final class CallService {
             toUserId,
             0L,
             parsed.value(),
+            "voice",
             clock.millis()
         ));
 
@@ -147,6 +155,7 @@ public final class CallService {
                 memberUserId,
                 groupId,
                 room.roomName(),
+                "voice",
                 clock.millis()
             );
             if (signalGateway.sendToUser(memberUserId, message)) {
@@ -213,6 +222,7 @@ public final class CallService {
                     recipientUserId,
                     roomName.groupId(),
                     roomName.value(),
+                    "voice",
                     clock.millis()
                 ));
             }
@@ -264,6 +274,17 @@ public final class CallService {
         return type.trim().toLowerCase(Locale.ROOT);
     }
 
+    private static String normalizeCallKind(String callKind) {
+        if (callKind == null || callKind.isBlank()) {
+            return "voice";
+        }
+        String normalized = callKind.trim().toLowerCase(Locale.ROOT);
+        if (!"voice".equals(normalized) && !"video".equals(normalized)) {
+            throw new IllegalArgumentException("callKind must be voice or video");
+        }
+        return normalized;
+    }
+
     private static String newCallId() {
         return UUID.randomUUID().toString().replace("-", "");
     }
@@ -273,6 +294,7 @@ public final class CallService {
         String roomName,
         long fromUserId,
         long toUserId,
+        String callKind,
         String token,
         String livekitUrl
     ) {
