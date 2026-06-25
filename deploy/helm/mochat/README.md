@@ -35,7 +35,7 @@ scripts/build-local-images.sh
 
 默认构建并加载 `localhost/mochat/{access-gateway,api-service,message-service,persistence-service,call-service}:dev`。需要切换 tag 或镜像前缀时，可覆盖 `IMAGE_TAG`、`IMAGE_REGISTRY`、`IMAGE_NAMESPACE`。
 
-脚本默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行四个 native app 的 `nativeCompile` 和 `persistence-service-app:installDist`，再把这些 Linux 产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
+脚本默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行 `access-gateway-app`、`api-service-app`、`message-service-app` 三个 native app 的 `nativeCompile`，并对 `call-service-app`、`persistence-service-app` 执行 `installDist`，再把这些产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
 
 如果只需要本地 k3s 快速演示，不想触发 native-image 编译，使用 JVM 镜像入口：
 
@@ -116,7 +116,7 @@ Colima/k3s 本地演示需要叠加 `deploy/helm/mochat/values-local.yaml`。它
 
 默认 values 下 `call-service` 是 `ClusterIP`，只供集群内访问；Colima/k3s 演示叠加 `values-local.yaml` 后变为 `NodePort 32090`，宿主机可通过 `http://localhost:32090` 和 `ws://localhost:32090/calls/ws/{sessionId}` 访问。
 
-`call-service-app/Dockerfile` 已使用 native-first 构建路径，`nativeCompile` 已通过。这个结论只表示镜像构建路径可用，不改变当前单副本和进程内房间状态限制。
+`call-service-app/Dockerfile` 当前使用 `installDist` + JRE 镜像，不走 native image。RocketMQ client 在 call-service native image 下仍有 remoting 启动问题，因此本地 k3s native 演示暂时保留 call-service JVM 形态。
 
 ## OpenTelemetry
 
@@ -126,7 +126,7 @@ chart 预留了 OTEL 环境变量：
 - `observability.otel.endpoint`
 - `observability.otel.resourceAttributes`
 
-MoChat 默认 native-first 部署，不默认启用 OpenTelemetry Java Agent。native trace 不是第一阶段保证项；需要链路追踪时，应先在目标镜像和运行环境中验证 Micronaut native telemetry 行为。
+MoChat 本地 native 演示仅让 `access-gateway`、`api-service`、`message-service` 走 native image；`call-service` 和 `persistence-service` 仍是 JVM 镜像。默认不启用 OpenTelemetry Java Agent；需要链路追踪时，应先在目标镜像和运行环境中验证 telemetry 行为。
 
 ## AIOps 标识
 

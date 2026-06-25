@@ -296,15 +296,21 @@ verify_native() {
   local failed=0
   verify_native_service api-service /app/api-service || failed=1
   verify_native_service message-service /app/message-service || failed=1
-  verify_native_service call-service /app/call-service || failed=1
   verify_native_service access-gateway /app/access-gateway || failed=1
+
+  local call_image
+  local call_entrypoint
+  call_image="$(pod_image_for call-service)"
+  call_entrypoint="$(image_entrypoint_for "$call_image")"
+  echo "call-service: image=$call_image entrypoint=$call_entrypoint"
+  echo "call-service is expected to stay JVM in the current native build script."
 
   local persistence_image
   local persistence_entrypoint
   persistence_image="$(pod_image_for persistence-service)"
   persistence_entrypoint="$(image_entrypoint_for "$persistence_image")"
   echo "persistence-service: image=$persistence_image entrypoint=$persistence_entrypoint"
-  echo "persistence-service is expected to stay JVM in the current build script."
+  echo "persistence-service is expected to stay JVM in the current native build script."
 
   return "$failed"
 }

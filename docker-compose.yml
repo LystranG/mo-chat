@@ -32,13 +32,15 @@ services:
   rocketmq-broker:
     image: docker.1ms.run/apache/rocketmq:5.3.2
     container_name: mochat-rocketmq-broker
-    command: sh mqbroker -n rocketmq-namesrv:9876
+    command: sh mqbroker -c /home/rocketmq/conf/broker.conf
     environment:
       - NAMESRV_ADDR=rocketmq-namesrv:9876
     ports:
       - "10909:10909"
       - "10911:10911"
       - "10912:10912"
+    volumes:
+      - ./docker/rocketmq/broker.conf:/home/rocketmq/conf/broker.conf:ro
     depends_on:
       - rocketmq-namesrv
 

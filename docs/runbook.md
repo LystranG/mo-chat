@@ -20,7 +20,7 @@ scripts/run-local-k8s.sh restart
 scripts/run-local-k8s.sh verify-native
 ```
 
-`start` 默认构建 JVM 镜像、生成本地 access-gateway 自签名 TLS、Helm 部署 MoChat，并部署 k3s 内部观测栈。需要宿主机 native 编译时使用 `scripts/run-local-k8s.sh --native start`，它保持 `scripts/build-local-images.sh` 的默认语义。需要部署到本地 k3s 的 Linux native 容器镜像时使用 `scripts/run-local-k8s.sh --native-docker start`，它会调用 `scripts/build-local-images.sh --docker-compile`，默认使用 `dev-native` tag，并在 Helm upgrade 后重启 Pod。部署后可用 `scripts/run-local-k8s.sh verify-native` 检查 `api-service`、`message-service`、`call-service`、`access-gateway` 是否仍在 JVM 上运行；`persistence-service` 当前仍预期是 JVM。已经构建过镜像时，可用 `scripts/run-local-k8s.sh --skip-compile start` 跳过 Gradle 编译和 Docker 打包；也可以用 `MOCHAT_K8S_BUILD_IMAGES=0` 达到同样效果。只想管理 MoChat、不动观测栈时，可用 `MOCHAT_K8S_OBSERVABILITY=0`。基础设施 PostgreSQL、Redis 和 RocketMQ 仍由根目录 `docker-compose.yml` 单独管理。
+`start` 默认构建 JVM 镜像、生成本地 access-gateway 自签名 TLS、Helm 部署 MoChat，并部署 k3s 内部观测栈。需要宿主机 native 编译时使用 `scripts/run-local-k8s.sh --native start`，它保持 `scripts/build-local-images.sh` 的默认语义。需要部署到本地 k3s 的 Linux native 容器镜像时使用 `scripts/run-local-k8s.sh --native-docker start`，它会调用 `scripts/build-local-images.sh --docker-compile`，默认使用 `dev-native` tag，并在 Helm upgrade 后重启 Pod。部署后可用 `scripts/run-local-k8s.sh verify-native` 检查 `api-service`、`message-service`、`access-gateway` 是否仍在 JVM 上运行；`call-service` 和 `persistence-service` 当前仍预期是 JVM。已经构建过镜像时，可用 `scripts/run-local-k8s.sh --skip-compile start` 跳过 Gradle 编译和 Docker 打包；也可以用 `MOCHAT_K8S_BUILD_IMAGES=0` 达到同样效果。只想管理 MoChat、不动观测栈时，可用 `MOCHAT_K8S_OBSERVABILITY=0`。基础设施 PostgreSQL、Redis 和 RocketMQ 仍由根目录 `docker-compose.yml` 单独管理。
 
 ### 1. 启动基础设施
 

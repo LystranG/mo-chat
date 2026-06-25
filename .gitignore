@@ -44,7 +44,10 @@ bin/
 
 ### Local Runtime Data ###
 /.env
-docker/
+docker/*
+!docker/rocketmq/
+docker/rocketmq/*
+!docker/rocketmq/broker.conf
 .local/
 
 ### AI ###

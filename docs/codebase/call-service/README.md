@@ -78,7 +78,7 @@
 - 活跃房间是 `ConcurrentHashMap` 进程内状态；多副本部署时同一通话必须考虑粘性路由或外部化房间状态，否则不同实例不可见。
 - `pushPendingNotifications` 当前按内存房间是否仍 active 判断可投递性；服务重启后旧离线通知会因房间状态丢失而被标记 delivered 跳过。
 - 私聊离线邀请会落库时使用 `groupId=-1`，但 `V4__call_offline_notifications.sql` 的 `group_id` 是 `NOT NULL`。
-- `call-service-app/Dockerfile` 优先使用 native image 构建，执行 `:call-service-app:nativeCompile`，distroless 运行镜像默认暴露 `8090`。
+- `call-service-app/Dockerfile` 当前使用 `:call-service-app:installDist` + JRE 运行镜像，默认暴露 `8090`；本地 k3s native 演示暂不使用 call-service native image。
 - `call-service` 已纳入 Helm 部署，默认 `replicaCount: 1`。
 - Kubernetes Service 端口为 HTTP/WebSocket `8090`；默认 `ClusterIP`，Colima/k3s `values-local.yaml` 下为 NodePort `32090`，用于外部演示客户端访问。
 - LiveKit 配置通过 `mochat-livekit` Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`；k3s 不会自动读取根目录 `.env`，本地 Helm 部署需要显式 `--set-string livekit.*` 或预建 Secret。

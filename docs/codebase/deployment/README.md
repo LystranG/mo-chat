@@ -51,7 +51,7 @@
 - `message-service`：Deployment + ClusterIP Service，gRPC `19092`。
 - `persistence-service`：Deployment，无 Service，消费 RocketMQ 并写 PostgreSQL。
 - `access-gateway`：StatefulSet，`access-gateway-headless` 用于 Pod DNS/gRPC，`access-gateway-tcp` NodePort 暴露 TCP `9000`。
-- `call-service`：Micronaut HTTP/WebSocket app，默认 HTTP `8090`；`call-service-app/Dockerfile` 已支持 native-first 镜像构建，Helm chart 已模板化 Deployment + Service，默认单副本。默认 Service 是 `ClusterIP`；Colima/k3s `values-local.yaml` 会改为 NodePort `32090` 供外部演示客户端访问。
+- `call-service`：Micronaut HTTP/WebSocket app，默认 HTTP `8090`；`call-service-app/Dockerfile` 当前使用 `installDist` + JRE 镜像，Helm chart 已模板化 Deployment + Service，默认单副本。默认 Service 是 `ClusterIP`；Colima/k3s `values-local.yaml` 会改为 NodePort `32090` 供外部演示客户端访问。
 - `mochat-runtime-config` 放集群内发现：
   - `MOCHAT_API_SERVICE_GRPC_ADDRESS=api-service:19091`
   - `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS=message-service:19092`
@@ -73,13 +73,13 @@
 - 命令文档默认使用 Docker CLI；Podman 不再是 runbook 推荐主路径的默认命令。
 - AIOps 是外部服务，本项目只提供 metrics、logs、trace 预留、Alertmanager webhook 示例、Kubernetes labels 和 `projects.yaml.example`。
 - `deploy/kubernetes/base` 和 `deploy/kubernetes/overlays/kind` 保留为旧版 Podman-based kustomize/kind 验证路径；脚本当前仍调用 Podman，不是 Helm 推荐路径的一部分。
-- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service`、`call-service` Dockerfile 使用 `nativeCompile` + distroless。
+- `persistence-service-app/Dockerfile` 和 `call-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service` Dockerfile 使用 `nativeCompile` + distroless。
 - 五个服务 Dockerfile 都使用 BuildKit `RUN --mount=type=cache,target=/workspace/.gradle-cache` 和 `GRADLE_USER_HOME=/workspace/.gradle-cache` 缓存 Gradle wrapper、distribution 和依赖下载；推荐继续使用 `docker buildx build`。
-- `build.gradle.kts` 已把 `:call-service-app` 加入 `deployableNativeAppImages`；`call-service-app/Dockerfile` 使用 `:call-service-app:nativeCompile`。
 - 旧 kind 脚本未覆盖 call-service；Helm 路径 `deploy/helm/mochat` 覆盖 call-service。
 - `deploy/kubernetes/base/persistence-service.yaml` 没有 Service，这与 runbook 一致；后续若加探针 sidecar 或入站 API 会改变边界。
 - `api-service.yaml` 同时从 `mochat-runtime-config` 引入并显式设置 `MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS`，存在重复配置。
 - `docker-compose.yml` 的 compose name 是 `mochat`，kind 脚本默认依赖 `MOCHAT_KIND_COMPOSE_PROJECT:-mochat`。
+- `docker-compose.yml` 的 RocketMQ broker 通过 `docker/rocketmq/broker.conf` 显式设置 `brokerIP1=host.docker.internal`。宿主机 native 进程和本地 k3s Pod 都会先连 `host.docker.internal:9876` 的 NameServer，再按 NameServer 返回的 broker route 连接 `host.docker.internal:10911`；不要让 broker 自动注册容器内网 IP。
 - `call-service-app/src/main/resources/application.yml` 不含 LiveKit URL/API key/API secret 默认值；部署时必须通过 Secret 注入 `MOCHAT_LIVEKIT_URL`、`MOCHAT_LIVEKIT_API_KEY`、`MOCHAT_LIVEKIT_API_SECRET`。根目录 `.env` 不会被 k3s 自动读取，本地 Helm 演示需要先 `source .env`，再通过 `--set-string livekit.*` 创建 `mochat-livekit` Secret，或预建同名 Secret。
 - `values-dev.yaml` 不创建 Namespace；推荐通过 Helm CLI `--create-namespace` 创建 namespace，避免 chart 内 `Namespace` 与 Helm CLI 创建的 namespace ownership 冲突。Colima/k3s 本地演示命令应同时使用 `-f deploy/helm/mochat/values-dev.yaml -f deploy/helm/mochat/values-local.yaml --set accessGateway.replicaCount=1`。
 - `observability.prometheus.scrape` 默认关闭；开启后为 `api-service`、`access-gateway`、`call-service` 渲染 Prometheus annotations。这三个 HTTP 服务已通过 Micronaut management/micrometer 暴露 `/prometheus`；`message-service` 和 `persistence-service` 暂无 HTTP metrics endpoint。
@@ -128,7 +128,7 @@ scripts/run-local-k8s.sh restart
 scripts/run-local-k8s.sh verify-native
 ```
 
-`run-local-k8s.sh start` 默认构建 JVM 镜像、确保 access-gateway TLS、执行 Helm upgrade，并部署 `deploy/observability/kubernetes`。需要宿主机 native 编译时使用 `scripts/run-local-k8s.sh --native start`，它保持 `scripts/build-local-images.sh` 的默认语义。需要部署到本地 k3s 的 Linux native 容器镜像时使用 `scripts/run-local-k8s.sh --native-docker start`，它会调用 `scripts/build-local-images.sh --docker-compile`，默认使用 `dev-native` tag，并在 Helm upgrade 后重启 Pod。部署后可用 `scripts/run-local-k8s.sh verify-native` 检查 `api-service`、`message-service`、`call-service`、`access-gateway` 是否仍在 JVM 上运行；`persistence-service` 当前仍预期是 JVM。`stop` 默认卸载 MoChat Helm release 并删除 k3s 观测栈，不管理根目录 Docker Compose 基础设施。可用 `--skip-compile` 跳过 Gradle 编译和 Docker 打包，也可用 `MOCHAT_K8S_BUILD_IMAGES=0` 达到同样效果；用 `MOCHAT_K8S_OBSERVABILITY=0` 跳过观测栈操作。
+`run-local-k8s.sh start` 默认构建 JVM 镜像、确保 access-gateway TLS、执行 Helm upgrade，并部署 `deploy/observability/kubernetes`。需要宿主机 native 编译时使用 `scripts/run-local-k8s.sh --native start`，它保持 `scripts/build-local-images.sh` 的默认语义。需要部署到本地 k3s 的 Linux native 容器镜像时使用 `scripts/run-local-k8s.sh --native-docker start`，它会调用 `scripts/build-local-images.sh --docker-compile`，默认使用 `dev-native` tag，并在 Helm upgrade 后重启 Pod。部署后可用 `scripts/run-local-k8s.sh verify-native` 检查 `api-service`、`message-service`、`access-gateway` 是否仍在 JVM 上运行；`call-service` 和 `persistence-service` 当前仍预期是 JVM。`stop` 默认卸载 MoChat Helm release 并删除 k3s 观测栈，不管理根目录 Docker Compose 基础设施。可用 `--skip-compile` 跳过 Gradle 编译和 Docker 打包，也可用 `MOCHAT_K8S_BUILD_IMAGES=0` 达到同样效果；用 `MOCHAT_K8S_OBSERVABILITY=0` 跳过观测栈操作。
 
 如果手动运行单个 Gradle 进程，必须显式设置 `MICRONAUT_ENVIRONMENTS=local`；`application-local.yml` 已内置本机 Redis、PostgreSQL、RocketMQ、gRPC 和 LiveKit 占位默认值：
 
@@ -158,7 +158,7 @@ scripts/build-local-images.sh
 
 默认构建并加载 `localhost/mochat/{access-gateway,api-service,message-service,persistence-service,call-service}:dev`。可通过 `IMAGE_REGISTRY`、`IMAGE_NAMESPACE`、`IMAGE_TAG`、`DOCKER_BUILDER` 覆盖默认值。
 
-`scripts/build-local-images.sh` 默认使用 `LOCAL_IMAGE_MODE=native-host`，即保持宿主机 native 编译语义。需要生成本地 k3s 可运行的 Linux native 容器镜像时，使用 `scripts/build-local-images.sh --docker-compile`，它会切到 `LOCAL_IMAGE_MODE=native-container`，用 Linux GraalVM builder 容器编译 native 产物并打包镜像。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像。
+`scripts/build-local-images.sh` 默认使用 `LOCAL_IMAGE_MODE=native-host`，即保持宿主机 native 编译语义；native 模式只覆盖 `access-gateway`、`api-service`、`message-service`，`call-service` 和 `persistence-service` 仍使用 JVM 分发包。需要生成本地 k3s 可运行的 Linux native 容器镜像时，使用 `scripts/build-local-images.sh --docker-compile`，它会切到 `LOCAL_IMAGE_MODE=native-container`，用 Linux GraalVM builder 容器编译 native 产物并打包镜像。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像。
 
 如果只需要本地 k3s 快速演示，不想触发 native-image 编译，使用 JVM 镜像入口：
 

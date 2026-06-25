@@ -8,16 +8,16 @@ COPY . .
 
 RUN --mount=type=cache,target=/workspace/.gradle-cache \
     chmod +x ./gradlew \
-    && ./gradlew --no-daemon :call-service-app:nativeCompile
+    && ./gradlew --no-daemon :call-service-app:installDist
 
-FROM gcr.1ms.run/distroless/cc
+FROM docker.io/eclipse-temurin:25-jre
 
 WORKDIR /app
 
-COPY --from=builder --chown=65532:65532 /workspace/call-service-app/build/native/nativeCompile/call-service /app/call-service
+COPY --from=builder --chown=65532:65532 /workspace/call-service-app/build/install/call-service-app /app
 
 USER 65532:65532
 
 EXPOSE 8090
 
-ENTRYPOINT ["/app/call-service"]
+ENTRYPOINT ["/app/bin/call-service-app"]

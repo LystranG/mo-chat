@@ -60,7 +60,7 @@
 - `JdbcReceiptConversationStateStore` 实现位于 `persistence-module`，但包路径仍是 `com.github.lystran.mochat.logic.chat`。
 - `V1__phase1.sql` 包含 `users`、`user_friendships`、`groups` 等 Phase 1 schema；`call-module/src/main/resources/db/migration/V4__call_offline_notifications.sql` 新增通话离线通知表。表的业务 lifecycle 仍按服务 ownership 拆分，不等于全部归 persistence-service 管理。
 - durable conflict 当前保持 suspend/retry 语义，不要写成已有 poison-message、DLQ 或人工隔离策略。
-- `persistence-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service` Dockerfile 使用 native image；`call-service` 已有独立 `call-service-app/Dockerfile`，但策略不同，是 native-first。
+- `persistence-service-app/Dockerfile` 和 `call-service-app/Dockerfile` 使用 `:installDist` + JRE，不是 native image；`access-gateway`、`api-service`、`message-service` Dockerfile 使用 native image。
 
 ## 配置和运行入口
 
