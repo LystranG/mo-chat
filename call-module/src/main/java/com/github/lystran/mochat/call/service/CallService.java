@@ -119,7 +119,7 @@ public final class CallService {
 
         String token = "call_accept".equals(normalizedType) ? callTokenService.issueToken(fromUserId, parsed.value()) : null;
         String livekitUrl = token == null ? null : callTokenService.livekitUrl();
-        return new PrivateSignalResult(delivered, token, livekitUrl);
+        return new PrivateSignalResult(delivered, parsed.value(), token, livekitUrl);
     }
 
     public GroupCallStartResult startGroupCall(long fromUserId, long groupId) {
@@ -278,7 +278,7 @@ public final class CallService {
     ) {
     }
 
-    public record PrivateSignalResult(boolean delivered, String token, String livekitUrl) {
+    public record PrivateSignalResult(boolean delivered, String roomName, String token, String livekitUrl) {
     }
 
     public record GroupCallStartResult(

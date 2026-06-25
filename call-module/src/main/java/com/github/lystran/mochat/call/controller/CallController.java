@@ -36,6 +36,24 @@ public final class CallController {
         }
     }
 
+    @Post("/private/signal")
+    public HttpResponse<?> signalPrivateCall(@Body PrivateCallSignalRequest request) {
+        var userId = resolveSession(request.sessionId());
+        if (userId.isEmpty()) {
+            return unauthorized();
+        }
+        try {
+            return HttpResponse.ok(ApiResponse.ok(callService.forwardPrivateSignal(
+                userId.get(),
+                request.toUserId(),
+                request.type(),
+                request.roomName()
+            )));
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return HttpResponse.badRequest(ApiResponse.error(exception.getMessage()));
+        }
+    }
+
     @Post("/group/start")
     public HttpResponse<?> startGroupCall(@Body GroupCallStartRequest request) {
         var userId = resolveSession(request.sessionId());
@@ -98,6 +116,9 @@ public final class CallController {
     }
 
     public record PrivateCallInviteRequest(String sessionId, long toUserId) {
+    }
+
+    public record PrivateCallSignalRequest(String sessionId, long toUserId, String type, String roomName) {
     }
 
     public record GroupCallStartRequest(String sessionId, long groupId) {
