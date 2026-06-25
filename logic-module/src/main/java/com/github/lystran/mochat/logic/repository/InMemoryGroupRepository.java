@@ -45,6 +45,14 @@ public final class InMemoryGroupRepository implements GroupRepository {
     }
 
     /**
+     * 内存兜底模式不支持拉人入群。
+     */
+    @Override
+    public void inviteMember(long ownerUserId, long groupId, long memberUserId) {
+        throw new UnsupportedOperationException("group membership mutation requires datasource-backed repository");
+    }
+
+    /**
      * 内存兜底模式不支持解散群。
      */
     @Override

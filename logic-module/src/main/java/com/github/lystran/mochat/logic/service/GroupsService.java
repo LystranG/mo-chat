@@ -62,6 +62,20 @@ public final class GroupsService {
     }
 
     /**
+     * 由群主把自己的好友拉进群。
+     */
+    public GroupMemberMutationSummary inviteMember(long ownerUserId, long groupId, long memberUserId) {
+        requirePositive(ownerUserId, "ownerUserId");
+        requirePositive(groupId, "groupId");
+        requirePositive(memberUserId, "memberUserId");
+        if (ownerUserId == memberUserId) {
+            throw new IllegalArgumentException("memberUserId must differ from ownerUserId");
+        }
+        groupRepository.inviteMember(ownerUserId, groupId, memberUserId);
+        return new GroupMemberMutationSummary(groupId, memberUserId, "active");
+    }
+
+    /**
      * 解散一个群。
      */
     public GroupLifecycleMutationSummary dissolveGroup(long ownerUserId, long groupId) {

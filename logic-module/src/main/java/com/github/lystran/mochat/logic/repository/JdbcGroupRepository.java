@@ -85,6 +85,15 @@ public final class JdbcGroupRepository implements GroupRepository {
               AND status = 'active'
         )
         """;
+    private static final String HAS_ACTIVE_FRIENDSHIP_SQL = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM user_friendships
+            WHERE uid_1 = LEAST(?, ?)
+              AND uid_2 = GREATEST(?, ?)
+              AND status = 'ok'
+        )
+        """;
     private static final String INSERT_JOIN_REQUEST_SQL = """
         INSERT INTO group_join_requests (id, group_id, from_uid, sign, status)
         VALUES (?, ?, ?, ?, 'pending')
@@ -267,6 +276,34 @@ public final class JdbcGroupRepository implements GroupRepository {
             }
         } catch (SQLException sqlException) {
             throw new IllegalStateException("failed to kick group member", sqlException);
+        }
+    }
+
+    /**
+     * 由群主直接把自己的好友拉进群。
+     */
+    @Override
+    public void inviteMember(long ownerUserId, long groupId, long memberUserId) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                requireOwner(connection, ownerUserId, groupId);
+                if (hasActiveMembership(connection, groupId, memberUserId)) {
+                    throw new IllegalArgumentException("group member already active");
+                }
+                if (!hasActiveFriendship(connection, ownerUserId, memberUserId)) {
+                    throw new IllegalArgumentException("invited user must be an active friend");
+                }
+                upsertMemberMembership(connection, groupId, memberUserId);
+                connection.commit();
+            } catch (RuntimeException | SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException sqlException) {
+            throw new IllegalStateException("failed to invite group member", sqlException);
         }
     }
 
@@ -455,6 +492,22 @@ public final class JdbcGroupRepository implements GroupRepository {
         try (PreparedStatement statement = connection.prepareStatement(HAS_ACTIVE_MEMBERSHIP_SQL)) {
             statement.setLong(1, groupId);
             statement.setLong(2, userId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                return resultSet.getBoolean(1);
+            }
+        }
+    }
+
+    /**
+     * 判断两人当前是否是好友。
+     */
+    private boolean hasActiveFriendship(Connection connection, long firstUserId, long secondUserId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(HAS_ACTIVE_FRIENDSHIP_SQL)) {
+            statement.setLong(1, firstUserId);
+            statement.setLong(2, secondUserId);
+            statement.setLong(3, firstUserId);
+            statement.setLong(4, secondUserId);
             try (ResultSet resultSet = statement.executeQuery()) {
                 resultSet.next();
                 return resultSet.getBoolean(1);

@@ -27,6 +27,11 @@ public interface GroupRepository {
     void kickMember(long ownerUserId, long groupId, long memberUserId);
 
     /**
+     * 由群主直接邀请好友入群。
+     */
+    void inviteMember(long ownerUserId, long groupId, long memberUserId);
+
+    /**
      * 解散一个群。
      */
     void dissolveGroup(long ownerUserId, long groupId);

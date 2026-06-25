@@ -99,6 +99,27 @@ public final class GroupsController {
     }
 
     /**
+     * 由群主直接拉好友入群。
+     */
+    @Post("/{groupId}/members")
+    public HttpResponse<?> inviteMember(long groupId, @Body InviteGroupMemberRequest request) {
+        if (request == null) {
+            return HttpResponse.badRequest(Map.of("message", "request body is required"));
+        }
+        var requesterUid = sessionService.resolveUserId(request.sessionId());
+        if (requesterUid.isEmpty()) {
+            return unauthorized();
+        }
+
+        try {
+            GroupsService.GroupMemberMutationSummary summary = groupsService.inviteMember(requesterUid.get(), groupId, request.memberUserId());
+            return HttpResponse.ok(new GroupMemberMutationResponse(summary.groupId(), summary.userId(), summary.status()));
+        } catch (IllegalArgumentException exception) {
+            return HttpResponse.badRequest(Map.of("message", exception.getMessage()));
+        }
+    }
+
+    /**
      * 由群主解散整个群。
      */
     @Post("/{groupId}/dissolve")
@@ -219,6 +240,10 @@ public final class GroupsController {
 
     /** 发送入群申请的请求体，`sign` 是发给管理员看的备注。 */
     public record JoinGroupRequest(String sessionId, String sign) {
+    }
+
+    /** 群主拉好友入群的请求体。 */
+    public record InviteGroupMemberRequest(String sessionId, long memberUserId) {
     }
 
     /** 处理入群申请的请求体，`action` 只能是 accept 或 reject。 */
