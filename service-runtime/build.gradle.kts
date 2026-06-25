@@ -5,6 +5,8 @@ plugins {
 dependencies {
     annotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
     implementation("io.micronaut:micronaut-runtime:4.9.0")
+    implementation("io.micronaut:micronaut-http:4.9.0")
+    implementation("io.micronaut:micronaut-core-reactive:4.9.0")
     implementation("jakarta.inject:jakarta.inject-api:2.0.1")
 
     testAnnotationProcessor("io.micronaut:micronaut-inject-java:4.9.0")
