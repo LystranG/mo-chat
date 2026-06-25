@@ -12,7 +12,7 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.5")
     implementation("io.lettuce:lettuce-core:6.7.1.RELEASE")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.1")
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+    implementation("org.apache.rocketmq:rocketmq-client:5.4.0") {
         exclude(group = "io.grpc", module = "grpc-stub")
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")

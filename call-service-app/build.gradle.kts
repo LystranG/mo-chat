@@ -21,7 +21,7 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.5")
     implementation("org.flywaydb:flyway-core:10.20.1")
     implementation("org.flywaydb:flyway-database-postgresql:10.20.1")
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+    implementation("org.apache.rocketmq:rocketmq-client:5.4.0") {
         exclude(group = "io.grpc", module = "grpc-stub")
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")

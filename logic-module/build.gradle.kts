@@ -10,7 +10,7 @@ dependencies {
     implementation("io.micronaut:micronaut-http:4.9.0")
     implementation("io.micronaut:micronaut-runtime:4.9.0")
     implementation("jakarta.inject:jakarta.inject-api:2.0.1")
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+    implementation("org.apache.rocketmq:rocketmq-client:5.4.0") {
         exclude(group = "io.grpc", module = "grpc-stub")
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")

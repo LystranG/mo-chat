@@ -11,15 +11,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PersistenceServiceDockerPackagingContractTest {
     @Test
-    void packagesPersistenceServiceAsJvmDistribution() throws IOException {
+    void packagesPersistenceServiceAsNativeImage() throws IOException {
         Path dockerfile = repositoryRoot()
             .resolve("persistence-service-app")
             .resolve("Dockerfile");
         assertTrue(Files.exists(dockerfile), "missing persistence-service Dockerfile");
 
         String dockerfileText = Files.readString(dockerfile);
-        assertTrue(dockerfileText.contains(":persistence-service-app:installDist"));
-        assertTrue(dockerfileText.contains("ENTRYPOINT [\"/app/bin/persistence-service-app\"]"));
+        assertTrue(dockerfileText.contains(":persistence-service-app:nativeCompile"));
+        assertTrue(dockerfileText.contains("ENTRYPOINT [\"/app/persistence-service\"]"));
     }
 
     private Path repositoryRoot() {

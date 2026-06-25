@@ -15,7 +15,7 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.5")
     implementation("com.baomidou:mybatis-plus-core:3.5.10.1")
     implementation("org.mybatis:mybatis:3.5.16")
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+    implementation("org.apache.rocketmq:rocketmq-client:5.4.0") {
         exclude(group = "io.grpc", module = "grpc-stub")
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")

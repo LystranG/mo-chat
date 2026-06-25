@@ -10,7 +10,7 @@ dependencies {
     implementation(project(":message-module"))
     implementation(project(":multimedia-module"))
     implementation(project(":protocol"))
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+    implementation("org.apache.rocketmq:rocketmq-client:5.4.0") {
         exclude(group = "io.grpc", module = "grpc-stub")
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")

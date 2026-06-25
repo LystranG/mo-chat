@@ -7,7 +7,7 @@ dependencies {
     implementation(project(":service-runtime"))
     implementation(project(":message-module"))
     implementation(project(":persistence-module"))
-    implementation("org.apache.rocketmq:rocketmq-client:5.3.2") {
+    implementation("org.apache.rocketmq:rocketmq-client:5.4.0") {
         exclude(group = "io.grpc", module = "grpc-stub")
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.opentelemetry")

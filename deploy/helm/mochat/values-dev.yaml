@@ -22,7 +22,7 @@ externalDependencies:
 
 observability:
   prometheus:
-    scrape: false
+    scrape: true
     path: /prometheus
   otel:
     enabled: false

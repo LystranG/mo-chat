@@ -7,12 +7,20 @@ metadata:
   labels:
     {{- include "mochat.labels" . | nindent 4 }}
     app.kubernetes.io/name: access-gateway
+  {{- if .Values.observability.prometheus.scrape }}
+  annotations:
+    {{- include "mochat.prometheusAnnotations" . | nindent 4 }}
+    prometheus.io/port: {{ .Values.accessGateway.ports.admin | quote }}
+  {{- end }}
 spec:
   clusterIP: None
   selector:
     app.kubernetes.io/name: access-gateway
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
   ports:
+    - name: admin
+      port: {{ .Values.accessGateway.ports.admin }}
+      targetPort: {{ .Values.accessGateway.ports.admin }}
     - name: grpc
       port: {{ .Values.accessGateway.ports.grpc }}
       targetPort: {{ .Values.accessGateway.ports.grpc }}
@@ -25,6 +33,11 @@ metadata:
   labels:
     {{- include "mochat.labels" . | nindent 4 }}
     app.kubernetes.io/name: access-gateway
+  {{- if .Values.observability.prometheus.scrape }}
+  annotations:
+    {{- include "mochat.prometheusAnnotations" . | nindent 4 }}
+    prometheus.io/port: {{ .Values.accessGateway.ports.admin | quote }}
+  {{- end }}
 spec:
   type: NodePort
   selector:
