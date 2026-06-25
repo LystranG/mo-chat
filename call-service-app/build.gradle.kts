@@ -3,6 +3,16 @@ plugins {
 }
 
 val jacksonVersion = "2.18.3"
+val nettyVersion = "4.2.2.Final"
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.netty") {
+            useVersion(nettyVersion)
+            because("Micronaut 4.9 WebSocket compression expects a consistent Netty 4.2 API surface.")
+        }
+    }
+}
 
 dependencies {
     implementation(project(":service-runtime"))

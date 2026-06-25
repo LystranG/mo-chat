@@ -76,7 +76,7 @@ public final class CallWebSocket {
                 request.type(),
                 request.roomName()
             );
-            if ("call_accept".equals(request.type()) && result.delivered()) {
+            if ("call_accept".equals(request.type()) && result.token() != null) {
                 sendJson(session, Map.of(
                     "type", "call_accepted_with_token",
                     "token", result.token(),
