@@ -60,6 +60,8 @@ spec:
                 name: mochat-runtime-config
             - configMapRef:
                 name: mochat-external-dependencies
+            - secretRef:
+                name: {{ .Values.externalDependencies.secret.name }}
             - configMapRef:
                 name: mochat-observability
           env:

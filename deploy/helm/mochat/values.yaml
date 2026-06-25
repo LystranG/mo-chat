@@ -14,11 +14,18 @@ externalDependencies:
   postgresUrl: jdbc:postgresql://postgres.external.example:5432/mochat
   rocketmqNameServer: rocketmq.external.example:9876
   rocketmqTopic: mochat.messages
+  rustfsEndpoint: https://8298b90af3166953e57edc8ceba2bb79.r2.cloudflarestorage.com
+  rustfsAccessKey: ""
+  rustfsSecretKey: ""
+  rustfsBucket: picgo
+  rustfsRegion: auto
   secret:
     create: true
     name: mochat-external-dependency-secrets
     postgresUsername: ""
     postgresPassword: ""
+    rustfsAccessKey: ""
+    rustfsSecretKey: ""
 
 observability:
   prometheus:

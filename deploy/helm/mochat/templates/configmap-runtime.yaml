@@ -22,3 +22,6 @@ data:
   MOCHAT_POSTGRES_URL: {{ .Values.externalDependencies.postgresUrl | quote }}
   MOCHAT_ROCKETMQ_NAME_SERVER: {{ .Values.externalDependencies.rocketmqNameServer | quote }}
   MOCHAT_ROCKETMQ_TOPIC: {{ .Values.externalDependencies.rocketmqTopic | quote }}
+  RUSTFS_ENDPOINT: {{ .Values.externalDependencies.rustfsEndpoint | quote }}
+  RUSTFS_BUCKET: {{ .Values.externalDependencies.rustfsBucket | quote }}
+  RUSTFS_REGION: {{ .Values.externalDependencies.rustfsRegion | quote }}

@@ -49,11 +49,11 @@ mochat:
     storage:
       type: rustfs
       rustfs:
-        endpoint: ${RUSTFS_ENDPOINT:http://localhost:9000}
-        access-key: ${RUSTFS_ACCESS_KEY:rustfsadmin}
-        secret-key: ${RUSTFS_SECRET_KEY:rustfsadmin}
-        bucket: ${RUSTFS_BUCKET:mochat-media}
-        region: ${RUSTFS_REGION:cn-local}
+        endpoint: ${RUSTFS_ENDPOINT:https://8298b90af3166953e57edc8ceba2bb79.r2.cloudflarestorage.com}
+        access-key: ${RUSTFS_ACCESS_KEY:}
+        secret-key: ${RUSTFS_SECRET_KEY:}
+        bucket: ${RUSTFS_BUCKET:picgo}
+        region: ${RUSTFS_REGION:auto}
       max-file-size: ${MOCHAT_MEDIA_MAX_FILE_SIZE:10485760}
       allowed-types: image/jpeg,image/png,image/gif,image/webp,audio/mpeg,audio/wav,video/mp4,application/pdf,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document
   legacy:

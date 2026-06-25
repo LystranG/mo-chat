@@ -175,6 +175,9 @@ helm_upgrade() {
   args+=("--set-string" "livekit.apiKey=${MOCHAT_LIVEKIT_API_KEY:-}")
   args+=("--set-string" "livekit.apiSecret=${MOCHAT_LIVEKIT_API_SECRET:-}")
 
+  args+=("--set-string" "externalDependencies.secret.rustfsAccessKey=${RUSTFS_ACCESS_KEY:-}")
+  args+=("--set-string" "externalDependencies.secret.rustfsSecretKey=${RUSTFS_SECRET_KEY:-}")
+
   if [[ "$enable_prometheus_scrape" == "1" ]]; then
     args+=("--set" "observability.prometheus.scrape=true")
   fi

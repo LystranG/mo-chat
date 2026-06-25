@@ -44,24 +44,6 @@ services:
     depends_on:
       - rocketmq-namesrv
 
-  rustfs:
-    image: docker.1ms.run/rustfs/rustfs:latest
-    container_name: mochat-rustfs
-    user: "root"
-    ports:
-      - "9002:9000"
-      - "9001:9001"
-    environment:
-      - RUSTFS_ACCESS_KEY=rustfsadmin
-      - RUSTFS_SECRET_KEY=rustfsadmin
-      - RUSTFS_CONSOLE_ENABLE=true
-      - RUSTFS_CONSOLE_ADDRESS=:9001
-    volumes:
-      - rustfs-data:/data
-      - rustfs-logs:/logs
-    restart: unless-stopped
-
-volumes:
-  rustfs-data:
-  rustfs-logs:
+  # rustfs 已迁移至 Cloudflare R2，无需本地部署
+  # 凭证通过 .env 文件中的 RUSTFS_* 环境变量注入
 
