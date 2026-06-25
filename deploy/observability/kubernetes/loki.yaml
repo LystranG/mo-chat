@@ -78,7 +78,23 @@ spec:
           configMap:
             name: loki-config
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: loki-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: mochat-observability
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: mochat-observability
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
 ---
 apiVersion: v1
 kind: Service

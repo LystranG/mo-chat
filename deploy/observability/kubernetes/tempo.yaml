@@ -81,7 +81,23 @@ spec:
           configMap:
             name: tempo-config
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: tempo-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-data
+  namespace: mochat-observability
+  labels:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: mochat-observability
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: Service

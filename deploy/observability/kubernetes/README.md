@@ -17,9 +17,16 @@
 kubectl apply -k deploy/observability/kubernetes
 ```
 
-所有资源默认部署到 `mochat-observability` namespace，并使用 `emptyDir` 存储。
-重启 Pod 会丢失 metrics、logs、traces 和 Alertmanager 本地状态；这是为了本地 k3s
-演示简单，不是生产持久化配置。
+所有资源默认部署到 `mochat-observability` namespace。存储使用 `PersistentVolumeClaim`,由 k3s 的 local-path-provisioner 自动置备：
+
+| 组件 | PVC 名称 | 容量 |
+|------|---------|------|
+| Prometheus | `prometheus-data` | 2Gi |
+| Alertmanager | `alertmanager-data` | 256Mi |
+| Loki | `loki-data` | 5Gi |
+| Tempo | `tempo-data` | 1Gi |
+
+Pod 重启后数据不会丢失。如需清理数据，删除对应 PVC 即可：`kubectl -n mochat-observability delete pvc <name>`。
 
 ## MoChat 接入
 
