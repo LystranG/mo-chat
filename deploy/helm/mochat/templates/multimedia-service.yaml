@@ -1,0 +1,85 @@
+{{- if .Values.multimediaService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: multimedia-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: multimedia-service
+  {{- if .Values.observability.prometheus.scrape }}
+  annotations:
+    {{- include "mochat.prometheusAnnotations" . | nindent 4 }}
+    prometheus.io/port: {{ .Values.multimediaService.ports.http | quote }}
+  {{- end }}
+spec:
+  type: {{ .Values.multimediaService.service.type }}
+  selector:
+    app.kubernetes.io/name: multimedia-service
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.multimediaService.ports.http }}
+      targetPort: {{ .Values.multimediaService.ports.http }}
+      {{- if eq .Values.multimediaService.service.type "NodePort" }}
+      nodePort: {{ .Values.multimediaService.ports.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multimedia-service
+  namespace: {{ include "mochat.namespace" . }}
+  labels:
+    {{- include "mochat.labels" . | nindent 4 }}
+    app.kubernetes.io/name: multimedia-service
+spec:
+  replicas: {{ .Values.multimediaService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: multimedia-service
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mochat.labels" . | nindent 8 }}
+        app.kubernetes.io/name: multimedia-service
+      {{- if .Values.observability.prometheus.scrape }}
+      annotations:
+        {{- include "mochat.prometheusAnnotations" . | nindent 8 }}
+        prometheus.io/port: {{ .Values.multimediaService.ports.http | quote }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "mochat.serviceAccountName" . }}
+      containers:
+        - name: multimedia-service
+          image: {{ include "mochat.image" (list . .Values.multimediaService.image) | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mochat-runtime-config
+            - configMapRef:
+                name: mochat-external-dependencies
+            - configMapRef:
+                name: mochat-observability
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: multimedia-service
+          ports:
+            - name: http
+              containerPort: {{ .Values.multimediaService.ports.http }}
+          {{- if .Values.multimediaService.probes.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.multimediaService.probes.path }}
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.multimediaService.probes.path }}
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          {{- end }}
+{{- end }}

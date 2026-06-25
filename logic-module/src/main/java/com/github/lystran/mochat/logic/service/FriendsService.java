@@ -167,6 +167,7 @@ public final class FriendsService {
     /**
      * 好友列表里的单条好友摘要。
      */
+    @io.micronaut.core.annotation.ReflectiveAccess
     public record FriendSummary(long conversationId, long userId, String username) {
     }
 

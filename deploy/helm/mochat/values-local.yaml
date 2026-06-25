@@ -5,6 +5,12 @@ global:
   projectId: mochat-local
   environment: local
 
+observability:
+  otel:
+    enabled: true
+    endpoint: http://tempo.mochat-observability.svc.cluster.local:4318
+  logFormat: text
+
 externalDependencies:
   redisUri: redis://host.docker.internal:6379
   postgresUrl: jdbc:postgresql://host.docker.internal:5432/mochat
@@ -36,3 +42,9 @@ callService:
     type: NodePort
   ports:
     nodePort: 32090
+
+multimediaService:
+  service:
+    type: NodePort
+  ports:
+    nodePort: 32083

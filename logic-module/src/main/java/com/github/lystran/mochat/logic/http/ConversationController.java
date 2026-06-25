@@ -3,6 +3,7 @@ package com.github.lystran.mochat.logic.http;
 import com.github.lystran.mochat.logic.service.ConversationStateService;
 import com.github.lystran.mochat.logic.service.SessionService;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
@@ -71,10 +72,12 @@ public final class ConversationController {
     }
 
     /** 私聊对方确认进度的返回体。 */
+    @ReflectiveAccess
     public record PrivatePeerLatestReceivedSeqResponse(long conversationId, long latestReceivedSeq) {
     }
 
     /** 会话最新状态的返回体。 */
+    @ReflectiveAccess
     public record ConversationLatestStateResponse(long conversationId, long latestSeq, long latestMessageTime) {
     }
 }

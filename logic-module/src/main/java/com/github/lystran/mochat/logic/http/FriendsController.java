@@ -3,6 +3,7 @@ package com.github.lystran.mochat.logic.http;
 import com.github.lystran.mochat.logic.service.FriendsService;
 import com.github.lystran.mochat.logic.service.SessionService;
 import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.Body;
@@ -211,26 +212,32 @@ public final class FriendsController {
     }
 
     /** 发送好友申请的请求体，`sign` 是发给对方看的备注。 */
+    @ReflectiveAccess
     public record SendFriendRequest(String sessionId, long toUserId, String sign) {
     }
 
     /** 处理好友申请的请求体，`action` 只能是 accept 或 reject。 */
+    @ReflectiveAccess
     public record HandleFriendRequest(String sessionId, String action) {
     }
 
     /** 好友列表返回体。 */
+    @ReflectiveAccess
     public record FriendsResponse(List<FriendsService.FriendSummary> friends) {
     }
 
     /** 单条好友申请返回体。 */
+    @ReflectiveAccess
     public record FriendRequestResponse(FriendRequestPayload request) {
     }
 
     /** 多条好友申请返回体。 */
+    @ReflectiveAccess
     public record FriendRequestsResponse(List<FriendRequestPayload> requests) {
     }
 
     /** 好友申请明细。 */
+    @ReflectiveAccess
     public record FriendRequestPayload(
         long requestId,
         long fromUserId,
@@ -243,6 +250,7 @@ public final class FriendsController {
     }
 
     /** 好友关系变更后的返回体。 */
+    @ReflectiveAccess
     public record FriendshipMutationResponse(long friendUserId, String status) {
     }
 }

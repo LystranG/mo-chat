@@ -46,6 +46,8 @@ spec:
                 name: mochat-runtime-config
             - configMapRef:
                 name: mochat-external-dependencies
+            - secretRef:
+                name: mochat-external-dependency-secrets
           env:
             - name: MOCHAT_MESSAGE_SERVICE_GRPC_ADDRESS
               value: message-service:19092

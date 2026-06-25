@@ -24,6 +24,9 @@ data:
           - role: pod
         relabel_configs:
           - action: replace
+            source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: __host__
+          - action: replace
             source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
           - action: replace
@@ -36,7 +39,12 @@ data:
             source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
             target_label: app
           - action: replace
-            source_labels: [__meta_kubernetes_pod_label_mochat_lystran_io_project_id]
+            source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: service
+          - action: replace
+            source_labels: [__meta_kubernetes_namespace]
+            regex: mochat
+            replacement: mochat-prod
             target_label: project_id
           - action: replace
             replacement: /var/log/pods/*$1/$2/*.log
@@ -44,7 +52,11 @@ data:
             source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
             target_label: __path__
         pipeline_stages:
-          - cri: {}
+          - docker: {}
+          - regex:
+              expression: '^(?P<ts>\d{2}:\d{2}:\d{2}\.\d+) \[(?P<thread>[^\]]*)\] (?P<level>[A-Z]+) (?P<logger>\S+)'
+          - labels:
+              level:
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -71,6 +83,11 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - -config.file=/etc/promtail/promtail.yml
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           ports:
             - name: http
               containerPort: 9080
@@ -88,6 +105,9 @@ spec:
             - name: pods
               mountPath: /var/log/pods
               readOnly: true
+            - name: docker-containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
       tolerations:
         - operator: Exists
       volumes:
@@ -99,4 +119,8 @@ spec:
         - name: pods
           hostPath:
             path: /var/log/pods
+            type: DirectoryOrCreate
+        - name: docker-containers
+          hostPath:
+            path: /var/lib/docker/containers
             type: DirectoryOrCreate

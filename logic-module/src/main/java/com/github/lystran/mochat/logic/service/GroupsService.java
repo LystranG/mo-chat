@@ -162,6 +162,7 @@ public final class GroupsService {
     /**
      * 群列表里的单条群摘要。
      */
+    @io.micronaut.core.annotation.ReflectiveAccess
     public record GroupSummary(long groupId, String name, long ownerUserId) {
     }
 

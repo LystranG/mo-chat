@@ -111,3 +111,19 @@ callService:
   probes:
     enabled: true
     path: /health
+
+multimediaService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: multimedia-service
+    tag: dev
+  service:
+    type: ClusterIP
+  ports:
+    http: 8083
+    nodePort: 32083
+  resources: {}
+  probes:
+    enabled: false
+    path: /health

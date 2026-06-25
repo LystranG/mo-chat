@@ -4,7 +4,25 @@ micronaut:
   server:
     port: 8083
 
+  metrics:
+    enabled: true
+    export:
+      prometheus:
+        enabled: true
+        step: PT15S
+
+endpoints:
+  prometheus:
+    enabled: true
+    sensitive: false
+
 mochat:
+  flyway:
+    locations: classpath:db/migration
+  postgres:
+    url: ${MOCHAT_POSTGRES_URL:`jdbc:postgresql://127.0.0.1:15432/mochat`}
+    username: ${MOCHAT_POSTGRES_USERNAME:mochat}
+    password: ${MOCHAT_POSTGRES_PASSWORD:mochat}
   media:
     storage:
       type: rustfs
@@ -23,5 +41,3 @@ mochat:
 logging:
   level:
     root: INFO
-    com.github.lystran.mochat.multimedia: DEBUG
-    com.github.lystran.mochat.logic: DEBUG

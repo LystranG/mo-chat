@@ -5,6 +5,7 @@ import com.github.lystran.mochat.logic.service.HistoryService;
 import com.github.lystran.mochat.logic.service.SessionService;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
@@ -90,10 +91,12 @@ public final class HistoryController {
     }
 
     /** 历史消息列表返回体。 */
+    @ReflectiveAccess
     public record HistoryResponse(List<HistoryItem> items) {
     }
 
     /** 单条历史消息返回体，`payloadBase64` 是为了让二进制消息内容能安全放进 JSON。 */
+    @ReflectiveAccess
     public record HistoryItem(long seq, long msgId, long serverTimeMs, String payloadBase64) {
     }
 }

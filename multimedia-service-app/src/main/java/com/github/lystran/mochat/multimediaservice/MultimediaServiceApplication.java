@@ -1,4 +1,4 @@
-package com.github.multimediaservice;
+package com.github.lystran.mochat.multimediaservice;
 
 import com.github.lystran.mochat.runtime.NativeRuntimeDefaults;
 import io.micronaut.runtime.Micronaut;

@@ -5,6 +5,7 @@ import com.github.lystran.mochat.logic.service.AuthValidationException;
 import com.github.lystran.mochat.logic.service.SessionService;
 import com.github.lystran.mochat.logic.service.UserService;
 import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Controller;
@@ -60,10 +61,12 @@ public final class AuthController {
     }
 
     /** 登录请求体，`publicKey` 表示客户端这次顺手上报的公钥。 */
+    @ReflectiveAccess
     public record LoginRequest(String username, @Nullable String publicKey) {
     }
 
     /** 登录成功后的返回体，`sessionId` 是后续调用 HTTP 接口时要带上的登录凭证。 */
+    @ReflectiveAccess
     public record LoginResponse(long userId, String username, String sessionId) {
     }
 }

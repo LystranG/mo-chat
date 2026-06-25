@@ -110,6 +110,7 @@ current_images_match_desired() {
   [[ "$(workload_image deploy message-service)" == "$(desired_image_for message-service)" ]] || return 1
   [[ "$(workload_image deploy persistence-service)" == "$(desired_image_for persistence-service)" ]] || return 1
   [[ "$(workload_image deploy call-service)" == "$(desired_image_for call-service)" ]] || return 1
+  [[ "$(workload_image deploy multimedia-service)" == "$(desired_image_for multimedia-service)" ]] || return 1
   [[ "$(workload_image statefulset access-gateway)" == "$(desired_image_for access-gateway)" ]] || return 1
 }
 
@@ -182,6 +183,7 @@ helm_upgrade() {
   args+=("--set-string" "persistenceService.image.tag=$image_tag")
   args+=("--set-string" "accessGateway.image.tag=$image_tag")
   args+=("--set-string" "callService.image.tag=$image_tag")
+  args+=("--set-string" "multimediaService.image.tag=$image_tag")
 
   helm upgrade --install "$release_name" "$repo_root/deploy/helm/mochat" \
     --namespace "$namespace" --create-namespace \
@@ -198,6 +200,7 @@ rollout_status() {
   kubectl -n "$namespace" rollout status deploy/message-service
   kubectl -n "$namespace" rollout status deploy/persistence-service
   kubectl -n "$namespace" rollout status deploy/call-service
+  kubectl -n "$namespace" rollout status deploy/multimedia-service
   kubectl -n "$namespace" rollout status statefulset/access-gateway
 }
 
@@ -216,7 +219,7 @@ start_stack() {
   ensure_tls
   helm_upgrade
   if [[ "$restart_after_upgrade" == "1" ]]; then
-    kubectl -n "$namespace" rollout restart deploy/api-service deploy/message-service deploy/persistence-service deploy/call-service statefulset/access-gateway
+    kubectl -n "$namespace" rollout restart deploy/api-service deploy/message-service deploy/persistence-service deploy/call-service deploy/multimedia-service statefulset/access-gateway
   fi
 
   if [[ "$deploy_observability" == "1" ]]; then

@@ -18,6 +18,7 @@ images=(
   "message-service:message-service-app:19092"
   "persistence-service:persistence-service-app:"
   "call-service:call-service-app:8090"
+  "multimedia-service:multimedia-service-app:8083"
 )
 
 image_ref_for() {
@@ -69,7 +70,7 @@ build_host_artifacts() {
       -e GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx1g" \
       --entrypoint /bin/bash \
       "$NATIVE_BUILDER_IMAGE" \
-      -lc 'chmod +x ./gradlew && ./gradlew --no-daemon --stacktrace :access-gateway-app:nativeCompile :api-service-app:nativeCompile :message-service-app:nativeCompile :persistence-service-app:nativeCompile :call-service-app:installDist'; then
+      -lc 'chmod +x ./gradlew && ./gradlew --no-daemon --stacktrace :access-gateway-app:nativeCompile :api-service-app:nativeCompile :message-service-app:nativeCompile :persistence-service-app:nativeCompile :call-service-app:installDist :multimedia-service-app:installDist'; then
       echo "Native container build failed." >&2
       echo "Check the full output above and Gradle logs under .gradle-cache/daemon/." >&2
       echo "If native-image was killed or the daemon disappeared, increase Colima memory or set NATIVE_CONTAINER_MEMORY=12g." >&2
@@ -84,7 +85,8 @@ build_host_artifacts() {
       :api-service-app:installDist \
       :message-service-app:installDist \
       :persistence-service-app:installDist \
-      :call-service-app:installDist
+      :call-service-app:installDist \
+      :multimedia-service-app:installDist
     return
   fi
 
@@ -94,7 +96,8 @@ build_host_artifacts() {
       :api-service-app:nativeCompile \
       :message-service-app:nativeCompile \
       :persistence-service-app:nativeCompile \
-      :call-service-app:installDist
+      :call-service-app:installDist \
+      :multimedia-service-app:installDist
     return
   fi
 
@@ -112,7 +115,7 @@ build_context_for() {
   local app_dir="$1"
   local image_name="$2"
 
-  if [[ "$LOCAL_IMAGE_MODE" != "jvm" && "$app_dir" != "call-service-app" ]]; then
+  if [[ "$LOCAL_IMAGE_MODE" != "jvm" && "$app_dir" != "call-service-app" && "$app_dir" != "multimedia-service-app" ]]; then
     dirname "$(native_binary_for "$app_dir" "$image_name")"
   else
     printf '%s/build/install/%s' "$app_dir" "$app_dir"
@@ -160,7 +163,7 @@ write_packaging_dockerfile() {
   local dockerfile="$docker_build_dir/$image_name.Dockerfile"
 
   mkdir -p "$docker_build_dir"
-  if [[ "$LOCAL_IMAGE_MODE" != "jvm" && "$app_dir" != "call-service-app" ]]; then
+  if [[ "$LOCAL_IMAGE_MODE" != "jvm" && "$app_dir" != "call-service-app" && "$app_dir" != "multimedia-service-app" ]]; then
     write_native_dockerfile "$dockerfile" "$image_name" "$ports"
   else
     write_jvm_dockerfile "$dockerfile" "$app_dir" "$ports"
@@ -199,7 +202,7 @@ main() {
     ports="${remaining#*:}"
     image_ref="$(image_ref_for "$image_name")"
 
-    if [[ "$LOCAL_IMAGE_MODE" == "native-host" && "$host_os" != "Linux" && "$app_dir" != "persistence-service-app" && "$app_dir" != "call-service-app" ]]; then
+    if [[ "$LOCAL_IMAGE_MODE" == "native-host" && "$host_os" != "Linux" && "$app_dir" != "persistence-service-app" && "$app_dir" != "call-service-app" && "$app_dir" != "multimedia-service-app" ]]; then
       local native_bin
       native_bin="$(native_binary_for "$app_dir" "$image_name")"
       echo "Skipping Docker packaging for $image_ref (native binary not Linux-compatible)"

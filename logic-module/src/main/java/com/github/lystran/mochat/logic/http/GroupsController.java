@@ -2,6 +2,7 @@ package com.github.lystran.mochat.logic.http;
 
 import com.github.lystran.mochat.logic.service.GroupsService;
 import com.github.lystran.mochat.logic.service.SessionService;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.Body;
@@ -214,46 +215,57 @@ public final class GroupsController {
     }
 
     /** 创建群的请求体。 */
+    @ReflectiveAccess
     public record CreateGroupRequest(String sessionId, String name) {
     }
 
     /** 发送入群申请的请求体，`sign` 是发给管理员看的备注。 */
+    @ReflectiveAccess
     public record JoinGroupRequest(String sessionId, String sign) {
     }
 
     /** 处理入群申请的请求体，`action` 只能是 accept 或 reject。 */
+    @ReflectiveAccess
     public record HandleGroupJoinRequest(String sessionId, String action) {
     }
 
     /** 单个群的返回体。 */
+    @ReflectiveAccess
     public record GroupResponse(GroupsService.GroupSummary group) {
     }
 
     /** 群列表返回体。 */
+    @ReflectiveAccess
     public record GroupsResponse(List<GroupsService.GroupSummary> groups) {
     }
 
     /** 退群后的返回体。 */
+    @ReflectiveAccess
     public record GroupMembershipMutationResponse(long groupId, String status) {
     }
 
     /** 踢人后的返回体。 */
+    @ReflectiveAccess
     public record GroupMemberMutationResponse(long groupId, long userId, String status) {
     }
 
     /** 解散群后的返回体。 */
+    @ReflectiveAccess
     public record GroupLifecycleMutationResponse(long groupId, String status) {
     }
 
     /** 单条入群申请返回体。 */
+    @ReflectiveAccess
     public record JoinRequestResponse(JoinRequestPayload request) {
     }
 
     /** 多条入群申请返回体。 */
+    @ReflectiveAccess
     public record JoinRequestsResponse(List<JoinRequestPayload> requests) {
     }
 
     /** 入群申请明细。 */
+    @ReflectiveAccess
     public record JoinRequestPayload(
         long requestId,
         long groupId,

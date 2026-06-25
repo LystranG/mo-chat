@@ -1,0 +1,44 @@
+{
+  "scheme": {
+    "auth": "login(username, base64(X25519 publicKey))；本系统无密码字段",
+    "privateMessage": {
+      "sharedSecret": "X25519(senderPriv, recipientPub) 原始 32 字节",
+      "aead": "AES-256-GCM, 12 字节随机 nonce, 无 AAD",
+      "ciphertextLayout": "encrypted || 16 字节 authTag",
+      "decrypt": "shared = X25519(myPriv, peerPub); tag=密文末16字节; AES-256-GCM 解密"
+    },
+    "groupMessage": "服务端强制 PlainText（validateGroupPayload 拒绝 EncryptedText），故群聊不加密"
+  },
+  "users": [
+    {
+      "userId": 1001,
+      "username": "alice",
+      "publicKeyBase64": "kKLWF9BhKhM9Hpa8hHJ5GSwT1siclljWTfSXICzXglg=",
+      "privateKeyBase64": "MA7YbjK4Nto8SS6ShSX1Iy70O0vMQaL7ZMBPMPwurWA="
+    },
+    {
+      "userId": 1002,
+      "username": "bob",
+      "publicKeyBase64": "zRqkJgR0wYAE1KcZbFlNgdRmyrX6qjcE+mbdxESTyCI=",
+      "privateKeyBase64": "iJ2kk0sYMe2G3gpG05bwY6s5fMBer8dZUAoZYDmGxm0="
+    },
+    {
+      "userId": 1003,
+      "username": "carol",
+      "publicKeyBase64": "AebyWTXbesZyM/84CZicekytA4r80ElO0gugdiLFxB8=",
+      "privateKeyBase64": "EJDhTxOlZYi7tKtbZsibetQABweSa6t5vFqA9KxqOnQ="
+    },
+    {
+      "userId": 1004,
+      "username": "dave",
+      "publicKeyBase64": "LI3DiEPX+h4dDMKPnOjGA9oUNpqFN04oXdSKZkGe7VQ=",
+      "privateKeyBase64": "mPJEQwChdc5sFKg4v5jO20YB5UAVnBJP3EOP//EvMVo="
+    },
+    {
+      "userId": 1005,
+      "username": "eve",
+      "publicKeyBase64": "MysFrPmPK5CfEeTj5f3xr8e+42ThZ5uWxftdoNq/3W4=",
+      "privateKeyBase64": "mNwgVeIjqZlZ6b+rHNPUmBXsNEKRKEL6TjVQXg3P+30="
+    }
+  ]
+}

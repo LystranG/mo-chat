@@ -10,4 +10,15 @@ data:
   {{- if .Values.observability.otel.enabled }}
   OTEL_RESOURCE_ATTRIBUTES: {{ default (printf "service.namespace=%s,deployment.environment=%s,mochat.project_id=%s" (include "mochat.namespace" .) .Values.global.environment .Values.global.projectId) .Values.observability.otel.resourceAttributes | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.observability.otel.endpoint | quote }}
+  # endpoint 指向 Tempo 的 OTLP/HTTP 端口（4318），故协议固定 http/protobuf
+  OTEL_EXPORTER_OTLP_PROTOCOL: {{ .Values.observability.otel.protocol | default "http/protobuf" | quote }}
+  # 只导出 trace；metrics 走 Prometheus 拉取，logs 走 promtail，避免重复
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+  OTEL_TRACES_SAMPLER: {{ .Values.observability.otel.sampler | default "parentbased_traceidratio" | quote }}
+  OTEL_TRACES_SAMPLER_ARG: {{ .Values.observability.otel.samplerArg | default "1.0" | quote }}
+  {{- else }}
+  # 未启用追踪时显式关闭 OTel SDK，避免 javaagent/instrumentation 报错刷日志
+  OTEL_SDK_DISABLED: "true"
   {{- end }}

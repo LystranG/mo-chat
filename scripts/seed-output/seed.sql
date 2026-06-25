@@ -1,0 +1,51 @@
+SET client_encoding TO 'UTF8';
+BEGIN;
+-- users
+INSERT INTO users (id, username, public_key) VALUES (1001, 'alice', decode('90a2d617d0612a133d1e96bc847279192c13d6c89c9658d64df497202cd78258', 'hex'));
+INSERT INTO users (id, username, public_key) VALUES (1002, 'bob', decode('cd1aa4260474c18004d4a7196c594d81d466cab5faaa3704fa66ddc44493c822', 'hex'));
+INSERT INTO users (id, username, public_key) VALUES (1003, 'carol', decode('01e6f25935db7ac67233ff3809989c7a4cad038afcd0494ed20ba07622c5c41f', 'hex'));
+INSERT INTO users (id, username, public_key) VALUES (1004, 'dave', decode('2c8dc38843d7fa1e1d0cc28f9ce8c603da14369a85374e285dd48a66419eed54', 'hex'));
+INSERT INTO users (id, username, public_key) VALUES (1005, 'eve', decode('332b05acf98f2b909f11e4e3e5fdf1afc7bee364e1679b96c5fb5da0dabfdd6e', 'hex'));
+-- friendships + private conversations
+INSERT INTO user_friendships (id, uid_1, uid_2, status, blocked_by) VALUES (5001, 1001, 1002, 'ok', NULL);
+INSERT INTO conversations (id, type, latest_seq, latest_message_time, uid_1_seq, uid_2_seq) VALUES (5001, 0, 5, 1782356700000, 5, 5);
+INSERT INTO user_friendships (id, uid_1, uid_2, status, blocked_by) VALUES (5002, 1003, 1004, 'ok', NULL);
+INSERT INTO conversations (id, type, latest_seq, latest_message_time, uid_1_seq, uid_2_seq) VALUES (5002, 0, 3, 1782356880000, 3, 3);
+INSERT INTO user_friendships (id, uid_1, uid_2, status, blocked_by) VALUES (5003, 1001, 1005, 'ok', NULL);
+INSERT INTO conversations (id, type, latest_seq, latest_message_time, uid_1_seq, uid_2_seq) VALUES (5003, 0, 2, 1782357000000, 2, 2);
+-- groups + memberships + group conversations
+INSERT INTO groups (id, owner_uid, name) VALUES (7001, 1001, '技术交流');
+INSERT INTO conversations (id, type, latest_seq, latest_message_time, uid_1_seq, uid_2_seq) VALUES (7001, 1, 6, 1782357360000, 0, 0);
+INSERT INTO groups (id, owner_uid, name) VALUES (7002, 1002, '周末饭局');
+INSERT INTO conversations (id, type, latest_seq, latest_message_time, uid_1_seq, uid_2_seq) VALUES (7002, 1, 4, 1782357600000, 0, 0);
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8001, 7001, 1001, 'owner', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8002, 7001, 1002, 'member', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8003, 7001, 1003, 'member', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8004, 7001, 1004, 'member', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8005, 7001, 1005, 'member', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8006, 7002, 1002, 'owner', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8007, 7002, 1003, 'member', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8008, 7002, 1004, 'member', 'active');
+INSERT INTO group_memberships (id, group_id, user_id, role, status) VALUES (8009, 7002, 1005, 'member', 'active');
+-- messages
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200001, 5001, 1, 1, 'private', 1001, 1001, 1002, NULL, 1782356460000, 'CgtzZWVkLTIwMDAwMRABGIknIOoHUlgKVgoMypGmVID/OIt+/DitEkb9pJCInLRm5bDZIsVoZvQO+iq/VKIgOplPPBOyP8IDqANSjwxtRfWG19jHShohNb9aiFgpIBJRu1feibBWYTp6iz51uUJu');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200002, 5001, 2, 1, 'private', 1002, 1001, 1002, NULL, 1782356520000, 'CgtzZWVkLTIwMDAwMhABGIknIOkHUlUKUwoMGktQR6+n54XwktVxEkPwbsDaK73VvYvXtoBQgo3NPdnlLg8/oNSKjhG0sLchc8CefEuVoigXbovDqlKPfepUwswsUypPMlp3Z1RJq9yn6hAw');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200003, 5001, 3, 2, 'private', 1001, 1001, 1002, NULL, 1782356580000, 'CgtzZWVkLTIwMDAwMxACGIknIOoHUmEKXwoMIrfop5GpdI5SwVbJEk+kIH04el5triKlgTgBDvAOBNb1vlA7UhugB7sbXeYL6pLLwJMRxfGAgZ6Cj3uzbQVhwEkgzOHqp+rXWWzHpj/yj+YUT8m18o0zQZ+JoNYd');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200004, 5001, 4, 2, 'private', 1002, 1001, 1002, NULL, 1782356640000, 'CgtzZWVkLTIwMDAwNBACGIknIOkHUlwKWgoM7yrBT1HqSEqVywOWEkqTXIbdKB4uEG7f2T4Mc584mElq8KxYcnLvYzaCl37Xlcm7coZZYSQeRddgl2ainaqotPzAMrC/TJuEjo6rF9tRIrYCD5PC8ZShtQ==');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200005, 5001, 5, 3, 'private', 1001, 1001, 1002, NULL, 1782356700000, 'CgtzZWVkLTIwMDAwNRADGIknIOoHUlgKVgoMXtKevKm4Fk72NHvAEkbaANCgp5Ofk//6x5czcYGi6MgBS0lVR317GSyD9xS92alLEcYMCul488TJhLAsqLX+uie0YVZ74zfPkXOUwt0JKZHuWtA+');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200006, 5002, 1, 1, 'private', 1003, 1003, 1004, NULL, 1782356760000, 'CgtzZWVkLTIwMDAwNhABGIonIOwHUlAKTgoMD9HLLvVo/qXuyaVmEj7jQvgpaZfu4K+PkwbDuhcUog14dzDl1uvt/P5HLWAhymWxo+hAtlgqRpStNzSC3Yy2Wf9s0p0Cblh8XdcsUA==');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200007, 5002, 2, 1, 'private', 1004, 1003, 1004, NULL, 1782356820000, 'CgtzZWVkLTIwMDAwNxABGIonIOsHUlEKTwoMfEL5/Rol8ejg/eosEj80zFgT6TueHTN/Z/JNZ/DPIrh6ik9ZRUj5XHJLPoN7NJGwhibb37A09JJB7qHYFfgUSsFpWE0gcWuCbLTuq3I=');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200008, 5002, 3, 2, 'private', 1003, 1003, 1004, NULL, 1782356880000, 'CgtzZWVkLTIwMDAwOBACGIonIOwHUlUKUwoMIq0TZStkiNzMzxKKEkN6yb6LErsKF2k7xR1oxEnUZQXT5bcDfN+0ygtufrkliy2j5UFqSvPktNq9kW4qWCySNpeN3N2PC8dTYnr4wtWmf1FP');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200009, 5003, 1, 4, 'private', 1001, 1001, 1005, NULL, 1782356940000, 'CgtzZWVkLTIwMDAwORAEGIsnIO0HUkoKSAoMzxfyCU5c93r2GR1IEjgRSdY1H0Ps7IytdlmpA+CQkOILXE1NAdwQQo/2aJsvighJjUq+gGYHhiw53yZdB0mj0SszVugNig==');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200010, 5003, 2, 1, 'private', 1005, 1001, 1005, NULL, 1782357000000, 'CgtzZWVkLTIwMDAxMBABGIsnIOkHUkAKPgoMc7/MNZrcFv7O2enkEi4wgWM/9M64/scdUho1Eu3vCHzUhp4EtvOvjjVc3dWOYkmVDK7b+Xtcla8Poa2R');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200011, 7001, 1, 5, 'group', 1001, NULL, NULL, 7001, 1782357060000, 'CgtzZWVkLTIwMDAxMRAFGNk2INk2UjQSMgow5aSn5a625aW977yM6L+Z5piv5rWL6K+V576k77yM5qyi6L+O546p5YGH5pWw5o2u');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200012, 7001, 2, 3, 'group', 1002, NULL, NULL, 7001, 1782357120000, 'CgtzZWVkLTIwMDAxMhADGNk2INk2UiISIAoe576k5raI5oGv5piv5LiN5piv5LiN5Yqg5a+G77yf');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200013, 7001, 3, 3, 'group', 1003, NULL, NULL, 7001, 1782357180000, 'CgtzZWVkLTIwMDAxMxADGNk2INk2UjcSNQoz5a+577yM576k6LWwIFBsYWluVGV4dO+8jOacjeWKoeerr+WPquagoemqjCBncm91cElk');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200014, 7001, 4, 2, 'group', 1004, NULL, NULL, 7001, 1782357240000, 'CgtzZWVkLTIwMDAxNBACGNk2INk2Ui4SLAoq6YKjIGhpc3Rvcnkg5ouJ5Ye65p2l5bCx5piv5piO5paHIHByb3RvYnVm');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200015, 7001, 5, 2, 'group', 1005, NULL, NULL, 7001, 1782357300000, 'CgtzZWVkLTIwMDAxNRACGNk2INk2UhcSFQoT5pS25Yiw77yM5o6l5YWl5LqGfg==');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200016, 7001, 6, 6, 'group', 1001, NULL, NULL, 7001, 1782357360000, 'CgtzZWVkLTIwMDAxNhAGGNk2INk2UjESLwot56eB6IGK6K6w5b6X55So5a+556uv5YWs6ZKl5Yqg5a+G77yM5Yir5pCe6ZSZ');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200017, 7002, 1, 4, 'group', 1002, NULL, NULL, 7002, 1782357420000, 'CgtzZWVkLTIwMDAxNxAEGNo2INo2UhkSFwoV5ZGo5pyr6LCB5p2l5ZCD6aWt77yf');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200018, 7002, 2, 4, 'group', 1003, NULL, NULL, 7002, 1782357480000, 'CgtzZWVkLTIwMDAxOBAEGNo2INo2Ug0SCwoJ5oiR5Y+v5Lul');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200019, 7002, 3, 3, 'group', 1004, NULL, NULL, 7002, 1782357540000, 'CgtzZWVkLTIwMDAxORADGNo2INo2Ug0SCwoJ5bim5LiK5oiR');
+INSERT INTO messages (msg_id, conversation_id, seq, client_msg_id, kind, sender_uid, peer_uid_low, peer_uid_high, group_id, server_ts_ms, payload_base64) VALUES (200020, 7002, 4, 3, 'group', 1005, NULL, NULL, 7002, 1782357600000, 'CgtzZWVkLTIwMDAyMBADGNo2INo2UhASDgoM566X5oiR5LiA5Liq');
+COMMIT;
