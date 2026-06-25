@@ -35,7 +35,7 @@ scripts/build-local-images.sh
 
 默认构建并加载 `localhost/mochat/{access-gateway,api-service,message-service,persistence-service,call-service}:dev`。需要切换 tag 或镜像前缀时，可覆盖 `IMAGE_TAG`、`IMAGE_REGISTRY`、`IMAGE_NAMESPACE`。
 
-脚本默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行 `access-gateway-app`、`api-service-app`、`message-service-app` 三个 native app 的 `nativeCompile`，并对 `call-service-app`、`persistence-service-app` 执行 `installDist`，再把这些产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
+脚本默认使用 `LOCAL_IMAGE_MODE=native-container`：先用 Linux GraalVM builder 容器挂载当前仓库，在 `/workspace` 内执行 `access-gateway-app`、`api-service-app`、`message-service-app`、`persistence-service-app` 四个 native app 的 `nativeCompile`，并对 `call-service-app` 执行 `installDist`，再把这些产物复制进最终镜像。这是 macOS + Colima/k3s 的默认 native 快速路径。`LOCAL_IMAGE_MODE=jvm` 可改为宿主机 `installDist` + JRE 镜像；`LOCAL_IMAGE_MODE=native-host` 只支持 Linux 宿主机直接执行 nativeCompile。
 
 如果只需要本地 k3s 快速演示，不想触发 native-image 编译，使用 JVM 镜像入口：
 
@@ -104,7 +104,13 @@ helm -n mochat status mochat
 - PostgreSQL: `jdbc:postgresql://host.k3d.internal:5432/mochat`
 - RocketMQ NameServer: `host.k3d.internal:9876`
 
-Colima/k3s 本地演示需要叠加 `deploy/helm/mochat/values-local.yaml`。它会把外部依赖改为 `host.docker.internal`，并把 `call-service` 以 NodePort 暴露到 `32090`。
+Colima/k3s 本地演示需要叠加 `deploy/helm/mochat/values-local.yaml`。它会把外部依赖改为 `host.docker.internal`，并把 `api-service` 和 `call-service` 以 NodePort 暴露到宿主机：
+
+| 服务 | 内部端口 | NodePort | 用途 |
+|------|---------|---------|------|
+| access-gateway | TCP 9000 | 32000 | 消息长连接 |
+| api-service | HTTP 8080 | 30080 | REST API(登录/好友/群组/历史) |
+| call-service | HTTP 8090 | 32090 | 音视频信令(HTTP/WebSocket) |
 
 如果使用 Docker Desktop Kubernetes、kind、minikube 或远端集群，应按实际 Pod 可达地址覆盖 `externalDependencies.*` 和需要暴露的 Service 类型。
 
@@ -126,7 +132,7 @@ chart 预留了 OTEL 环境变量：
 - `observability.otel.endpoint`
 - `observability.otel.resourceAttributes`
 
-MoChat 本地 native 演示仅让 `access-gateway`、`api-service`、`message-service` 走 native image；`call-service` 和 `persistence-service` 仍是 JVM 镜像。默认不启用 OpenTelemetry Java Agent；需要链路追踪时，应先在目标镜像和运行环境中验证 telemetry 行为。
+MoChat 本地 native 演示让 `access-gateway`、`api-service`、`message-service`、`persistence-service` 走 native image；`call-service` 仍是 JVM 镜像。默认不启用 OpenTelemetry Java Agent；需要链路追踪时，应先在目标镜像和运行环境中验证 telemetry 行为。
 
 ## AIOps 标识
 

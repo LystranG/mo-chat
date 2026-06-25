@@ -142,9 +142,16 @@
               "type": "object",
               "properties": {
                 "http": { "$ref": "#/definitions/port" },
-                "grpc": { "$ref": "#/definitions/port" }
+                "grpc": { "$ref": "#/definitions/port" },
+                "nodePort": { "$ref": "#/definitions/port" }
               },
               "required": ["http", "grpc"]
+            },
+            "service": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] }
+              }
             },
             "probes": {
               "type": "object",

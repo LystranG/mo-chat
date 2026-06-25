@@ -25,6 +25,12 @@ livekit:
   apiKey: ""
   apiSecret: ""
 
+apiService:
+  service:
+    type: NodePort
+  ports:
+    nodePort: 30080
+
 callService:
   service:
     type: NodePort

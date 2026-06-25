@@ -13,7 +13,7 @@ metadata:
     prometheus.io/port: {{ .Values.apiService.ports.http | quote }}
   {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.apiService.service.type }}
   selector:
     app.kubernetes.io/name: api-service
     app.kubernetes.io/instance: {{ .Release.Name | quote }}
@@ -21,6 +21,9 @@ spec:
     - name: http
       port: {{ .Values.apiService.ports.http }}
       targetPort: {{ .Values.apiService.ports.http }}
+      {{- if .Values.apiService.ports.nodePort }}
+      nodePort: {{ .Values.apiService.ports.nodePort }}
+      {{- end }}
     - name: grpc
       port: {{ .Values.apiService.ports.grpc }}
       targetPort: {{ .Values.apiService.ports.grpc }}

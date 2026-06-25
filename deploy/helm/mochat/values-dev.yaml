@@ -49,9 +49,12 @@ apiService:
   image:
     repository: api-service
     tag: dev
+  service:
+    type: ClusterIP
   ports:
     http: 8080
     grpc: 19091
+    nodePort: 30080
   resources: {}
   probes:
     enabled: true
