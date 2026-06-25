@@ -146,6 +146,11 @@ write_jvm_dockerfile() {
 
   {
     printf 'FROM docker.io/eclipse-temurin:25-jre\n\n'
+    # multimedia-service 需要系统 ffmpeg（音频转码/缩略图生成）
+    if [[ "$app_dir" == "multimedia-service-app" ]]; then
+      printf 'RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \\\n'
+      printf '    && rm -rf /var/lib/apt/lists/*\n\n'
+    fi
     printf 'WORKDIR /app\n\n'
     printf 'COPY --chown=65532:65532 . /app\n\n'
     printf 'USER 65532:65532\n\n'
