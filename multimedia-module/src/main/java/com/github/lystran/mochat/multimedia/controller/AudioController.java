@@ -54,6 +54,11 @@ public final class AudioController {
         this.bucketName = rustfsConfig.bucket();
     }
 
+    /**
+     * 得到音频的相关转码
+     * @param objectName
+     * @return
+     */
     @Get("/waveform/{objectName+}")
     public ApiResponse<Map<String, Object>> getWaveform(@PathVariable String objectName) {
         log.info("Generating waveform for audio file, objectName={}", objectName);
@@ -79,6 +84,12 @@ public final class AudioController {
         }
     }
 
+    /**
+     * 音频转码
+     * @param objectName
+     * @param format
+     * @return
+     */
     @Get("/transcode/{objectName+}")
     public HttpResponse<byte[]> transcode(@PathVariable String objectName,
                                           @QueryValue(defaultValue = "mp3") String format) {
@@ -103,6 +114,11 @@ public final class AudioController {
         }
     }
 
+    /***
+     * 下载音频文件
+     * @param objectName
+     * @return
+     */
     private byte[] downloadAudioData(String objectName) {
         try {
             return s3Client.getObjectAsBytes(GetObjectRequest.builder()
@@ -115,6 +131,11 @@ public final class AudioController {
         }
     }
 
+    /**
+     * 判别音频文件
+     * @param filename
+     * @return
+     */
     private String inferMimeType(String filename) {
         if (filename == null) return "application/octet-stream";
 

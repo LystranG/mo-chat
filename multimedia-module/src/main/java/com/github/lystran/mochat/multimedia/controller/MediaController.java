@@ -95,7 +95,9 @@ public final class MediaController {
                     objectName, data.length, mimeType);
 
             return HttpResponse.ok(data)
+                    //告诉浏览器文件类型（如 image/jpeg、video/mp4），浏览器据此决定如何渲染
                     .header(HttpHeaders.CONTENT_TYPE, mimeType)
+                    //指定文件名
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + objectName + "\"");
 
         } catch (Exception e) {

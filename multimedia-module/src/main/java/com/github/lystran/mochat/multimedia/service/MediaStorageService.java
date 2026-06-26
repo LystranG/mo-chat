@@ -44,7 +44,9 @@ public class MediaStorageService {
         String endpoint = rustfsConfig.endpoint();
 
         log.info("Initializing MediaStorageService with RustFS endpoint={}", endpoint);
-
+//设置自定义 endpoint（指向 RustFS）
+//配置访问密钥
+//启用路径风格访问（pathStyleAccessEnabled=true，兼容非 AWS S3）
         this.s3Client = S3Client.builder()
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.of(rustfsConfig.region()))
@@ -55,7 +57,7 @@ public class MediaStorageService {
                         .pathStyleAccessEnabled(true)
                         .build())
                 .build();
-
+//用于生成预签名 URL（临时访问链接）
         this.presigner = S3Presigner.builder()
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.of(rustfsConfig.region()))
@@ -76,6 +78,7 @@ public class MediaStorageService {
 
     private void initializeBucket() {
         try {
+            //headBucket 查询 bucket 状态
             s3Client.headBucket(HeadBucketRequest.builder()
                     .bucket(bucketName)
                     .build()
@@ -83,6 +86,7 @@ public class MediaStorageService {
 
         } catch (software.amazon.awssdk.services.s3.model.NoSuchBucketException e) {
             try {
+                //不存在则创建：捕获 NoSuchBucketException 异常，调用 createBucket 创建新 bucket
                 s3Client.createBucket(CreateBucketRequest.builder()
                         .bucket(bucketName)
                         .build()
@@ -305,11 +309,12 @@ public class MediaStorageService {
 
     public String generatePresignedUrl(String objectName, int expirySeconds) {
         try {
+            //构建请求：指定 bucket 和 objectName
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                     .bucket(bucketName)
                     .key(objectName)
                     .build();
-
+            //通过 signatureDuration 设置 URL 过期时间（如 3600 秒）
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                     .signatureDuration(Duration.ofSeconds(expirySeconds))
                     .getObjectRequest(getObjectRequest)

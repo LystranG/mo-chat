@@ -52,7 +52,7 @@ public final class MultimediaMessageController {
     public ApiResponse<Map<String, Object>> sendPrivateMultimedia(@Body SendPrivateMultimediaRequest request) {
         log.info("Received private multimedia message request: messageType={}, toUid={}, fileName={}", 
                 request.messageType(), request.toUid(), request.fileName());
-
+//校验 sessionId 有效性，获取发送者 UID
         var senderUidOpt = sessionService.resolveUserId(request.sessionId());
         if (senderUidOpt.isEmpty()) {
             log.warn("Invalid session for private multimedia message: sessionId={}", request.sessionId());
@@ -60,6 +60,7 @@ public final class MultimediaMessageController {
         }
 
         long senderUid = senderUidOpt.get();
+        //用雪花算法生成 clientMsgId，计算会话 ID
         long clientMsgId = idGenerator.nextId();
         long conversationId = calculateConversationId(senderUid, request.toUid());
 
@@ -73,7 +74,9 @@ public final class MultimediaMessageController {
                 .setFileSize(request.fileSize())
                 .setMimeType(request.mimeType())
                 .setFileName(request.fileName());
-
+//封装媒体信息（URL、大小、类型、文件名）
+//可选字段：缩略图、时长、宽高、波形数据
+//通过 setMedia() 放入 MessageContent 的 oneof 字段
         if (request.thumbnailUrl() != null && !request.thumbnailUrl().isBlank()) {
             mediaMetadataBuilder.setThumbnailUrl(request.thumbnailUrl());
         }
@@ -213,8 +216,10 @@ public final class MultimediaMessageController {
         );
 
         try {
+            //messageIngestService.ingest() 将群聊消息写入 RocketMQ
             messageIngestService.ingest(ingestRequest);
 
+            //构建响应数据
             Map<String, Object> responseData = Map.of(
                     "clientMsgId", clientMsgId,
                     "conversationId", request.conversationId()
