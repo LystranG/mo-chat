@@ -371,23 +371,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
             return true;
         }
         if (existingBinding != null && sessionId.equals(existingBinding.sessionId())) {
-            if (resolutionExecutor != null) {
-                beginAsyncResolution(ctx, sessionId, msg, remainingQueuedMessages, existingBinding);
-                return false;
-            }
-            Resolution resolution = validateExistingBinding(existingBinding, resolveSession(sessionId));
-            if (resolution.invalidSession()) {
-                clearBinding(channel);
-                emitSessionInvalid(ctx);
-                clearQueuedMessages(remainingQueuedMessages);
-                return false;
-            }
-            if (resolution.internalError()) {
-                emitInternalError(ctx);
-                clearQueuedMessages(remainingQueuedMessages);
-                return false;
-            }
-            refreshExistingBinding(channel, existingBinding, resolution.binding().orElseThrow());
+            // 已有绑定且 sessionId 没变，直接放行，不需要每次都重新鉴权
             ctx.fireChannelRead(msg);
             return true;
         }
