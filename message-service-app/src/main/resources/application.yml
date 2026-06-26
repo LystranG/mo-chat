@@ -21,7 +21,7 @@ mochat:
   rocketmq:
     name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
     producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-message-producer}
-    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat-messages}
   message-service:
     grpc:
       port: ${MOCHAT_MESSAGE_SERVICE_GRPC_PORT:19092}

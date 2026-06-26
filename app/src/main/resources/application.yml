@@ -37,7 +37,7 @@ mochat:
     consumer:
       enabled: ${MOCHAT_ROCKETMQ_CONSUMER_ENABLED:true}
     consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
-    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat-messages}
   tls:
     enabled: ${MOCHAT_TLS_ENABLED:true}
     self-signed: ${MOCHAT_TLS_SELF_SIGNED:true}
