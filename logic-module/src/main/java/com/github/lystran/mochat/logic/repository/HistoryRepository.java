@@ -19,6 +19,6 @@ public interface HistoryRepository {
     /**
      * 单条历史消息记录。
      */
-    record HistoryMessage(long seq, long msgId, long serverTimeMs, String payloadBase64) {
+    record HistoryMessage(long seq, long msgId, long senderUid, long serverTimeMs, String payloadBase64) {
     }
 }

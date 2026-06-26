@@ -9,7 +9,7 @@ mochat:
     name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:localhost:9876}
     producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-producer}
     consumer-group: ${MOCHAT_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
-    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat-messages}
   tls:
     enabled: ${MOCHAT_TLS_ENABLED:true}
     self-signed: ${MOCHAT_TLS_SELF_SIGNED:true}

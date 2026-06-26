@@ -12,6 +12,8 @@ import io.micronaut.context.annotation.Requires;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Base64;
 import java.util.Objects;
@@ -23,6 +25,7 @@ import java.util.Objects;
 @Context
 @Requires(property = "mochat.message-service.inbound-consumer.enabled", value = "true", defaultValue = "true")
 public final class InboundMessageConsumer implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(InboundMessageConsumer.class);
     public static final String DEFAULT_INBOUND_TOPIC = "connection.inbound";
     private static final String SESSION_INVALID_MESSAGE = "session invalid";
 
@@ -137,7 +140,7 @@ public final class InboundMessageConsumer implements AutoCloseable {
     private void consumePrivate(Long routingUserId, byte[] body) {
         try {
             var request = Mochat.PrivateMessageReq.parseFrom(body);
-            var senderUid = sessionService.resolveUserId(request.getSessionId());//从redis中获取
+            var senderUid = sessionService.resolveUserId(request.getSessionId());
             if (senderUid.isEmpty()) {
                 emitInvalidSessionIfRouted(routingUserId);
                 return;
@@ -158,9 +161,13 @@ public final class InboundMessageConsumer implements AutoCloseable {
                     )
                 );
             } catch (MessageRejectException rejection) {
+                log.error("consumePrivate rejected: code={}, msg={}", rejection.errorCode(), rejection.getMessage(), rejection);
                 emitErrorResponse(senderUid.get(), rejection.errorCode(), rejection.getMessage());
+            } catch (Exception ex) {
+                log.error("consumePrivate unexpected error", ex);
             }
-        } catch (InvalidProtocolBufferException ignored) {
+        } catch (InvalidProtocolBufferException ex) {
+            log.error("consumePrivate parse failure", ex);
         }
     }
 

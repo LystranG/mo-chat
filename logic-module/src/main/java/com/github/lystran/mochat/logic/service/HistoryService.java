@@ -41,7 +41,7 @@ public final class HistoryService {
         int resolvedLimit = normalizeLimit(limit);
         return historyRepository.findHistory(conversationId, cursorSeq, startSeq, endSeq, resolvedLimit)
             .stream()
-            .map(message -> new HistoryMessage(message.seq(), message.msgId(), message.serverTimeMs(), message.payloadBase64()))
+            .map(message -> new HistoryMessage(message.seq(), message.msgId(), message.senderUid(), message.serverTimeMs(), message.payloadBase64()))
             .toList();
     }
 
@@ -59,6 +59,6 @@ public final class HistoryService {
     /**
      * 返回给上层的历史消息数据。
      */
-    public record HistoryMessage(long seq, long msgId, long serverTimeMs, String payloadBase64) {
+    public record HistoryMessage(long seq, long msgId, long senderUid, long serverTimeMs, String payloadBase64) {
     }
 }

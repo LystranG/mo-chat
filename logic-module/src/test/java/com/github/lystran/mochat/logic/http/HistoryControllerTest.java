@@ -28,7 +28,7 @@ class HistoryControllerTest {
         when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
         when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
         when(historyService.query(88L, null, null, null, 50)).thenReturn(
-            List.of(new HistoryService.HistoryMessage(10L, 101L, 1234L, "payload"))
+            List.of(new HistoryService.HistoryMessage(10L, 101L, 7L, 1234L, "payload"))
         );
 
         HistoryController controller = new HistoryController(historyService, conversationStateService, sessionService);
@@ -51,7 +51,7 @@ class HistoryControllerTest {
         when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
         when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
         when(historyService.query(88L, 120L, null, null, 20)).thenReturn(
-            List.of(new HistoryService.HistoryMessage(119L, 201L, 4567L, "next"))
+            List.of(new HistoryService.HistoryMessage(119L, 201L, 7L, 4567L, "next"))
         );
 
         HistoryController controller = new HistoryController(historyService, conversationStateService, sessionService);
@@ -74,7 +74,7 @@ class HistoryControllerTest {
         when(sessionService.resolveUserId("session-ok")).thenReturn(Optional.of(7L));
         when(conversationStateService.hasConversationAccess(88L, 7L)).thenReturn(true);
         when(historyService.query(88L, null, 101L, 120L, 20)).thenReturn(
-            List.of(new HistoryService.HistoryMessage(120L, 301L, 5678L, "range"))
+            List.of(new HistoryService.HistoryMessage(120L, 301L, 7L, 5678L, "range"))
         );
 
         HistoryController controller = new HistoryController(historyService, conversationStateService, sessionService);

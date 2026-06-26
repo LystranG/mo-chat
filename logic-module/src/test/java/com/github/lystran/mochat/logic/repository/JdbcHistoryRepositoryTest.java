@@ -30,8 +30,9 @@ class JdbcHistoryRepositoryTest {
         when(resultSet.next()).thenReturn(true, false);
         when(resultSet.getLong(1)).thenReturn(119L);
         when(resultSet.getLong(2)).thenReturn(5001L);
-        when(resultSet.getLong(3)).thenReturn(123456L);
-        when(resultSet.getString(4)).thenReturn("payload");
+        when(resultSet.getLong(3)).thenReturn(7L);
+        when(resultSet.getLong(4)).thenReturn(123456L);
+        when(resultSet.getString(5)).thenReturn("payload");
 
         JdbcHistoryRepository repository = new JdbcHistoryRepository(dataSource);
         List<HistoryRepository.HistoryMessage> messages = repository.findHistory(200L, 120L, 20);
