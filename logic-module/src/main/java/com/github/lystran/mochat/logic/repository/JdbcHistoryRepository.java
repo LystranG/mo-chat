@@ -20,7 +20,7 @@ import java.util.Objects;
 public final class JdbcHistoryRepository implements HistoryRepository {
     // 游标模式：从某条消息之前继续往前翻。
     private static final String FIND_HISTORY_WITH_CURSOR_SQL = """
-        SELECT seq, msg_id, server_ts_ms, payload_base64
+        SELECT seq, msg_id, sender_uid, server_ts_ms, payload_base64
         FROM messages
         WHERE conversation_id = ? AND seq < ?
         ORDER BY seq DESC
@@ -28,7 +28,7 @@ public final class JdbcHistoryRepository implements HistoryRepository {
         """;
     // 默认模式：不带游标时直接取最新一页。
     private static final String FIND_HISTORY_WITHOUT_CURSOR_SQL = """
-        SELECT seq, msg_id, server_ts_ms, payload_base64
+        SELECT seq, msg_id, sender_uid, server_ts_ms, payload_base64
         FROM messages
         WHERE conversation_id = ?
         ORDER BY seq DESC
@@ -36,7 +36,7 @@ public final class JdbcHistoryRepository implements HistoryRepository {
         """;
     // 区间模式：只看 startSeq 到 endSeq 之间这段消息。
     private static final String FIND_HISTORY_WITH_RANGE_SQL = """
-        SELECT seq, msg_id, server_ts_ms, payload_base64
+        SELECT seq, msg_id, sender_uid, server_ts_ms, payload_base64
         FROM messages
         WHERE conversation_id = ? AND seq BETWEEN ? AND ?
         ORDER BY seq DESC
@@ -140,7 +140,8 @@ public final class JdbcHistoryRepository implements HistoryRepository {
                 resultSet.getLong(1),
                 resultSet.getLong(2),
                 resultSet.getLong(3),
-                resultSet.getString(4)
+                resultSet.getLong(4),
+                resultSet.getString(5)
             ));
         }
         return messages;

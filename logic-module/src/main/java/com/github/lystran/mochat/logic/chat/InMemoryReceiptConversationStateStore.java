@@ -12,9 +12,10 @@ import java.util.concurrent.ConcurrentMap;
  */
 @Singleton
 @Requires(missingBeans = ReceiptConversationStateStore.class)
-@Requires(property = "micronaut.application.name", notEquals = "message-service", defaultValue = "")
 @Requires(property = "micronaut.application.name", notEquals = "api-service", defaultValue = "")
-@Requires(property = "micronaut.application.name", notEquals = "mochat", defaultValue = "")
+// 不再排除 message-service：dedicated message-service 在 inbound-consumer 开启时
+// 也需要 ReceiptConversationStateStore 给 ReceiptService 用，而 persistence-service
+// 的 JDBC owner 是另一个 JVM、跨不过去，所以 message-service 用内存兜底也合理。
 public final class InMemoryReceiptConversationStateStore implements ReceiptConversationStateStore {
     private final ConcurrentMap<Long, MutableState> states = new ConcurrentHashMap<>();
 

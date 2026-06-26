@@ -13,7 +13,7 @@ externalDependencies:
   redisUri: redis://host.k3d.internal:6379
   postgresUrl: jdbc:postgresql://host.k3d.internal:5432/mochat
   rocketmqNameServer: host.k3d.internal:9876
-  rocketmqTopic: mochat.messages
+  rocketmqTopic: mochat-messages
   secret:
     create: true
     name: mochat-external-dependency-secrets

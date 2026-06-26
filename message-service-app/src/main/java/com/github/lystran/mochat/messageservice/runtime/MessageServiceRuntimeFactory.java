@@ -1,11 +1,13 @@
 package com.github.lystran.mochat.messageservice.runtime;
 
+import com.github.lystran.mochat.common.event.EventBus;
 import com.github.lystran.mochat.common.id.IdGenerator;
 import com.github.lystran.mochat.common.idempotency.IdempotencyStore;
 import com.github.lystran.mochat.common.lock.ConversationLock;
 import com.github.lystran.mochat.common.lock.JucConversationLock;
 import com.github.lystran.mochat.common.offline.OfflineQueue;
 import com.github.lystran.mochat.common.seq.ConversationSeqGenerator;
+import com.github.lystran.mochat.infra.redis.RedisEventBus;
 import com.github.lystran.mochat.logic.chat.MessageDeliveryStatus;
 import com.github.lystran.mochat.logic.chat.MessageRecipientDispatcher;
 import com.github.lystran.mochat.logic.chat.MessageSendPolicyGateway;
@@ -29,6 +31,7 @@ import com.github.lystran.mochat.runtime.topology.StaticGatewayAddressResolver;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
+import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.context.annotation.Bean;
 import io.micronaut.context.annotation.Factory;
@@ -66,6 +69,24 @@ public final class MessageServiceRuntimeFactory {
     }
 
     /**
+     * 创建 Redis Pub/Sub 连接，供跨服务的事件总线使用。
+     * 没有它，message-service 就收不到 access-gateway 通过 Redis 转发过来的客户端消息。
+     *
+     * 这里故意不写 @Requires(missingBeans=StatefulRedisPubSubConnection.class)，
+     * 否则 EventBus 工厂里的 @Requires(bean=StatefulRedisPubSubConnection.class)
+     * 会反过来枚举 PubSub 候选、再触发这里的 missingBeans 检查，
+     * MatchesAbsenceOfBeansCondition 评估时直接堆栈溢出。
+     * 事实上 message-service-app 里只有这一处提供 StatefulRedisPubSubConnection，
+     * missingBeans 守卫也是多余的。
+     */
+    @Singleton
+    @Bean(preDestroy = "close")
+    @Requires(bean = RedisClient.class)
+    StatefulRedisPubSubConnection<String, String> redisPubSubConnection(RedisClient redisClient) {
+        return redisClient.connectPubSub();
+    }
+
+    /**
      * 提供同步风格的 Redis 命令入口。
      */
     @Singleton
@@ -75,19 +96,42 @@ public final class MessageServiceRuntimeFactory {
     }
 
     /**
-     * 提供会话级别的本地锁，避免同一会话并发发消息时顺序号打乱。
+     * 默认使用 Redis 作为跨服务共享的事件总线，让 message-service 能订阅到 access-gateway
+     * 转发过来的客户端消息（channel=connection.inbound）。
+     *
+     * 这里刻意不带 @Requires(missingBeans=EventBus.class)，否则会和
+     * MessageIngestService 多构造器组合时在 MatchesAbsenceOfBeansCondition
+     * 评估里出现死循环。
      */
     @Singleton
-    @Requires(missingBeans = ConversationLock.class)
+    @Requires(bean = RedisCommands.class)
+    @Requires(bean = StatefulRedisPubSubConnection.class)
+    EventBus eventBus(
+        RedisCommands<String, String> redisCommands,
+        StatefulRedisPubSubConnection<String, String> redisPubSubConnection
+    ) {
+        return new RedisEventBus(redisCommands, redisPubSubConnection);
+    }
+
+    /**
+     * 提供会话级别的本地锁，避免同一会话并发发消息时顺序号打乱。
+     *
+     * 故意不写 @Requires(missingBeans = ConversationLock.class)。
+     * 该 factory 本身就产出 ConversationLock，再加 missingBeans 守卫会在
+     * MatchesAbsenceOfBeansCondition.matches 评估时反向枚举自己的候选，
+     * 配合 MessageIngestService 多构造器链路最终堆栈溢出。
+     */
+    @Singleton
     ConversationLock conversationLock() {
         return new JucConversationLock();
     }
 
     /**
      * 创建消息 ID 生成器。
+     *
+     * 同上：missingBeans 守卫会自指，配合 MessageIngestService 多构造器会栈溢出。
      */
     @Singleton
-    @Requires(missingBeans = IdGenerator.class)
     IdGenerator idGenerator(MessageServiceConfiguration configuration) {
         return new MessageServiceSnowflakeIdGenerator(configuration.getId().getWorkerId());
     }
@@ -97,7 +141,6 @@ public final class MessageServiceRuntimeFactory {
      */
     @Singleton
     @Requires(bean = RedisCommands.class)
-    @Requires(missingBeans = IdempotencyStore.class)
     IdempotencyStore idempotencyStore(RedisCommands<String, String> redisCommands) {
         return new RedisIdempotencyStore(redisCommands);
     }
@@ -107,7 +150,6 @@ public final class MessageServiceRuntimeFactory {
      */
     @Singleton
     @Requires(bean = RedisCommands.class)
-    @Requires(missingBeans = OfflineQueue.class)
     OfflineQueue offlineQueue(RedisCommands<String, String> redisCommands) {
         return new RedisOfflineQueue(redisCommands);
     }
@@ -117,7 +159,6 @@ public final class MessageServiceRuntimeFactory {
      */
     @Singleton
     @Requires(bean = RedisCommands.class)
-    @Requires(missingBeans = ConversationSeqGenerator.class)
     ConversationSeqGenerator conversationSeqGenerator(
         RedisCommands<String, String> redisCommands,
         ConversationLock conversationLock,
@@ -156,11 +197,12 @@ public final class MessageServiceRuntimeFactory {
 
     /**
      * 把原生 RocketMQ 生产者包装成消息域里使用的发送器。
+     *
+     * 同样去掉 missingBeans 自指守卫。@Replaces 已经能保证不会有其他 RocketMqProducer 候选。
      */
     @Singleton
     @Replaces(RocketMqProducer.class)
     @Requires(bean = DefaultMQProducer.class)
-    @Requires(missingBeans = RocketMqProducer.class)
     RocketMqProducer rocketMqProducer(
         DefaultMQProducer defaultMQProducer,
         @Property(name = "mochat.rocketmq.topic") String topic
@@ -262,9 +304,10 @@ public final class MessageServiceRuntimeFactory {
 
     /**
      * 提供一个兜底的发送方确认器，避免缺少实现时直接报错。
+     *
+     * 同样去掉 missingBeans 自指守卫，避免 StackOverflow。
      */
     @Singleton
-    @Requires(missingBeans = SenderAckPublisher.class)
     SenderAckPublisher senderAckPublisher() {
         return (senderUid, clientMsgId, msgId, seq, serverTimeMs) -> {
         };
@@ -272,9 +315,12 @@ public final class MessageServiceRuntimeFactory {
 
     /**
      * 提供一个兜底的私聊进度记录器，避免缺少实现时影响主流程。
+     *
+     * 这里 missingBeans 守卫的对象（ReceiptConversationStateStore）和产出类型
+     * （PrivateConversationProgressTracker）不一样，理论上不该自指。
+     * 但实测仍会触发同一个评估路径里的递归，一并去掉。
      */
     @Singleton
-    @Requires(missingBeans = ReceiptConversationStateStore.class)
     PrivateConversationProgressTracker privateConversationProgressTracker() {
         return (conversationId, peerUidLow, peerUidHigh, seq) -> {
         };

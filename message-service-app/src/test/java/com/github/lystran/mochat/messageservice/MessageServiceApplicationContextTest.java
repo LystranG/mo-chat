@@ -7,6 +7,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MessageServiceApplicationContextTest {
     @Test
@@ -16,7 +17,7 @@ class MessageServiceApplicationContextTest {
             "mochat.message-service.dependencies.gateway-grpc-enabled", false
         ))) {
             assertEquals(19192, context.getRequiredProperty("mochat.message-service.grpc.port", Integer.class));
-            assertFalse(context.getRequiredProperty("mochat.message-service.inbound-consumer.enabled", Boolean.class));
+            assertTrue(context.getRequiredProperty("mochat.message-service.inbound-consumer.enabled", Boolean.class));
             assertFalse(context.getRequiredProperty("mochat.message-service.dependencies.gateway-grpc-enabled", Boolean.class));
         }
     }

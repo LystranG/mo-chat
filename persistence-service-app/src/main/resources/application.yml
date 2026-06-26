@@ -14,7 +14,7 @@ mochat:
   rocketmq:
     name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
     consumer-group: ${MOCHAT_PERSISTENCE_SERVICE_ROCKETMQ_CONSUMER_GROUP:mochat-persistence-consumer}
-    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat-messages}
   persistence-service:
     flyway:
       migrate-on-start: ${MOCHAT_PERSISTENCE_SERVICE_FLYWAY_MIGRATE_ON_START:true}

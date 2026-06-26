@@ -22,4 +22,4 @@ data:
   MOCHAT_REDIS_URI: redis://redis.external.example:6379
   MOCHAT_POSTGRES_URL: jdbc:postgresql://postgres.external.example:5432/mochat
   MOCHAT_ROCKETMQ_NAME_SERVER: rocketmq.external.example:9876
-  MOCHAT_ROCKETMQ_TOPIC: mochat.messages
+  MOCHAT_ROCKETMQ_TOPIC: mochat-messages

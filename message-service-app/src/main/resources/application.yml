@@ -21,14 +21,14 @@ mochat:
   rocketmq:
     name-server: ${MOCHAT_ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
     producer-group: ${MOCHAT_ROCKETMQ_PRODUCER_GROUP:mochat-message-producer}
-    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat.messages}
+    topic: ${MOCHAT_ROCKETMQ_TOPIC:mochat-messages}
   message-service:
     grpc:
       port: ${MOCHAT_MESSAGE_SERVICE_GRPC_PORT:19092}
     id:
       worker-id: ${MOCHAT_MESSAGE_SERVICE_ID_WORKER_ID:1}
     inbound-consumer:
-      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:false}
+      enabled: ${MOCHAT_MESSAGE_SERVICE_INBOUND_CONSUMER_ENABLED:true}
     dependencies:
       api-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_API_GRPC_ENABLED:true}
       gateway-grpc-enabled: ${MOCHAT_MESSAGE_SERVICE_GATEWAY_GRPC_ENABLED:true}

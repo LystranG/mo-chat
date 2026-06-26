@@ -85,7 +85,7 @@ public final class HistoryController {
         // 这里走的是已经整理好的历史查询结果，按会话和编号直接取，不在这个接口里重算消息。
         List<HistoryItem> items = historyService.query(conversationId, cursorSeq, startSeq, endSeq, resolvedLimit)
             .stream()
-            .map(message -> new HistoryItem(message.seq(), message.msgId(), message.serverTimeMs(), message.payloadBase64()))
+            .map(message -> new HistoryItem(message.seq(), message.msgId(), message.senderUid(), message.serverTimeMs(), message.payloadBase64()))
             .toList();
         return HttpResponse.ok(new HistoryResponse(items));
     }
@@ -97,6 +97,6 @@ public final class HistoryController {
 
     /** 单条历史消息返回体，`payloadBase64` 是为了让二进制消息内容能安全放进 JSON。 */
     @ReflectiveAccess
-    public record HistoryItem(long seq, long msgId, long serverTimeMs, String payloadBase64) {
+    public record HistoryItem(long seq, long msgId, long senderUid, long serverTimeMs, String payloadBase64) {
     }
 }

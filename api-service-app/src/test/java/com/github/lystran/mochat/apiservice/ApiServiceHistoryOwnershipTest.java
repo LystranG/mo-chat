@@ -40,9 +40,9 @@ class ApiServiceHistoryOwnershipTest {
     private static final long PENDING_MSG_ID = 8_003L;
     private static final long PENDING_MESSAGE_TIME = 1_700_000_000_999L;
     private static final List<HistoryRepository.HistoryMessage> PERSISTED_HISTORY = List.of(
-        new HistoryRepository.HistoryMessage(LATEST_SEQ, 8_002L, LATEST_MESSAGE_TIME, "payload-12"),
-        new HistoryRepository.HistoryMessage(11L, 8_001L, LATEST_MESSAGE_TIME - 1_000L, "payload-11"),
-        new HistoryRepository.HistoryMessage(10L, 8_000L, LATEST_MESSAGE_TIME - 2_000L, "payload-10")
+        new HistoryRepository.HistoryMessage(LATEST_SEQ, 8_002L, OWNER_UID, LATEST_MESSAGE_TIME, "payload-12"),
+        new HistoryRepository.HistoryMessage(11L, 8_001L, OWNER_UID, LATEST_MESSAGE_TIME - 1_000L, "payload-11"),
+        new HistoryRepository.HistoryMessage(10L, 8_000L, OWNER_UID, LATEST_MESSAGE_TIME - 2_000L, "payload-10")
     );
 
     @Test
@@ -89,7 +89,7 @@ class ApiServiceHistoryOwnershipTest {
             String sessionId = sessionService.issueSession(OWNER_UID);
 
             readModel.markRealtimeDelivered(
-                new HistoryRepository.HistoryMessage(PENDING_SEQ, PENDING_MSG_ID, PENDING_MESSAGE_TIME, "payload-13"),
+                new HistoryRepository.HistoryMessage(PENDING_SEQ, PENDING_MSG_ID, OWNER_UID, PENDING_MESSAGE_TIME, "payload-13"),
                 new ConversationStateRepository.ConversationLatestState(CONVERSATION_ID, PENDING_SEQ, PENDING_MESSAGE_TIME)
             );
 
