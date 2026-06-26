@@ -14,6 +14,8 @@ import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
@@ -25,6 +27,7 @@ import java.util.Objects;
  * 封装聊天 TCP 服务的启动、传输选择和关闭逻辑。
  */
 public final class NettyChatServer {
+    private static final Logger log = LoggerFactory.getLogger(NettyChatServer.class);
     private static final String DEFAULT_HOST = "0.0.0.0";
 
     private final String host;
@@ -99,28 +102,36 @@ public final class NettyChatServer {
      */
     public synchronized void start() throws InterruptedException {
         if (serverChannel != null) {
+            log.info("TCP 服务已在监听端口 {}，跳过重复启动", port);
             return;
         }
 
+        log.info("开始启动 TCP 聊天服务，监听 {}:{}", host, port);
         var preferredTransport = transportSelector.select(true);
         try {
             startWithTransport(preferredTransport);
+            log.info("TCP 聊天服务启动成功，监听 {}:{}, 传输={}, channelClass={}",
+                host, port, preferredTransport.ioUringTransport() ? "io_uring" : "epoll/nio",
+                preferredTransport.serverChannelClass().getSimpleName());
             return;
         } catch (InterruptedException interruptedException) {
             shutdownGroups();
             throw interruptedException;
         } catch (RuntimeException runtimeException) {
             if (!preferredTransport.ioUringTransport()) {
+                log.warn("首选传输(epoll/nio)启动失败: {}", runtimeException.getMessage());
                 shutdownGroups();
                 throw runtimeException;
             }
-
+            log.warn("io_uring 传输启动失败，回退到 epoll/nio: {}", runtimeException.getMessage());
             shutdownGroups();
         }
 
         var fallbackTransport = transportSelector.select(false);
         try {
             startWithTransport(fallbackTransport);
+            log.info("TCP 聊天服务（回退传输）启动成功，监听 {}:{}, channelClass={}",
+                host, port, fallbackTransport.serverChannelClass().getSimpleName());
         } catch (InterruptedException interruptedException) {
             shutdownGroups();
             throw interruptedException;
@@ -134,6 +145,7 @@ public final class NettyChatServer {
      * 停止监听并关闭 boss/worker 线程组。
      */
     public synchronized void stop() {
+        log.info("停止 TCP 聊天服务，释放端口 {}", port);
         if (serverChannel != null) {
             serverChannel.close().syncUninterruptibly();
             serverChannel = null;
@@ -160,11 +172,13 @@ public final class NettyChatServer {
         if (allowIoUring) {
             var ioUringSelection = tryIoUringSelection();
             if (ioUringSelection != null) {
+                log.info("传输选择: 使用 io_uring");
                 return ioUringSelection;
             }
         }
 
         if (Epoll.isAvailable()) {
+            log.info("传输选择: 使用 Epoll (epoll可用)");
             return new TransportSelection(
                 new EpollEventLoopGroup(1),
                 new EpollEventLoopGroup(),
@@ -173,6 +187,7 @@ public final class NettyChatServer {
             );
         }
 
+        log.info("传输选择: 使用 NIO (epoll不可用)");
         return new TransportSelection(
             new NioEventLoopGroup(1),
             new NioEventLoopGroup(),

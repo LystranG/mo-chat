@@ -1,6 +1,8 @@
 package com.github.lystran.mochat.accessgateway.runtime;
 
 import com.github.lystran.mochat.connection.GatewayDrainState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -16,11 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 统一管理网关退场流程：先停止接收新的用户连接，再在宽限期结束后清掉剩余连接。
  */
 public final class GatewayDrainManager implements GatewayDrainState, AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(GatewayDrainManager.class);
     private final LocalGatewayConnectionDirectory localGatewayConnectionDirectory;
     private final ScheduledExecutorService scheduler;
     private final Duration gracePeriod;
     /**
-     * 标记当前网关是不是已经进入“只退不进”的状态。
+     * 标记当前网关是不是已经进入"只退不进"的状态。
      */
     private final AtomicBoolean draining = new AtomicBoolean(false);
     /**
@@ -62,8 +65,10 @@ public final class GatewayDrainManager implements GatewayDrainState, AutoCloseab
      */
     public void startDrain() {
         if (!draining.compareAndSet(false, true)) {
+            log.info("网关 drain 已经在进行中，忽略重复触发");
             return;
         }
+        log.info("网关开始退场(drain)，宽限期={}s", gracePeriod.getSeconds());
         gracePeriodClosure = scheduler.schedule(
             this::closeAndComplete,
             Math.max(0L, gracePeriod.toMillis()),
@@ -75,6 +80,7 @@ public final class GatewayDrainManager implements GatewayDrainState, AutoCloseab
      * 立即结束宽限期，直接关闭所有剩余已绑定连接。
      */
     public int closeBoundConnectionsNow() {
+        log.info("立即关闭所有已绑定连接（跳过宽限期）");
         ScheduledFuture<?> scheduledClosure = gracePeriodClosure;
         if (scheduledClosure != null) {
             scheduledClosure.cancel(false);
@@ -89,15 +95,17 @@ public final class GatewayDrainManager implements GatewayDrainState, AutoCloseab
         if (!draining.get()) {
             return;
         }
+        log.info("等待 drain 收尾，超时={}ms", Math.max(1L, gracePeriod.toMillis()) + 1_000L);
         try {
             drainCompletion.get(Math.max(1L, gracePeriod.toMillis()) + 1_000L, TimeUnit.MILLISECONDS);
+            log.info("drain 收尾完成");
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while awaiting gateway drain completion", interruptedException);
+            throw new IllegalStateException("等待网关 drain 完成时被中断", interruptedException);
         } catch (ExecutionException executionException) {
-            throw new IllegalStateException("Gateway drain failed", executionException.getCause());
+            throw new IllegalStateException("网关 drain 失败", executionException.getCause());
         } catch (TimeoutException timeoutException) {
-            throw new IllegalStateException("Timed out waiting for gateway drain completion", timeoutException);
+            throw new IllegalStateException("等待网关 drain 完成超时", timeoutException);
         }
     }
 
@@ -105,7 +113,9 @@ public final class GatewayDrainManager implements GatewayDrainState, AutoCloseab
      * 真正执行本地连接清场。
      */
     private int completeDrainWindow() {
-        return localGatewayConnectionDirectory.closeBoundConnections();
+        int closed = localGatewayConnectionDirectory.closeBoundConnections();
+        log.info("drain 宽限期到期，关闭了 {} 个已绑定连接", closed);
+        return closed;
     }
 
     /**
@@ -117,6 +127,7 @@ public final class GatewayDrainManager implements GatewayDrainState, AutoCloseab
             drainCompletion.complete(null);
             return closedConnections;
         } catch (RuntimeException runtimeException) {
+            log.warn("drain 清场过程出现异常", runtimeException);
             drainCompletion.completeExceptionally(runtimeException);
             throw runtimeException;
         }

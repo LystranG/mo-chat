@@ -4,6 +4,8 @@ import com.github.lystran.mochat.protocol.MsgType;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
@@ -11,6 +13,7 @@ import java.util.concurrent.TimeUnit;
  * 负责服务端心跳发送和空闲超时检测，避免失联连接一直占着在线状态。
  */
 public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
+    private static final Logger log = LoggerFactory.getLogger(HeartbeatHandler.class);
     static final HeartbeatReceivedEvent HEARTBEAT_RECEIVED_EVENT = HeartbeatReceivedEvent.INSTANCE;
     static final HeartbeatTimeoutEvent HEARTBEAT_TIMEOUT_EVENT = HeartbeatTimeoutEvent.INSTANCE;
     private final long heartbeatIntervalMillis;
@@ -51,6 +54,10 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
      * 处理器装入后立刻开始心跳和超时计时。
      */
     public void handlerAdded(ChannelHandlerContext ctx) {
+        log.info("连接 [{}] 加入心跳处理器，心跳间隔={}s，空闲超时={}s",
+            ctx.channel().id().asShortText(),
+            TimeUnit.MILLISECONDS.toSeconds(heartbeatIntervalMillis),
+            TimeUnit.MILLISECONDS.toSeconds(idleTimeoutMillis));
         scheduleHeartbeat(ctx);
         scheduleIdleTimeout(ctx);
     }
@@ -62,6 +69,7 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof InboundRouterHandler.InboundMessage inbound
             && inbound.msgType() == MsgType.CLIENT_HEARTBEAT) {
+            log.debug("连接 [{}] 收到客户端心跳", ctx.channel().id().asShortText());
             scheduleIdleTimeout(ctx);
             ctx.fireUserEventTriggered(HEARTBEAT_RECEIVED_EVENT);
             return;
@@ -75,6 +83,7 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
      * 连接断开时停止全部定时任务。
      */
     public void channelInactive(ChannelHandlerContext ctx) {
+        log.info("连接 [{}] 断开，停止心跳定时任务", ctx.channel().id().asShortText());
         cancelHeartbeat();
         cancelIdleTimeout();
         ctx.fireChannelInactive();
@@ -85,6 +94,7 @@ public final class HeartbeatHandler extends ChannelInboundHandlerAdapter {
      * 处理器移除时也要清理定时任务。
      */
     public void handlerRemoved(ChannelHandlerContext ctx) {
+        log.info("连接 [{}] 心跳处理器移除", ctx.channel().id().asShortText());
         cancelHeartbeat();
         cancelIdleTimeout();
     }

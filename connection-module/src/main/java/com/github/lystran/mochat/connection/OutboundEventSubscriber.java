@@ -8,6 +8,8 @@ import com.github.lystran.mochat.protocol.MsgType;
 import com.github.lystran.mochat.protocol.SerializerType;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Base64;
 import java.util.Objects;
@@ -16,6 +18,7 @@ import java.util.Objects;
  * 订阅准备发给客户端的事件，优先写到本地连接，失败时再转离线队列。
  */
 public final class OutboundEventSubscriber implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(OutboundEventSubscriber.class);
     public static final String DEFAULT_OUTBOUND_TOPIC = "connection.outbound";
     public static final int OFFLINE_QUEUE_MAX_SIZE = 50;
     private static final int PROTOCOL_MAGIC = 0x4D4F4348;
@@ -59,6 +62,7 @@ public final class OutboundEventSubscriber implements AutoCloseable {
      * 开始监听要发给客户端的消息。
      */
     public void start() {
+        log.info("出站事件订阅器启动，主题={}", topic);
         subscription = eventBus.subscribe(topic, this::handleOutboundEvent);
     }
 
@@ -67,6 +71,7 @@ public final class OutboundEventSubscriber implements AutoCloseable {
      * 取消事件订阅。
      */
     public void close() throws Exception {
+        log.info("出站事件订阅器关闭");
         subscription.close();
     }
 
@@ -76,6 +81,7 @@ public final class OutboundEventSubscriber implements AutoCloseable {
     private void handleOutboundEvent(String event) {
         int separator = event.indexOf('|');
         if (separator <= 0) {
+            log.warn("出站事件格式无效: {}", event.length() > 100 ? event.substring(0, 100) + "..." : event);
             return;
         }
 
@@ -98,11 +104,12 @@ public final class OutboundEventSubscriber implements AutoCloseable {
      */
     private void attemptDelivery(Channel channel, long userId, String payload, boolean allowRetry) {
         if (!SessionBindingHandler.hasActiveRouteOwnership(channel)) {
-            // 这条连接可能刚被新连接替换，给事件循环一次机会让最新状态生效。
             if (allowRetry) {
+                log.debug("连接 [{}] 用户 [{}] 路由已失效，延迟重试", channel.id().asShortText(), userId);
                 scheduleRetry(channel, userId, payload);
                 return;
             }
+            log.debug("连接 [{}] 用户 [{}] 重试后仍无有效路由，转离线队列", channel.id().asShortText(), userId);
             queueOffline(userId, payload);
             return;
         }
@@ -112,6 +119,7 @@ public final class OutboundEventSubscriber implements AutoCloseable {
             frame = encodeFrame(channel, payload);
             channel.writeAndFlush(frame).addListener(future -> {
                 if (!future.isSuccess()) {
+                    log.debug("连接 [{}] 用户 [{}] 写入失败，转离线队列", channel.id().asShortText(), userId);
                     queueOffline(userId, payload);
                 }
             });

@@ -17,6 +17,8 @@ import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +28,7 @@ import java.util.concurrent.Executor;
  * 负责把一条新 TCP 连接装配成完整的聊天处理链。
  */
 public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
+    private static final Logger log = LoggerFactory.getLogger(ChatChannelInitializer.class);
     private static final int PROTOCOL_MAGIC = 0x4D4F4348;
     private static final int DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 10;
     private static final int DEFAULT_HEARTBEAT_IDLE_TIMEOUT_SECONDS = 60;
@@ -176,13 +179,12 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
      * 按固定顺序组装管线：先 TLS、再拆包、再基础保护，最后才进入绑定和业务路由。
      */
     protected void initChannel(Channel channel) {
+        log.info("新TCP连接 [{}] 进入，初始化管线", channel.id().asShortText());
         var pipeline = channel.pipeline();
         if (sslContext != null) {
-            // 先做 TLS 握手，后面的拆包和业务处理只看解密后的数据。
             pipeline.addLast("tls", sslContext.newHandler(channel.alloc()));
         }
 
-        // 先按长度拆完整帧，再做协议解码，避免后续处理器拿到半包。
         pipeline.addLast("frameDecoder", new LengthFieldBasedFrameDecoder(
             maxFrameLength,
             FrameConstants.BODY_LENGTH_OFFSET,
@@ -191,7 +193,6 @@ public final class ChatChannelInitializer extends ChannelInitializer<Channel> {
             0
         ));
         pipeline.addLast("protocolCodec", new ProtocolMessageCodec());
-        // 基础保护放在业务前面：先限流，再心跳保活，最后才允许绑定和业务消息进入。
         pipeline.addLast("rateLimit", new RateLimitHandler());
         pipeline.addLast("heartbeat", new HeartbeatHandler(heartbeatIntervalSeconds, heartbeatIdleTimeoutSeconds));
         if (sessionBindingHandler != null) {

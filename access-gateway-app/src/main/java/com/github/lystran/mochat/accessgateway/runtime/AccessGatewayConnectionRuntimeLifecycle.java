@@ -9,6 +9,8 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Context
@@ -16,9 +18,10 @@ import jakarta.inject.Singleton;
 @Requires(property = "mochat.access-gateway.runtime.enabled", notEquals = "false", defaultValue = "true")
 @Requires(property = "mochat.access-gateway.tcp.enabled", notEquals = "false", defaultValue = "true")
 /**
- * 管理接入网关里 Netty 服务和“给客户端发消息”的监听器的整体启停顺序。
+ * 管理接入网关里 Netty 服务和"给客户端发消息"的监听器的整体启停顺序。
  */
 public final class AccessGatewayConnectionRuntimeLifecycle implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(AccessGatewayConnectionRuntimeLifecycle.class);
     private final OutboundEventSubscriber outboundEventSubscriber;
     private final NettyChatServer nettyChatServer;
     private final AccessGatewayServiceConfiguration configuration;
@@ -57,22 +60,26 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
 
     @PostConstruct
     /**
-     * 按“先开始监听要发给客户端的消息，再启动 TCP 服务”的顺序拉起运行时。
+     * 按"先开始监听要发给客户端的消息，再启动 TCP 服务"的顺序拉起运行时。
      */
     void start() {
         if (!configuration.getTcp().isEnabled()) {
+            log.info("TCP 功能已禁用，跳过启动");
             return;
         }
 
+        log.info("开始启动接入网关连接运行时");
         try {
             outboundEventSubscriber.start();
             outboundSubscriberStarted = true;
+            log.info("出站事件订阅器启动成功");
             nettyChatServer.start();
             nettyServerStarted = true;
+            log.info("接入网关连接运行时启动完成");
         } catch (InterruptedException interruptedException) {
             rollbackOutboundSubscriber(interruptedException);
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Failed to start Netty chat server", interruptedException);
+            throw new IllegalStateException("启动 Netty 聊天服务失败", interruptedException);
         } catch (RuntimeException runtimeException) {
             rollbackOutboundSubscriber(runtimeException);
             throw runtimeException;
@@ -85,10 +92,12 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
      * 关闭时先执行 drain，再停 Netty，最后停消息监听器。
      */
     public void close() {
+        log.info("开始关闭接入网关连接运行时");
         RuntimeException failure = null;
 
         if (nettyServerStarted) {
             if (gatewayDrainManager != null && configuration.getDrain().isShutdownWaitEnabled()) {
+                log.info("执行关闭前 drain，宽限期={}s", configuration.getDrain().getGracePeriod());
                 try {
                     gatewayDrainManager.startDrain();
                     gatewayDrainManager.awaitDrainCompletion();
@@ -119,6 +128,7 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         if (failure != null) {
             throw failure;
         }
+        log.info("接入网关连接运行时关闭完成");
     }
 
     /**
@@ -146,7 +156,7 @@ public final class AccessGatewayConnectionRuntimeLifecycle implements AutoClosea
         } catch (RuntimeException runtimeException) {
             return runtimeException;
         } catch (Exception exception) {
-            return new IllegalStateException("Failed to stop outbound event subscriber", exception);
+            return new IllegalStateException("关闭出站事件订阅器失败", exception);
         }
     }
 }

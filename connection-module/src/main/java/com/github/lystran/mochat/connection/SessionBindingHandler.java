@@ -20,6 +20,8 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.AttributeKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayDeque;
 import java.util.Objects;
@@ -31,6 +33,7 @@ import java.util.concurrent.Executor;
  * 负责把一条 TCP 连接和用户会话绑在一起，并维护在线路由、心跳续租和退场清理。
  */
 public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
+    private static final Logger log = LoggerFactory.getLogger(SessionBindingHandler.class);
     private static final int DEFAULT_MAX_PENDING_MESSAGES = 64;
     private static final String GATEWAY_DRAINING_MESSAGE = "gateway draining";
     /**
@@ -266,6 +269,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
         PendingResolution pendingResolution = ctx.channel().attr(PENDING_RESOLUTION_ATTRIBUTE).get();
         if (pendingResolution != null) {
             if (!enqueuePendingMessage(pendingResolution, msg)) {
+                log.info("连接 {} 异步认人期间消息积压超过上限，取消本次认人", ctx.channel().id().asShortText());
                 cancelPendingResolution(ctx.channel(), pendingResolution);
                 failPendingResolution(ctx, pendingResolution, SESSION_RESOLUTION_BACKLOG_EXCEEDED_MESSAGE);
             }
@@ -279,6 +283,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
      * 连接断开时清掉挂起的异步绑定和本地绑定状态。
      */
     public void channelInactive(ChannelHandlerContext ctx) {
+        log.info("连接 {} 断开，清理绑定和挂起状态", ctx.channel().id().asShortText());
         clearPendingResolution(ctx.channel());
         clearBinding(ctx.channel());
         ctx.fireChannelInactive();
@@ -289,6 +294,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
      * 处理器被移除时同样要清理挂起状态和绑定状态。
      */
     public void handlerRemoved(ChannelHandlerContext ctx) {
+        log.info("连接 {} 处理器移除，清理绑定和挂起状态", ctx.channel().id().asShortText());
         clearPendingResolution(ctx.channel());
         clearBinding(ctx.channel());
     }
@@ -299,14 +305,17 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
      */
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         if (evt == HeartbeatHandler.HEARTBEAT_RECEIVED_EVENT) {
+            log.debug("连接 {} 收到客户端心跳", ctx.channel().id().asShortText());
             handleHeartbeatReceived(ctx);
             return;
         }
         if (evt == HeartbeatHandler.HEARTBEAT_TIMEOUT_EVENT) {
+            log.info("连接 {} 心跳超时，准备关闭", ctx.channel().id().asShortText());
             handleHeartbeatTimeout(ctx);
             return;
         }
         if (evt == DRAIN_GRACE_EXPIRED_EVENT) {
+            log.info("连接 {} drain 宽限期到期，关闭连接", ctx.channel().id().asShortText());
             handleDrainGraceExpired(ctx);
             return;
         }
@@ -507,13 +516,17 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
      * 先清掉本地绑定，再异步尝试删除外部在线路由，最后关闭连接。
      */
     private void releaseOwnedRouteAndClose(ChannelHandlerContext ctx) {
-        ExistingBinding existingBinding = existingBinding(ctx.channel());
-        clearBinding(ctx.channel());
-        if (ctx.channel().isActive()) {
+        Channel channel = ctx.channel();
+        ExistingBinding existingBinding = existingBinding(channel);
+        log.info("连接 [{}] 释放路由并关闭, userId={}, sessionId={}", channel.id().asShortText(),
+            existingBinding != null ? existingBinding.userId() : "无",
+            existingBinding != null ? existingBinding.sessionId() : "无");
+        clearBinding(channel);
+        if (channel.isActive()) {
             ctx.close();
         }
         if (hasManagedPersistedRoute(existingBinding)) {
-            clearHeartbeatRouteAsync(ctx.channel(), existingBinding);
+            clearHeartbeatRouteAsync(channel, existingBinding);
         }
     }
 
@@ -524,6 +537,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
         ChannelHandlerContext ctx,
         ArrayDeque<Object> remainingQueuedMessages
     ) {
+        log.info("连接 {} 被拒绝绑定，网关正在退场(drain)中", ctx.channel().id().asShortText());
         ExistingBinding existingBinding = existingBinding(ctx.channel());
         clearBinding(ctx.channel());
         if (hasManagedPersistedRoute(existingBinding)) {
@@ -579,6 +593,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
         ExistingBinding existingBinding
     ) {
         PendingResolution pendingResolution = new PendingResolution(sessionId, existingBinding);
+        log.info("连接 [{}] 开始异步认人: sessionId={}", ctx.channel().id().asShortText(), sessionId);
         if (!enqueuePendingMessage(pendingResolution, currentMessage)) {
             clearQueuedMessages(remainingQueuedMessages);
             failPendingResolution(ctx, pendingResolution, SESSION_RESOLUTION_BACKLOG_EXCEEDED_MESSAGE);
@@ -616,28 +631,33 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
     ) {
         PendingResolution currentPending = ctx.channel().attr(PENDING_RESOLUTION_ATTRIBUTE).get();
         if (currentPending != pendingResolution) {
+            log.info("连接 [{}] 异步认人结果已过期（被新认人覆盖）", ctx.channel().id().asShortText());
             cleanupAsyncBinding(ctx.channel(), asyncResolutionResult);
             return;
         }
         ctx.channel().attr(PENDING_RESOLUTION_ATTRIBUTE).set(null);
         if (asyncResolutionResult.cancelled()) {
+            log.info("连接 [{}] 异步认人被取消", ctx.channel().id().asShortText());
             clearQueuedMessages(pendingResolution.queuedMessages());
             return;
         }
         Resolution resolution = asyncResolutionResult.resolution();
         if (resolution.invalidSession()) {
+            log.info("连接 [{}] 异步认人结果: 会话无效", ctx.channel().id().asShortText());
             clearBinding(ctx.channel());
             emitSessionInvalid(ctx);
             clearQueuedMessages(pendingResolution.queuedMessages());
             return;
         }
         if (resolution.internalError()) {
+            log.info("连接 [{}] 异步认人结果: 上游服务不可用", ctx.channel().id().asShortText());
             emitInternalError(ctx);
             clearQueuedMessages(pendingResolution.queuedMessages());
             return;
         }
 
         if (asyncResolutionResult.bindFailure() != null) {
+            log.info("连接 [{}] 异步认人结果: 绑定失败", ctx.channel().id().asShortText());
             emitBindFailure(ctx, asyncResolutionResult.bindFailure());
             clearQueuedMessages(pendingResolution.queuedMessages());
             return;
@@ -646,11 +666,13 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
             refreshExistingBinding(ctx.channel(), pendingResolution.existingBinding().orElseThrow(), resolution.binding().orElseThrow());
         }
         if (!pendingResolution.revalidatesExistingBinding() && resolution.binding().isPresent() && gatewayDrainState.isDraining()) {
+            log.info("连接 [{}] 异步认人完成但网关已在退场，拒绝绑定", ctx.channel().id().asShortText());
             cleanupAsyncBinding(ctx.channel(), asyncResolutionResult);
             emitInternalErrorAndClose(ctx, GATEWAY_DRAINING_MESSAGE);
             clearQueuedMessages(pendingResolution.queuedMessages());
             return;
         }
+        log.info("连接 [{}] 异步认人完成, 开始处理排队消息", ctx.channel().id().asShortText());
         drainQueuedMessages(ctx, pendingResolution.queuedMessages(), resolution.binding().orElse(null));
     }
 
@@ -778,6 +800,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
      * 返回错误后立刻关闭连接。
      */
     private void emitInternalErrorAndClose(ChannelHandlerContext ctx, String message) {
+        log.warn("连接 [{}] 返回内部错误并关闭: {}", ctx.channel().id().asShortText(), message);
         emitError(ctx, ErrorCode.INTERNAL_ERROR, message, true);
     }
 
@@ -823,15 +846,16 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
             return PersistedSessionRoute.none();
         }
 
+        log.info("连接 [{}] 开始绑定用户 [{}], sessionId={}", channel.id().asShortText(), binding.userId(), binding.sessionId());
         boolean existingLocalBindingRemoved = false;
         boolean newLocalBindingEstablished = false;
         PersistedSessionRoute persistedRoute = null;
         try {
             abortIfAsyncBindCancelled(channel, pendingResolution);
             abortIfGatewayDraining();
-            // 在真正写成功前先标记为“还没正式接手这条连接”，避免这段时间被误当成有效 owner。
             markRouteOwnershipPending(channel);
             if (existingBinding != null) {
+                log.info("连接 [{}] 解绑旧会话 sessionId={}, userId={}", channel.id().asShortText(), existingBinding.sessionId(), existingBinding.userId());
                 channelSessionRegistry.unbind(existingBinding.sessionId(), existingBinding.userId(), channel);
                 existingLocalBindingRemoved = true;
             }
@@ -842,15 +866,15 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
             newLocalBindingEstablished = true;
             abortIfAsyncBindCancelled(channel, pendingResolution);
             abortIfGatewayDraining();
-            // 这里把“当前网关负责这个用户连接”写进 Redis，并拿到新的 routeEpoch。
             persistedRoute = sessionRouteWriter.writeRoute(binding, channel);
             abortIfAsyncBindCancelled(channel, pendingResolution);
             abortIfGatewayDraining();
             applyBindingAttributes(channel, binding, persistedRoute);
-            // 写完新路由后再通知旧连接退场，确保客户端重连后能以新连接为准。
             triggerReplacement(binding, persistedRoute);
+            log.info("连接 [{}] 绑定用户 [{}] 成功, routeEpoch={}", channel.id().asShortText(), binding.userId(), persistedRoute != null ? persistedRoute.routeEpoch() : "none");
             return persistedRoute;
         } catch (RuntimeException runtimeException) {
+            log.warn("连接 [{}] 绑定用户 [{}] 失败: {}", channel.id().asShortText(), binding.userId(), runtimeException.getMessage());
             RuntimeException routeCleanupFailure = tryClearPersistedRoute(channel, binding, persistedRoute);
             if (newLocalBindingEstablished) {
                 channelSessionRegistry.unbind(binding.sessionId(), binding.userId(), channel);
@@ -877,6 +901,7 @@ public final class SessionBindingHandler extends ChannelInboundHandlerAdapter {
         String sessionId = channel.attr(SESSION_ID_ATTRIBUTE).get();
         Long userId = channel.attr(USER_ID_ATTRIBUTE).get();
         if (sessionId != null && userId != null) {
+            log.info("连接 [{}] 清理绑定: userId={}, sessionId={}", channel.id().asShortText(), userId, sessionId);
             channelSessionRegistry.unbind(sessionId, userId, channel);
         }
         clearBindingAttributes(channel);
